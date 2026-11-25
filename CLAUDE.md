@@ -7,9 +7,8 @@ The full specification is docs/PRD.md. Read it before planning any work.
 If a request conflicts with the PRD, stop and ask me.
 
 ## About me
-I am a first-year university student. I know Python and modelling
-(numpy, pandas). I am new to JavaScript, web pages, Cloudflare and
-GitHub Actions. Explain anything web-related in plain language.
+I am a first-year at UChicago. I know Python, JavaScript, web pages, Github, and modelling
+(numpy, pandas). I am new to Cloudflare. 
 
 ## How we work
 1. Before writing code, give me a short plan: the files you will create
