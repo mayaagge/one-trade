@@ -136,13 +136,15 @@ These four address the two hardest problems, getting players to come back and ge
 
 ## The research questions, pre-registered
 
-Amended on 25 November 2026 by PREREG_AMENDMENT.md, before any price was downloaded: the freeze date moved to 24 November 2026, Hypothesis 2's windows moved with it, and the "no prices before 1 December" rule became "no prices before the prereg-v2 tag is on GitHub". PREREG.md keeps the original wording and is not edited; this section carries the amended dates.
+Amended twice on 25 November 2026, before any price was downloaded. PREREG_AMENDMENT.md moved the freeze date to 24 November 2026, moved Hypothesis 2's windows with it, and changed the "no prices before 1 December" rule to "no prices before the prereg-v2 tag is on GitHub". PREREG_AMENDMENT_2.md then added a stricter headline test to Hypothesis 1 (below) and moved the download gate again, to the prereg-v3 tag. PREREG.md keeps the original wording and is not edited; this section carries the amended dates and rules.
 
 Three hypotheses are frozen in a tagged git commit (prereg) before any real data is seen. The Research mode computes "supported", "not supported" or "not enough data" automatically, and its headline is generated from the verdicts. Hypotheses 1 and 2 are about markets. Hypothesis 3 is about whether the game teaches anything. Every result is reported, whichever way it comes out.
 
 ### Hypothesis 1: hidden concentration
 
 **Claim:** a beginner who combines a broad index fund, a tech fund and individual AI stocks has far fewer independent sources of risk than holdings.
+
+Amended on 25 November 2026 by PREREG_AMENDMENT_2.md, before any price was downloaded: the registered 0.60 median-ratio test turns out to mostly measure how unevenly the flat Dirichlet draw spreads money, not correlation (see "What the 0.60 threshold actually measures" in BUILD_LOG.md). The registered test is kept, unchanged, and reported; a stricter test is added beside it and becomes the headline.
 
 **Test design:**
 
@@ -152,13 +154,24 @@ Three hypotheses are frozen in a tagged git commit (prereg) before any real data
 
 3. Control set: 500 portfolios of 3 to 8 holdings drawn from VTI, VXUS, BND, GLD and the 3 non-AI stocks (JPM, JNJ, PG).
 
-4. For each portfolio, compute the ratio of effective risk sources to holdings, using 3 years of daily returns ending on the freeze date (24 November 2026).
+4. For each portfolio, the covariance matrix uses 3 years of daily returns ending on the freeze date (24 November 2026).
 
-5. The random seed is 2026, fixed and published in the repo.
+5. The random seed is 2026, fixed and published in the repo, and draws the same 500 beginner and 500 control portfolios for both tests below.
 
-**Supported if:** the beginner set's median ratio is below 0.60.
+**The headline test, added by amendment 2: the correlation-only ratio.** For each portfolio, R is the ratio of effective risk sources computed from the real covariance matrix to effective risk sources computed from the same weights and the same per-holding volatilities with every correlation switched off to zero. Holding the weights and volatilities fixed means only the correlations differ between the two, so R measures correlation's effect alone.
 
-**Also reported, not part of the verdict:** the full distribution for both sets, the share of beginner portfolios below 0.60, and the control set's median. The control shows whether the measure can tell a concentrated portfolio from a diversified one.
+**Supported if:** the beginner set's median R is strictly below 0.60. This threshold is derived, not chosen: it is the midpoint of the median R under two declared synthetic structures (pairwise correlation 0.70 and 0.30, both with a 0.8%-to-2.0% daily volatility ladder), computed before any real price existed. See PREREG_AMENDMENT_2.md section 4.
+
+**The registered test, kept and reported beside the headline:** the original rule is unchanged — supported if the beginner set's median ratio of effective risk sources to holdings is below 0.60 — computed and reported exactly as registered, whichever way it comes out.
+
+**Also reported, not part of either verdict:**
+
+- The full distribution of R and of the registered ratio, for both sets, and the share of beginner portfolios below each threshold.
+- The control set's median for each test, showing whether the measure separates a concentrated portfolio from a diversified one.
+- **The independence benchmark, 0.523:** what the registered sampler gives when holdings are exactly uncorrelated and exactly equally volatile — no hidden concentration at all. The registered verdict is only meaningful to the extent the beginner median falls below this, not merely below 0.60.
+- **The separation margin, 0.10, reporting-only:** the beginner median must sit at least 0.10 below the control median before the page says the measure told the two sets apart. It decides a sentence, never a verdict.
+
+If the headline and registered verdicts disagree, the page says so in plain words and explains which measures what; a disagreement is itself a result and is not resolved by choosing the more favourable reading.
 
 ### Hypothesis 2: a tightening market
 
@@ -204,6 +217,8 @@ Three hypotheses are frozen in a tagged git commit (prereg) before any real data
 
 The 13 names from v1 are frozen in basket.json, each with a one-line reason it counts as AI-driven. Both hypotheses are rerun 13 times, dropping one name each time. If any single drop flips a verdict, the page says so.
 
+Hypothesis 2's equal-weight basket already includes only the members with the full 10-year history (11 of the 13 — VRT and PLTR are excluded by that rule regardless of any drop). So dropping VRT or dropping PLTR leaves Hypothesis 2's basket, and its result, unchanged: its 13 reruns contain only **11 distinct results**. Hypothesis 1 is not affected — all 13 drops change its beginner and control pools, because its universe is the full basket, not the full-history subset.
+
 ### Values fixed at registration
 
 Every choice that could be tuned after seeing results is fixed here, before any price is downloaded. PREREG.md carries this same section, and the prereg tag timestamps it.
@@ -213,7 +228,7 @@ Every choice that could be tuned after seeing results is fixed here, before any 
 | The 3 non-AI stocks | JPM (banks), JNJ (health care), PG (consumer staples) | Hypothesis 1's universe and control set |
 | Random seed | 2026 | Hypothesis 1's portfolio sampler and Hypothesis 2's block bootstrap |
 | Freeze date | 24 November 2026, a normal trading day (amended 25 November 2026 from 30 November 2026) | The last day of every return window in Hypotheses 1 and 2 |
-| Earliest download date | Once the prereg-v2 tag is on GitHub (amended 25 November 2026 from 1 December 2026) | No price is fetched until the amendment is publicly timestamped |
+| Earliest download date | Once the prereg-v3 tag is on GitHub (amended 25 November 2026 from 1 December 2026, then moved forward again the same day by amendment 2) | No price is fetched until the amendment publishing the headline test and its threshold is publicly timestamped |
 | AI basket | The 13 names in basket.json | Both hypotheses, including the leave-one-out reruns |
 | Full universe | The 9 groups in tickers.json | The ticker list the game and both hypotheses draw from |
 
@@ -222,6 +237,8 @@ One non-AI stock was chosen per non-technology group so the control set spreads 
 ## How the numbers work
 
 Every measure is computed in the browser from daily adjusted closes. The same code produces the published verdicts and the user's results.
+
+**Daily returns are simple returns** (close-to-close percent change), used consistently everywhere a return appears. After the first real-data run, the same computation was redone with log returns instead, with nothing else changed, and gave the same four verdicts: Hypothesis 1's headline and registered tests, and Hypothesis 2 against RSP and against the S&P 500. Simple returns are kept because they are what a dollar amount in the game actually does; the check is recorded so that the choice is shown not to matter here, rather than assumed not to.
 
 **Inputs:** for a portfolio of N holdings, *w* is the vector of dollar weights (summing to 1). Σ is the covariance matrix of daily returns over the most recent 756 trading days, about 3 years. Holdings with less history use their overlapping days, with a minimum of 252.
 

@@ -276,3 +276,45 @@ by trying thresholds against a hypothesis result: no hypothesis has been run
 against this snapshot yet, and none is run in this change.
 
 Educational, not investment advice.
+
+## First real-data run and review, 25 November 2026 (session 1.10)
+
+Both hypotheses were run once against the real snapshot in `data/prices.json` -
+the first time either has seen a real price. Nothing here changes a rule, a
+threshold or a line of research code; this entry records what came out.
+
+**Hypothesis 1.** The registered beginner median - the ratio of effective risk
+sources to holdings, as PREREG.md defines it - came out at **0.327**, comfortably
+below the **0.523 independence benchmark** published in PREREG_AMENDMENT_2.md
+section 2. That matters: 0.327 clearing 0.60 is not just the flat-Dirichlet
+weight effect the benchmark exists to catch (which alone would put the median
+near 0.52), so the registered "supported" verdict is a real reading. The
+headline test tells a different story. The beginner median correlation-only
+ratio R came out at **0.773**, above the 0.60 headline threshold, so the
+headline verdict is "not supported". The two tests disagree - exactly the case
+PREREG_AMENDMENT_2.md section 5 anticipates - and the page has to say so in
+plain words rather than lead with the more flattering reading.
+
+**Hypothesis 2.** The registered benchmark, RSP, shows the AI basket's
+correlation with the market **falling**, not rising, from the earliest 12
+months to the most recent: a difference of **-0.0554** against the 0.10 rise
+the claim needs, so "not supported". Reported beside it, not part of the
+verdict, the same basket against the S&P 500 index (^GSPC) shows a rise of
+**+0.2155** - on that benchmark alone the claim would read "supported". This is
+the concrete case for why PREREG.md registered RSP, not the index, as the
+verdict's benchmark: each AI stock is about 0.2% of equal-weight RSP, so a rise
+there is not mostly the arithmetic fact that the AI stocks are already some of
+the largest names in a cap-weighted S&P 500. The index number is real and is
+reported, but it was never the registered answer, and choosing it after seeing
+this gap would have been exactly the kind of after-the-fact pick pre-registration
+exists to rule out.
+
+**The log-return check,** recorded in docs/PRD.md's methods section: daily
+simple returns are used everywhere in the code and on the page. After this
+first run, the same four verdicts above - Hypothesis 1's headline and registered
+tests, and Hypothesis 2 against RSP and against ^GSPC - were recomputed from log
+returns instead, with no other change, and all four came out the same. Simple
+returns are kept, because they are what a dollar amount in the game actually
+does.
+
+Educational, not investment advice.
