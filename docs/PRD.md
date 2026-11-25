@@ -217,7 +217,7 @@ If the headline and registered verdicts disagree, the page says so in plain word
 
 The 13 names from v1 are frozen in basket.json, each with a one-line reason it counts as AI-driven. Both hypotheses are rerun 13 times, dropping one name each time. If any single drop flips a verdict, the page says so.
 
-Hypothesis 2's equal-weight basket already includes only the members with the full 10-year history (11 of the 13 — VRT and PLTR are excluded by that rule regardless of any drop). So dropping VRT or dropping PLTR leaves Hypothesis 2's basket, and its result, unchanged: its 13 reruns contain only **11 distinct results**. Hypothesis 1 is not affected — all 13 drops change its beginner and control pools, because its universe is the full basket, not the full-history subset.
+Hypothesis 2's equal-weight basket already includes only the members with the full 10-year history (11 of the 13 — VRT and PLTR are excluded by that rule regardless of any drop). 11 of the 13 drops change the full-history basket; dropping VRT or PLTR reproduces the baseline, so there are **12 distinct results**. Hypothesis 1 is not affected — all 13 drops change its beginner and control pools, because its universe is the full basket, not the full-history subset.
 
 ### Values fixed at registration
 

@@ -256,8 +256,8 @@ test('reportedCombinations() drops the registered pair and keeps the rest', () =
 // 12 is right: 11 drops each remove a full-history member and give 11 different
 // results, while dropping VRT or PLTR reproduces the baseline - one more result,
 // shared by those two rows. 11 is the number of drops that change the basket,
-// not the number of distinct results. The page prints the computed count, so it
-// cannot drift from the file; docs/PRD.md line 220 is the line to correct.
+// not the number of distinct results. docs/PRD.md said 11 and was corrected on
+// 25 November 2026; the page prints the computed count, so it cannot drift.
 test('distinctRunCount() finds 12 distinct results in Hypothesis 2’s 13 reruns', () => {
   const runs = RESULTS.leaveOneOut.hypothesis2.runs;
   assert.equal(runs.length, 13);

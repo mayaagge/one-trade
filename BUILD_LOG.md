@@ -500,8 +500,13 @@ distinct results**". The committed results give **12**, and 12 is right:
 results; the slip is subtracting both collapsed rows instead of one. The page
 computes the count from the file rather than printing a literal, so it says 12
 and cannot drift, and `tests/research.test.js` locks both the count and the
-reason. **The PRD line is not edited** - it is the specification, and a
-correction to it is yours to make.
+reason.
+
+**Corrected in docs/PRD.md on 25 November 2026, at your instruction**, to read:
+"11 of the 13 drops change the full-history basket; dropping VRT or PLTR
+reproduces the baseline, so there are 12 distinct results." The pre-registration
+files are untouched - the count is a description of the reruns, not a registered
+test or a threshold, and PREREG.md never stated it.
 
 ### Checked by looking at it
 

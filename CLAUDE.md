@@ -40,6 +40,6 @@ I am a first-year at UChicago. I know Python, JavaScript, web pages, Github, and
 - docs/PRD.md: the specification
 
 ## Commands
-- Run the site locally: python -m http.server 8000
+- Run the site locally: python3 -m http.server 8000
 - Run JavaScript tests: node --test "tests/**/*.test.js"
 - Make test fixtures: python tests/make_fixtures.py
