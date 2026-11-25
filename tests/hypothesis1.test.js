@@ -31,6 +31,9 @@ import {
   MIN_HOLDINGS,
   MAX_HOLDINGS,
   MEDIAN_THRESHOLD,
+  CORRELATION_ONLY_THRESHOLD,
+  INDEPENDENCE_BENCHMARK,
+  SEPARATION_MARGIN,
   MIN_DAYS,
   BROAD_FUNDS,
   PRESET_FUNDS,
@@ -44,6 +47,8 @@ import {
   median,
   summarise,
   verdictFor,
+  correlationOnlyVerdictFor,
+  compareSets,
   hypothesis1,
   correlationOnlyRatio,
   portfolioCorrelationOnlyRatio,
@@ -94,6 +99,36 @@ function orthogonalFour() {
     tickers.map((ticker, i) => [ticker, signs.map((row) => row[i] * a)]),
   );
   return { tickers, returnsByTicker };
+}
+
+/**
+ * The friendliest case diversification can have: every name in the universe
+ * exactly uncorrelated with every other and exactly equally volatile, so there
+ * is no hidden concentration of any kind to find.
+ *
+ * Each ticker moves on its own two days of a 44-day cycle and is flat otherwise,
+ * so every cross-product is exactly 0 and the covariance matrix arrives
+ * diagonal - the case js/math.js returns unrotated, so effective bets is not
+ * disturbed by tied eigenvalues. 264 days, past the 252 floor.
+ *
+ * This is the fixture the whole amendment turns on. The registered ratio calls
+ * it "supported"; the correlation-only ratio R is exactly 1 on it, which is the
+ * right answer.
+ */
+function independentUniverse(basket = BASKET) {
+  const pool = beginnerPool(basket);
+  const cycle = 2 * pool.length;                 // 44 days, two per ticker
+  const days = cycle * 6;                        // 264 days, past the 252 floor
+  const returnsByTicker = Object.fromEntries(pool.map((ticker, i) => [
+    ticker,
+    Array.from({ length: days }, (_, t) => {
+      const slot = t % cycle;
+      if (slot === 2 * i) return 0.01;
+      if (slot === 2 * i + 1) return -0.01;
+      return 0;
+    }),
+  ]));
+  return { pool, days, returnsByTicker };
 }
 
 // --- 1. the frozen inputs ---------------------------------------------------
@@ -341,20 +376,26 @@ test('a ratio exactly on the threshold does not count as below it', () => {
   assert.equal(summary.shareBelowThreshold, 0);
 });
 
-test('hypothesis1 says supported when the beginner median is below 0.60', () => {
+test('hypothesis1 says supported when the registered beginner median is below 0.60', () => {
   // Identical returns for every name, so every portfolio scores 1/N, and with
-  // 3 to 8 holdings every ratio is at most 1/3 - comfortably below 0.60.
+  // 3 to 8 holdings every ratio is at most 1/3 - comfortably below 0.60. One
+  // shared return series is also the most correlated market there is, so the
+  // headline test agrees here: R is well below 0.60 too.
   const pool = beginnerPool(BASKET);
   const shared = wave(3, 300);
   const returnsByTicker = Object.fromEntries(pool.map((t) => [t, shared]));
   const result = hypothesis1({ returnsByTicker, basket: BASKET, seed: SEED });
 
-  assert.equal(result.verdict, 'supported');
-  assert.equal(result.beginner.median < MEDIAN_THRESHOLD, true);
-  assert.equal(result.beginner.count, 500);
-  assert.equal(result.control.count, 500, "the control's median is reported beside it");
-  assert.equal(typeof result.control.median, 'number');
-  assert.equal(result.threshold, MEDIAN_THRESHOLD);
+  assert.equal(result.registered.verdict, 'supported');
+  assert.equal(result.registered.beginner.median < MEDIAN_THRESHOLD, true);
+  assert.equal(result.registered.beginner.count, 500);
+  assert.equal(result.registered.control.count, 500, "the control's median is reported beside it");
+  assert.equal(typeof result.registered.control.median, 'number');
+  assert.equal(result.registered.threshold, MEDIAN_THRESHOLD);
+
+  // Both tests come out the same way on this fixture, and the page says so.
+  assert.equal(result.verdict, 'supported', 'the headline verdict is the R verdict');
+  assert.equal(result.verdictsAgree, true);
 });
 
 test('the verdict rule: supported only when the median is strictly below 0.60', () => {
@@ -372,44 +413,33 @@ test('the verdict rule: supported only when the median is strictly below 0.60', 
   assert.throws(() => verdictFor({ median: Number.NaN, days: 756, minDays: MIN_DAYS }), /verdictFor/);
 });
 
-test('FINDING: flat-Dirichlet weights alone put the median below 0.60', () => {
+test('FINDING: flat-Dirichlet weights alone put the registered median below 0.60', () => {
   // This test records a property of the pre-registered design, found before any
   // price existed. See BUILD_LOG.md, "What the 0.60 threshold actually measures".
   //
   // The fixture is the friendliest case diversification can have: 22 holdings
-  // that are exactly uncorrelated and exactly equally volatile. Each ticker
-  // moves on its own two days of a 44-day cycle and is flat otherwise, so every
-  // cross-product is exactly 0 and the covariance matrix arrives diagonal - the
-  // case js/math.js returns unrotated, so effective bets is not disturbed by
-  // tied eigenvalues.
+  // that are exactly uncorrelated and exactly equally volatile.
   //
   // With perfectly independent holdings the variance shares reduce to
   // w^2 / sum(w^2), so the ratio depends on the WEIGHTS ALONE. Flat Dirichlet
   // weights are uneven enough on their own to drag the median to about 0.51,
-  // which is already below the registered 0.60. So the verdict comes out
-  // "supported" even where there is no hidden concentration whatsoever.
-  const pool = beginnerPool(BASKET);
-  const cycle = 2 * pool.length;                 // 44 days, two per ticker
-  const days = cycle * 6;                        // 264 days, past the 252 floor
-  const returnsByTicker = Object.fromEntries(pool.map((ticker, i) => [
-    ticker,
-    Array.from({ length: days }, (_, t) => {
-      const slot = t % cycle;
-      if (slot === 2 * i) return 0.01;
-      if (slot === 2 * i + 1) return -0.01;
-      return 0;
-    }),
-  ]));
+  // which is already below the registered 0.60. So the registered verdict comes
+  // out "supported" even where there is no hidden concentration whatsoever.
+  const { returnsByTicker } = independentUniverse();
 
   const result = hypothesis1({ returnsByTicker, basket: BASKET, seed: SEED });
-  assert.equal(result.verdict, 'supported',
-    'perfectly independent holdings still clear the threshold');
-  assert.equal(result.beginner.median < MEDIAN_THRESHOLD, true,
-    `median was ${result.beginner.median}, expected below ${MEDIAN_THRESHOLD}`);
-  assert.equal(result.beginner.median > 0.40 && result.beginner.median < 0.58, true,
-    `median was ${result.beginner.median}, expected about 0.51`);
-  assert.equal(result.control.median < MEDIAN_THRESHOLD, true,
-    `the control median was ${result.control.median}: the threshold cannot separate the two sets`);
+  assert.equal(result.registered.verdict, 'supported',
+    'perfectly independent holdings still clear the registered threshold');
+  assert.equal(result.registered.beginner.median < MEDIAN_THRESHOLD, true,
+    `median was ${result.registered.beginner.median}, expected below ${MEDIAN_THRESHOLD}`);
+  assert.equal(
+    result.registered.beginner.median > 0.40 && result.registered.beginner.median < 0.58, true,
+    `median was ${result.registered.beginner.median}, expected about 0.51`,
+  );
+  assert.equal(result.registered.control.median < MEDIAN_THRESHOLD, true,
+    `the control median was ${result.registered.control.median}: `
+    + 'the threshold cannot separate the two sets',
+  );
 });
 
 test('hypothesis1 says not enough data below 252 overlapping days', () => {
@@ -419,6 +449,8 @@ test('hypothesis1 says not enough data below 252 overlapping days', () => {
   assert.equal(result.verdict, 'not enough data');
   assert.equal(result.days, 251);
   assert.equal(result.minDays, 252);
+  assert.equal(result.headline, null, 'neither test is scored on too little history');
+  assert.equal(result.registered, null);
 });
 
 test('hypothesis1 runs at exactly 252 days', () => {
@@ -608,6 +640,193 @@ test('hypothesis1 scores exactly the portfolios registeredSets draws', () => {
 
   const expectedBeginner = sets.beginner.map((p) => portfolioRatio(p, returnsByTicker));
   const expectedControl = sets.control.map((p) => portfolioRatio(p, returnsByTicker));
-  assert.deepEqual(result.beginner.ratios, expectedBeginner);
-  assert.deepEqual(result.control.ratios, expectedControl);
+  assert.deepEqual(result.registered.beginner.ratios, expectedBeginner);
+  assert.deepEqual(result.registered.control.ratios, expectedControl);
+
+  // The headline test scores the SAME 500 portfolios, with the other measure.
+  assert.deepEqual(
+    result.headline.beginner.ratios,
+    sets.beginner.map((p) => portfolioCorrelationOnlyRatio(p, returnsByTicker)),
+  );
+  assert.deepEqual(
+    result.headline.control.ratios,
+    sets.control.map((p) => portfolioCorrelationOnlyRatio(p, returnsByTicker)),
+  );
+});
+
+// --- the headline verdict, wired in ------------------------------------------
+//
+// PREREG_AMENDMENT_2.md section 5: the page reports BOTH tests, always,
+// whichever way each comes out.
+//
+//   headline    the correlation-only ratio R of section 3, supported if the
+//               beginner median R is STRICTLY below 0.60
+//   registered  the 0.60 median ratio of section 2, exactly as tagged, reported
+//               beside it with the 0.523 independence benchmark, the control
+//               median and the beginner-vs-control comparison
+//
+// If the two disagree, the page says so in plain words. A disagreement is itself
+// a result and is not resolved by choosing the more favourable one.
+
+test('the amendment 2 constants are the published ones', () => {
+  assert.equal(CORRELATION_ONLY_THRESHOLD, 0.60,
+    'section 4 derived 0.60 from a midpoint of 0.603869');
+  assert.equal(INDEPENDENCE_BENCHMARK, 0.523,
+    'section 2: what the registered sampler gives on exactly uncorrelated, equally volatile holdings');
+  assert.equal(SEPARATION_MARGIN, 0.10,
+    'wording only, never part of a verdict: half the 0.20 span between the two calibration medians');
+});
+
+test('the headline rule: supported only when the median R is strictly below 0.60', () => {
+  const at = (medianR, days = 756) => correlationOnlyVerdictFor({
+    median: medianR, days, minDays: MIN_DAYS,
+  });
+  assert.equal(at(0.0), 'supported');
+  assert.equal(at(0.5999), 'supported');
+  assert.equal(at(0.6), 'not supported', 'exactly 0.60 is not below 0.60');
+  assert.equal(at(0.6001), 'not supported');
+  assert.equal(at(1.0), 'not supported', 'R of 1 means correlation cost the portfolios nothing');
+  assert.equal(at(1.4), 'not supported', 'R above 1 means correlation helped');
+  // Too little history outranks the median, whatever the median says.
+  assert.equal(at(0.1, 251), 'not enough data');
+  assert.equal(at(0.1, 252), 'supported');
+  // An undefined R is never quietly treated as a number.
+  assert.throws(() => at(Number.NaN), /correlationOnlyVerdictFor/);
+});
+
+test('the beginner-vs-control comparison uses the 0.10 reporting margin', () => {
+  // The gap is the control median MINUS the beginner median, so a positive gap
+  // means the control set looks more diversified, which is the direction the
+  // claim predicts.
+  const wide = compareSets({ beginnerMedian: 0.40, controlMedian: 0.55 });
+  assert.equal(Math.abs(wide.gap - 0.15) < 1e-12, true);
+  assert.equal(wide.separatesSets, true);
+  assert.match(wide.note, /tells the two sets apart/);
+
+  const narrow = compareSets({ beginnerMedian: 0.50, controlMedian: 0.52 });
+  assert.equal(Math.abs(narrow.gap - 0.02) < 1e-12, true);
+  assert.equal(narrow.separatesSets, false);
+  assert.match(narrow.note, /has not separated the two sets/);
+
+  // Exactly on the margin counts as separated: the margin reads "at least 0.10".
+  // Note which numbers this is checked with. A gap of "0.10" is mostly NOT a gap
+  // of 0.10 in binary - 0.5 minus 0.4 is 0.09999999999999998 - so the boundary is
+  // only testable where the subtraction is exact. That is also why no VERDICT in
+  // this project is allowed to turn on a value landing exactly on its cut-off;
+  // this margin decides a sentence, not a verdict, so it can afford a boundary.
+  assert.equal(compareSets({ beginnerMedian: 0, controlMedian: 0.1 }).gap, 0.1);
+  assert.equal(compareSets({ beginnerMedian: 0, controlMedian: 0.1 }).separatesSets, true);
+  assert.equal(compareSets({ beginnerMedian: 0, controlMedian: 0.1 - 1e-9 }).separatesSets, false);
+  // The margin is reported with the gap, so a reader can judge a near miss.
+  assert.equal(compareSets({ beginnerMedian: 0.5, controlMedian: 0.52 }).margin, SEPARATION_MARGIN);
+
+  // A control set that scores LOWER than the beginner set has not separated them
+  // either - it has separated them the wrong way round.
+  const wrongWay = compareSets({ beginnerMedian: 0.8, controlMedian: 0.3 });
+  assert.equal(wrongWay.separatesSets, false);
+  assert.equal(wrongWay.gap < 0, true);
+});
+
+test('hypothesis1 reports R for both sets, and the headline verdict is the R verdict', () => {
+  const pool = beginnerPool(BASKET);
+  const returnsByTicker = syntheticReturns(pool, 300);
+  const result = hypothesis1({ returnsByTicker, basket: BASKET, seed: SEED });
+
+  assert.equal(result.headline.beginner.count, 500);
+  assert.equal(result.headline.control.count, 500, 'R is reported for both sets');
+  assert.equal(result.headline.beginner.ratios.length, 500, 'the full distribution of R');
+  assert.equal(result.headline.control.ratios.length, 500);
+  assert.equal(result.headline.threshold, CORRELATION_ONLY_THRESHOLD);
+  assert.equal(result.threshold, CORRELATION_ONLY_THRESHOLD, 'the headline threshold leads');
+  assert.equal(
+    result.verdict,
+    correlationOnlyVerdictFor({
+      median: result.headline.beginner.median, days: result.days, minDays: MIN_DAYS,
+    }),
+    'the top-level verdict is the correlation-only one',
+  );
+  assert.equal(
+    result.registered.verdict,
+    verdictFor({ median: result.registered.beginner.median, days: result.days, minDays: MIN_DAYS }),
+    'the registered verdict is computed exactly as registered',
+  );
+});
+
+test('the registered test is reported beside it, with all four numbers', () => {
+  const pool = beginnerPool(BASKET);
+  const returnsByTicker = syntheticReturns(pool, 300);
+  const { registered } = hypothesis1({ returnsByTicker, basket: BASKET, seed: SEED });
+
+  // PREREG_AMENDMENT_2.md section 2's table, number by number.
+  assert.equal(typeof registered.beginner.median, 'number', 'the registered statistic');
+  assert.equal(registered.independenceBenchmark, INDEPENDENCE_BENCHMARK, 'the 0.523 benchmark');
+  assert.equal(typeof registered.control.median, 'number', "the control set's median ratio");
+  assert.equal(typeof registered.beginner.shareBelowThreshold, 'number',
+    'the share of beginner portfolios below 0.60');
+  assert.equal(
+    registered.belowIndependenceBenchmark,
+    registered.beginner.median < INDEPENDENCE_BENCHMARK,
+    'the registered verdict is only meaningful below the benchmark, not merely below 0.60',
+  );
+  assert.equal(typeof registered.gap, 'number', 'the beginner-vs-control comparison');
+  assert.equal(typeof registered.separatesSets, 'boolean');
+});
+
+test('DISAGREEMENT: on exactly uncorrelated holdings the two tests part company', () => {
+  // The fixture the amendment exists for. Every holding is exactly uncorrelated
+  // and exactly equally volatile, so the claim is FALSE BY CONSTRUCTION.
+  const { returnsByTicker } = independentUniverse();
+  const result = hypothesis1({ returnsByTicker, basket: BASKET, seed: SEED });
+
+  // The headline test gets it right: R is exactly 1 everywhere, so correlation
+  // cost these portfolios nothing and the claim is not supported.
+  assert.equal(result.verdict, 'not supported');
+  assert.equal(Math.abs(result.headline.beginner.median - 1) < 1e-9, true,
+    `median R was ${result.headline.beginner.median}, expected exactly 1`);
+  assert.equal(
+    result.headline.beginner.ratios.every((r) => Math.abs(r - 1) < 1e-9), true,
+    'every portfolio should score exactly 1',
+  );
+  assert.equal(Math.abs(result.headline.control.median - 1) < 1e-9, true);
+  assert.equal(result.headline.beginner.shareBelowThreshold, 0);
+
+  // The registered test gets it wrong, and is reported anyway.
+  assert.equal(result.registered.verdict, 'supported');
+
+  // So the page says they disagree, and names which measures what.
+  assert.equal(result.verdictsAgree, false);
+  assert.match(result.statement, /disagree/);
+  assert.match(result.statement, /correlation/);
+
+  // Neither measure tells the two pools apart on this fixture, and both say so.
+  assert.equal(result.headline.separatesSets, false);
+  assert.equal(result.registered.separatesSets, false);
+  assert.match(result.headline.note, /has not separated the two sets/);
+});
+
+test('a universe member that never moves makes R undefined, so the page says not enough data', () => {
+  // PREREG_AMENDMENT_2.md section 3: "If any universe member has no variance at
+  // all over the window, R is undefined for portfolios holding it, and the page
+  // reports 'not enough data' rather than dropping the portfolio."
+  const pool = beginnerPool(BASKET);
+  const returnsByTicker = syntheticReturns(pool, 300);
+  returnsByTicker.BND = new Array(300).fill(0);          // a holding that never moves
+
+  const result = hypothesis1({ returnsByTicker, basket: BASKET, seed: SEED });
+  assert.equal(result.verdict, 'not enough data');
+  assert.equal(result.headline, null, 'no portfolio is quietly dropped instead');
+  assert.equal(result.registered, null);
+  assert.match(result.note, /BND/, 'the page names the holding that never moves');
+});
+
+test('hypothesis1 states both verdicts plainly when they agree', () => {
+  const pool = beginnerPool(BASKET);
+  const shared = wave(3, 300);
+  const returnsByTicker = Object.fromEntries(pool.map((t) => [t, shared]));
+  const result = hypothesis1({ returnsByTicker, basket: BASKET, seed: SEED });
+
+  assert.equal(result.verdictsAgree, true);
+  assert.match(result.statement, /agree/);
+  assert.match(result.statement, /supported/);
+  assert.equal(result.disclaimer, 'Educational, not investment advice.');
 });

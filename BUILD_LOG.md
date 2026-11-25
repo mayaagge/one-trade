@@ -201,3 +201,51 @@ Educational, not investment advice.
 | The threshold | **0.60**, from a midpoint of 0.603869 | Derived by the declared rule, not chosen. Supported if the beginner median R is strictly below 0.60 |
 | The download gate | **Moved from `prereg-v2` to `prereg-v3`** in CLAUDE.md rule 6 and in scripts/fetch_data.py | The stricter test and its threshold have to be timestamped publicly before any price exists, or adding them would be worthless. The snapshot's provenance field is renamed `prereg_v3_commit` to match |
 
+
+## Wiring the correlation-only test into the verdict, 25 November 2026
+
+`hypothesis1()` computed only the registered v1 ratio until now, so the primary
+test registered in PREREG_AMENDMENT_2.md section 3 existed in `js/hypothesis1.js`
+as a measure but decided nothing. It now decides the headline verdict, and the
+registered test is reported beside it exactly as tagged.
+
+What the result looks like, in plain language. `hypothesis1()` returns two
+labelled blocks rather than one set of numbers:
+
+- `headline` — the correlation-only ratio R. Supported if the beginner median R
+  is **strictly** below 0.60. R is reported for **both** sets: median, full
+  distribution, share below the threshold, and the beginner-vs-control gap.
+- `registered` — the 0.60 median ratio of effective risk sources to holdings,
+  computed exactly as registered, with the 0.523 independence benchmark, a flag
+  for whether the beginner median actually falls below that benchmark, the
+  control median and the same gap.
+- `verdict` is the headline one, repeated at the top because that is what the
+  page leads with. `verdictsAgree` and `statement` cover section 5: if the two
+  tests disagree the page says so in plain words and says which measures what.
+
+Both blocks score the **same** 500 beginner and 500 control portfolios from one
+`registeredSets()` draw at seed 2026. Nothing new is drawn, so nothing about the
+tagged sampler moves.
+
+| Decision | What was chosen | Why |
+| --- | --- | --- |
+| The result shape | **Two named blocks, `headline` and `registered`**, instead of keeping one `beginner`/`control` pair at the top level | Two different statistics now come out of the same portfolios. Leaving `result.beginner.median` to mean one of them, with the other bolted on, is how a reader ends up comparing the wrong number with 0.523. Each block names its own statistic and carries its own threshold |
+| **The separation margin, 0.10** | A **reporting-only** constant, `SEPARATION_MARGIN`. The beginner median must sit at least 0.10 below the control median before the page says the measure told the two sets apart | Section 2 requires the page to say the measure "has not separated the two sets" when the medians come out close, but registers no number for "close". 0.10 is half the 0.20 span between the two calibration medians (0.503775 tight, 0.703964 diversified) — the same midpoint logic that fixed the 0.60 threshold. **It enters no verdict:** both verdicts are a median against its own threshold and nothing else, so this number cannot turn a "supported" into a "not supported". It decides one sentence. Committed before any price was downloaded |
+| A universe member that never moves | **"not enough data" for the whole hypothesis**, naming the ticker | Section 3: R is undefined where there is no variance to divide by. Scoring the portfolios that happened to avoid that holding would quietly reshape the registered 500, which the section forbids |
+| The leave-one-out loop | **One set of 13 reruns, two verdicts read out of it** | Section 6 applies the reruns to the new test "exactly as it applies to the registered one", so a drop that flips *either* verdict is named — including one that moves only the registered verdict while the headline survives all 13. Running the hypothesis twice per drop would double the work and let the two readings drift apart |
+
+A test caught something worth recording. The 0.10 margin has a boundary, and the
+boundary is mostly untestable: a gap of "0.10" is usually not a gap of 0.10 in
+binary, because `0.5 - 0.4` is `0.09999999999999998`. The first version of the
+test asserted the boundary with that pair and failed. The margin is checked with
+a gap that subtracts exactly instead, and the test says why. This is the same
+reason no *verdict* in this project is allowed to turn on a value landing exactly
+on its cut-off — a margin that decides a sentence can afford a boundary, and a
+verdict cannot.
+
+`node --test "tests/**/*.test.js"`: **197 tests, all passing.** The published
+threshold is unmoved — `node scripts/calibrate_threshold.mjs` still prints 0.60
+from a midpoint of 0.603869. No price data was fetched, and none exists in the
+repository.
+
+Educational, not investment advice.

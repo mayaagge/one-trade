@@ -46,11 +46,16 @@ export function leaveOneOut(basket, run, seed = SEED) {
  * Compare every rerun's verdict with the headline one and report any that
  * differ. "not enough data" is a verdict like the others here: if dropping one
  * name leaves too little history to answer, that is itself a flip worth saying.
+ *
+ * verdictOf says where to find the verdict in a result. Hypothesis 1 carries two
+ * since PREREG_AMENDMENT_2.md: the headline correlation-only verdict at
+ * result.verdict, and the registered one at result.registered.verdict. Both are
+ * read out of the SAME 13 reruns, so a rerun is never run twice.
  */
-export function flippedVerdicts(baselineVerdict, runs) {
+export function flippedVerdicts(baselineVerdict, runs, verdictOf = (result) => result.verdict) {
   const flippedBy = runs
-    .filter((run) => run.result.verdict !== baselineVerdict)
-    .map((run) => ({ dropped: run.dropped, verdict: run.result.verdict }));
+    .filter((run) => verdictOf(run.result) !== baselineVerdict)
+    .map((run) => ({ dropped: run.dropped, verdict: verdictOf(run.result) }));
   return {
     baselineVerdict,
     anyFlipped: flippedBy.length > 0,
@@ -66,30 +71,63 @@ function describe(label, flipped) {
     .join('; ');
 }
 
+/** Where the registered verdict sits inside a Hypothesis 1 result. */
+const registeredVerdictOf = (result) => result.registered.verdict;
+
 /**
  * The whole robustness check: both hypotheses, 13 reruns each, and one plain
  * sentence the Research page can print as it stands.
  *
+ * HYPOTHESIS 1 HAS TWO VERDICTS TO WATCH, since PREREG_AMENDMENT_2.md section 6:
+ * "That applies to the new primary test exactly as it applies to the registered
+ * one: 13 reruns at seed 2026, and any drop that flips either verdict is named."
+ * So a drop that moves only the registered verdict is reported too, even when the
+ * headline verdict survives all 13 - the robustness check is not a check on the
+ * headline alone.
+ *
+ * Both verdicts come out of ONE set of 13 reruns. Running the hypothesis twice
+ * per drop would double the work and let the two readings drift apart.
+ *
  * @param {object} options
  * @param {string[]} options.basket the frozen 13 names
- * @param {{hypothesis1: {verdict: string}, hypothesis2: {verdict: string}}} options.baseline
+ * @param {{hypothesis1: {verdict: string, registered: {verdict: string}},
+ *          hypothesis2: {verdict: string}}} options.baseline
  *        the verdicts from the full basket
  * @param {Function} options.runH1 called as runH1(basket, dropped, seed)
  * @param {Function} options.runH2 called as runH2(basket, dropped, seed)
  */
 export function leaveOneOutReport({ basket, baseline, runH1, runH2, seed = SEED }) {
-  const hypothesis1 = flippedVerdicts(
-    baseline.hypothesis1.verdict,
-    leaveOneOut(basket, runH1, seed),
+  if (typeof baseline?.hypothesis1?.registered?.verdict !== 'string') {
+    throw new Error(
+      'leaveOneOutReport: the Hypothesis 1 baseline needs both verdicts - the headline one '
+      + 'at verdict and the registered one at registered.verdict - because a drop that flips '
+      + 'either of them has to be named',
+    );
+  }
+
+  const h1Runs = leaveOneOut(basket, runH1, seed);
+  const headline = flippedVerdicts(baseline.hypothesis1.verdict, h1Runs);
+  const registered = flippedVerdicts(
+    baseline.hypothesis1.registered.verdict, h1Runs, registeredVerdictOf,
   );
+  const hypothesis1 = {
+    runs: h1Runs,
+    headline,
+    registered,
+    anyFlipped: headline.anyFlipped || registered.anyFlipped,
+  };
+
   const hypothesis2 = flippedVerdicts(
     baseline.hypothesis2.verdict,
     leaveOneOut(basket, runH2, seed),
   );
 
   const anyFlipped = hypothesis1.anyFlipped || hypothesis2.anyFlipped;
-  const parts = [describe('Hypothesis 1', hypothesis1), describe('Hypothesis 2', hypothesis2)]
-    .filter((part) => part !== '');
+  const parts = [
+    describe('Hypothesis 1', headline),
+    describe("Hypothesis 1's registered test", registered),
+    describe('Hypothesis 2', hypothesis2),
+  ].filter((part) => part !== '');
 
   return {
     seed,

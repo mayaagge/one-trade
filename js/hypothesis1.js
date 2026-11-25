@@ -49,6 +49,35 @@ export const MEDIAN_THRESHOLD = 0.60;
 export const CORRELATION_ONLY_THRESHOLD = 0.60;
 
 /**
+ * The independence benchmark, published in PREREG_AMENDMENT_2.md section 2:
+ * what the registered sampler gives when the holdings are exactly uncorrelated
+ * and exactly equally volatile - that is, when there is no hidden concentration
+ * of any kind to find.
+ *
+ * It is reported beside the registered verdict because the registered verdict is
+ * only meaningful to the extent the beginner median falls below THIS, not merely
+ * below 0.60. A median of 0.52 clears 0.60 while saying nothing at all.
+ */
+export const INDEPENDENCE_BENCHMARK = 0.523;
+
+/**
+ * How far below the control set's median the beginner set's has to sit before
+ * the page may say the measure told the two pools apart.
+ *
+ * WORDING ONLY. This number enters NO verdict: both verdicts are the medians
+ * against their own thresholds and nothing else, so changing this cannot turn a
+ * "supported" into a "not supported" either way. It decides one sentence.
+ *
+ * PREREG_AMENDMENT_2.md section 2 requires the page to say the measure "has not
+ * separated the two sets" when the two medians come out close to each other, but
+ * registers no number for "close". 0.10 is half the 0.20 span between the two
+ * calibration medians in section 4 - 0.503775 under the tight structure and
+ * 0.703964 under the diversified one - so it is the same midpoint logic that
+ * fixed the threshold itself. Recorded as a decision in BUILD_LOG.md.
+ */
+export const SEPARATION_MARGIN = 0.10;
+
+/**
  * The covariance window: "3 years of daily returns ending on the freeze date".
  * The PRD puts that at 756 trading days, and sets 252 as the floor below which
  * there is not enough data. The 252 floor is NOT in PREREG.md - it is carried
@@ -292,6 +321,57 @@ export function verdictFor({ median: medianRatio, days, minDays = MIN_DAYS }) {
 }
 
 /**
+ * The headline rule, from PREREG_AMENDMENT_2.md section 3: supported if the
+ * beginner set's MEDIAN R is strictly below 0.60. A median of exactly 0.60 is
+ * not supported, which matches how PREREG.md reads its own thresholds.
+ *
+ * Too little history outranks it, exactly as it does for the registered rule.
+ * An R that is not a number is never quietly treated as one: section 3 says a
+ * universe member with no variance leaves R undefined, and the page must say
+ * "not enough data" rather than guess.
+ */
+export function correlationOnlyVerdictFor({ median: medianR, days, minDays = MIN_DAYS }) {
+  if (!Number.isFinite(medianR)) {
+    throw new Error(`correlationOnlyVerdictFor: the median R must be a number, got ${medianR}`);
+  }
+  if (days < minDays) return 'not enough data';
+  return medianR < CORRELATION_ONLY_THRESHOLD ? 'supported' : 'not supported';
+}
+
+/**
+ * The beginner-vs-control comparison, reported for both tests.
+ *
+ * The gap is the control median MINUS the beginner median, so a positive gap
+ * means the control set scored higher - more risk sources kept - which is the
+ * direction the claim predicts. The claim needs the beginner set to look WORSE
+ * than a diversified one; if the two land on top of each other, the honest thing
+ * to report is that the measure has not separated them, not support.
+ *
+ * SEPARATION_MARGIN decides the wording only. Neither verdict reads this.
+ */
+export function compareSets({ beginnerMedian, controlMedian, margin = SEPARATION_MARGIN }) {
+  if (!Number.isFinite(beginnerMedian) || !Number.isFinite(controlMedian)) {
+    throw new Error('compareSets: both medians must be numbers');
+  }
+  const gap = controlMedian - beginnerMedian;
+  const separatesSets = gap >= margin;          // "at least `margin` below"
+  const fixed = (x) => x.toFixed(3);
+  return {
+    beginnerMedian,
+    controlMedian,
+    gap,
+    margin,
+    separatesSets,
+    note: separatesSets
+      ? `The control set's median of ${fixed(controlMedian)} sits ${fixed(gap)} above the `
+        + `beginner set's ${fixed(beginnerMedian)}, so this measure tells the two sets apart.`
+      : `The beginner median of ${fixed(beginnerMedian)} and the control median of `
+        + `${fixed(controlMedian)} are ${fixed(Math.abs(gap))} apart, less than the `
+        + `${fixed(margin)} this page asks for, so this measure has not separated the two sets.`,
+  };
+}
+
+/**
  * The two registered portfolio sets, drawn from one seeded stream: the 500
  * beginner portfolios first, then the 500 control portfolios.
  *
@@ -317,7 +397,52 @@ export function registeredSets({ basket, seed = SEED }) {
 // --- the whole hypothesis -----------------------------------------------------
 
 /**
+ * Does this series never move over the window it will be measured on?
+ *
+ * PREREG_AMENDMENT_2.md section 3: "If any universe member has no variance at all
+ * over the window, R is undefined for portfolios holding it, and the page reports
+ * 'not enough data' rather than dropping the portfolio." Dropping the awkward
+ * portfolios would quietly reshape the registered 500.
+ */
+function neverMoves(values, days) {
+  const window = values.slice(values.length - days);
+  return window.every((value) => value === window[0]);
+}
+
+/** The plain sentence PREREG_AMENDMENT_2.md section 5 asks the page to print. */
+function verdictStatement(headlineVerdict, registeredVerdict) {
+  const headline = 'the correlation-only ratio R, which holds the weights and the '
+    + 'volatilities fixed and so measures correlation alone';
+  const registered = 'the registered ratio of effective risk sources to holdings, '
+    + 'which also moves with how unevenly the weights spread the money';
+  if (headlineVerdict === registeredVerdict) {
+    return `Both tests agree: Hypothesis 1 is ${headlineVerdict}. The headline test is `
+      + `${headline}; beside it, ${registered}, is reported as registered.`;
+  }
+  return `The two tests disagree, and both are reported. The headline verdict is `
+    + `"${headlineVerdict}", from ${headline}. The registered test says `
+    + `"${registeredVerdict}", from ${registered}. A disagreement is itself a result: it `
+    + 'says the two measures are answering different questions, and it is not resolved by '
+    + 'choosing the more favourable one.';
+}
+
+/**
  * Run Hypothesis 1 end to end and return everything the Research page reports.
+ *
+ * TWO TESTS, ALWAYS BOTH REPORTED - PREREG_AMENDMENT_2.md section 5:
+ *
+ *   result.headline    the correlation-only ratio R of section 3. THE HEADLINE
+ *                      VERDICT: supported if the beginner median R is strictly
+ *                      below 0.60. R for both sets, their distributions, and the
+ *                      beginner-vs-control comparison.
+ *   result.registered  the registered 0.60 median ratio of section 2, computed
+ *                      exactly as tagged, with the 0.523 independence benchmark,
+ *                      the control median and the same comparison beside it.
+ *   result.verdict     the headline verdict, repeated at the top level, because
+ *                      that is the one the page leads with.
+ *
+ * Both are scored on the SAME 500 beginner and 500 control portfolios, drawn once
+ * by registeredSets() at the registered seed. Nothing here draws anything new.
  *
  * @param {object} options
  * @param {object} options.returnsByTicker ticker -> daily returns, oldest first
@@ -338,29 +463,101 @@ export function hypothesis1({ returnsByTicker, basket, seed = SEED }) {
     seed,
     days,
     minDays: MIN_DAYS,
-    threshold: MEDIAN_THRESHOLD,
+    threshold: CORRELATION_ONLY_THRESHOLD,
+    registeredThreshold: MEDIAN_THRESHOLD,
+    independenceBenchmark: INDEPENDENCE_BENCHMARK,
+    separationMargin: SEPARATION_MARGIN,
     disclaimer: 'Educational, not investment advice.',
   };
 
+  const notEnoughData = (note) => ({
+    ...base,
+    verdict: 'not enough data',
+    headline: null,
+    registered: null,
+    verdictsAgree: true,          // neither test was scored, so neither can disagree
+    statement: `Hypothesis 1 is not enough data. ${note}`,
+    note,
+  });
+
   if (days < MIN_DAYS) {
-    return {
-      ...base,
-      verdict: 'not enough data',
-      beginner: null,
-      control: null,
-      note: `Only ${days} overlapping trading days; ${MIN_DAYS} are needed.`,
-    };
+    return notEnoughData(`Only ${days} overlapping trading days; ${MIN_DAYS} are needed.`);
+  }
+
+  // A universe member that never moves leaves R undefined for every portfolio
+  // holding it, so the whole answer is "not enough data" rather than a number
+  // built from the portfolios that happened to avoid it.
+  const flat = needed.filter((ticker) => neverMoves(returnsByTicker[ticker], days));
+  if (flat.length > 0) {
+    return notEnoughData(
+      `${flat.join(', ')} never moved over the ${days}-day window, so there is no `
+      + 'variance to divide by and the correlation-only ratio R is undefined for every '
+      + 'portfolio holding it. No portfolio is dropped to get around this.',
+    );
   }
 
   const { beginner: beginnerSet, control: controlSet } = registeredSets({ basket, seed });
 
-  const beginner = summarise(beginnerSet.map((p) => portfolioRatio(p, returnsByTicker)));
-  const control = summarise(controlSet.map((p) => portfolioRatio(p, returnsByTicker)));
+  // The headline test: R, the correlation-only ratio.
+  const headlineBeginner = summarise(
+    beginnerSet.map((p) => portfolioCorrelationOnlyRatio(p, returnsByTicker)),
+    CORRELATION_ONLY_THRESHOLD,
+  );
+  const headlineControl = summarise(
+    controlSet.map((p) => portfolioCorrelationOnlyRatio(p, returnsByTicker)),
+    CORRELATION_ONLY_THRESHOLD,
+  );
+  const headlineVerdict = correlationOnlyVerdictFor({
+    median: headlineBeginner.median, days, minDays: MIN_DAYS,
+  });
+
+  // The registered test, computed exactly as registered.
+  const registeredBeginner = summarise(beginnerSet.map((p) => portfolioRatio(p, returnsByTicker)));
+  const registeredControl = summarise(controlSet.map((p) => portfolioRatio(p, returnsByTicker)));
+  const registeredVerdict = verdictFor({
+    median: registeredBeginner.median, days, minDays: MIN_DAYS,
+  });
+
+  const headlineComparison = compareSets({
+    beginnerMedian: headlineBeginner.median,
+    controlMedian: headlineControl.median,
+  });
+  const registeredComparison = compareSets({
+    beginnerMedian: registeredBeginner.median,
+    controlMedian: registeredControl.median,
+  });
 
   return {
     ...base,
-    verdict: verdictFor({ median: beginner.median, days, minDays: MIN_DAYS }),
-    beginner,
-    control,
+    verdict: headlineVerdict,
+    headline: {
+      statistic: 'the correlation-only ratio R = ENB(w, Sigma) / ENB(w, diag Sigma)',
+      threshold: CORRELATION_ONLY_THRESHOLD,
+      verdict: headlineVerdict,
+      beginner: headlineBeginner,
+      control: headlineControl,
+      ...headlineComparison,
+      limit: 'R deliberately ignores weight concentration: holding the weights fixed is '
+        + 'exactly how it isolates correlation. A portfolio can score well on R and still '
+        + 'be a poor mix, for instance by holding nearly all its money in one name. The '
+        + 'registered numbers beside it are what speak to that.',
+    },
+    registered: {
+      statistic: 'the registered ratio of effective risk sources to holdings',
+      threshold: MEDIAN_THRESHOLD,
+      verdict: registeredVerdict,
+      beginner: registeredBeginner,
+      control: registeredControl,
+      independenceBenchmark: INDEPENDENCE_BENCHMARK,
+      belowIndependenceBenchmark: registeredBeginner.median < INDEPENDENCE_BENCHMARK,
+      ...registeredComparison,
+      limit: 'On holdings that are exactly uncorrelated and exactly equally volatile - '
+        + `where there is no hidden concentration at all - this median still comes out at `
+        + `${INDEPENDENCE_BENCHMARK}, below its own ${MEDIAN_THRESHOLD} threshold. So it is `
+        + 'only meaningful to the extent the beginner median falls below that benchmark, '
+        + `not merely below ${MEDIAN_THRESHOLD}.`,
+    },
+    verdictsAgree: headlineVerdict === registeredVerdict,
+    statement: verdictStatement(headlineVerdict, registeredVerdict),
   };
 }
