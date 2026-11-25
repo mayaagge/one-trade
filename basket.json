@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "decided": "2026-11-25",
+  "rule": "A US-listed company where AI is a major, publicly stated driver of revenue or capital spending, chosen so the basket covers every layer of the AI supply chain: chips, memory, networking and power, cloud, and software.",
+  "note": "Frozen at the prereg tag. Never edit this file afterwards; any later basket goes in a new, separately labeled file.",
+  "stocks": [
+    {
+      "ticker": "NVDA",
+      "layer": "chips",
+      "full_history": true,
+      "reason": "Most AI models are trained and run on Nvidia's GPUs."
+    },
+    {
+      "ticker": "AMD",
+      "layer": "chips",
+      "full_history": true,
+      "reason": "AMD is the main company selling AI chips that compete with Nvidia's."
+    },
+    {
+      "ticker": "AVGO",
+      "layer": "chips/networking",
+      "full_history": true,
+      "reason": "Broadcom designs custom AI chips for big tech companies and the networking that connects them."
+    },
+    {
+      "ticker": "MRVL",
+      "layer": "chips",
+      "full_history": true,
+      "reason": "Marvell makes custom AI chips and the optical connections inside data centers."
+    },
+    {
+      "ticker": "MU",
+      "layer": "memory",
+      "full_history": true,
+      "reason": "Micron makes the high-bandwidth memory that AI chips need to work."
+    },
+    {
+      "ticker": "ANET",
+      "layer": "networking",
+      "full_history": true,
+      "reason": "Arista builds the network switches that link AI servers together."
+    },
+    {
+      "ticker": "VRT",
+      "layer": "power/cooling",
+      "full_history": false,
+      "reason": "Vertiv supplies the power and cooling equipment AI data centers depend on."
+    },
+    {
+      "ticker": "MSFT",
+      "layer": "cloud",
+      "full_history": true,
+      "reason": "Microsoft rents AI computing through Azure, partners with OpenAI, and is one of the biggest AI spenders."
+    },
+    {
+      "ticker": "GOOGL",
+      "layer": "cloud/models",
+      "full_history": true,
+      "reason": "Google builds its own AI models, its own AI chips and an AI cloud."
+    },
+    {
+      "ticker": "AMZN",
+      "layer": "cloud",
+      "full_history": true,
+      "reason": "Amazon's AWS is one of the largest clouds renting out AI computing."
+    },
+    {
+      "ticker": "META",
+      "layer": "models/capex",
+      "full_history": true,
+      "reason": "Meta spends heavily on AI to run its ads and build its own models."
+    },
+    {
+      "ticker": "ORCL",
+      "layer": "cloud",
+      "full_history": true,
+      "reason": "Oracle's cloud growth now comes largely from big AI computing contracts."
+    },
+    {
+      "ticker": "PLTR",
+      "layer": "software",
+      "full_history": false,
+      "reason": "Palantir sells AI software that companies and governments use to analyze their data."
+    }
+  ]
+}
