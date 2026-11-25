@@ -40,5 +40,5 @@ GitHub Actions. Explain anything web-related in plain language.
 
 ## Commands
 - Run the site locally: python -m http.server 8000
-- Run JavaScript tests: node --test tests/
+- Run JavaScript tests: node --test "tests/**/*.test.js"
 - Make test fixtures: python tests/make_fixtures.py
