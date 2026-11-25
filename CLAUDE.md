@@ -20,7 +20,7 @@ GitHub Actions. Explain anything web-related in plain language.
 4. After every change, run the tests and show me the result.
 5. After creating or changing a file, explain what it does in five
    bullet points or fewer.
-6. Never fetch real prices until the git tag `prereg` exists on GitHub.
+6. Never fetch real prices until the git tag `prereg-v2` exists on GitHub.
 7. Never put secrets (API keys, the Worker secret) in code or commits.
    Use environment variables and .gitignore.
 8. Keep it simple: plain HTML, CSS and JavaScript. No frameworks or new

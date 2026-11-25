@@ -3,7 +3,7 @@
   "decided": "2026-11-25",
   "rule": "Every individual stock belongs to exactly one group. Funds deliberately overlap the stocks they hold, and that hidden overlap is the lesson the game teaches, so the one-group rule applies to stocks only.",
   "note": "The AI group is defined by basket.json, which is frozen at the prereg tag. basket.json is authoritative: the symbols repeated here are for readability and a test checks the two files still agree.",
-  "history_note": "full_history means the ticker has daily prices for the whole 10-year window that starts in December 2016. Only VRT and PLTR, both in the AI group, are false.",
+  "history_note": "full_history means the ticker has daily prices for the whole 10-year window, which starts on the first trading day on or after 24 November 2016. Only VRT and PLTR, both in the AI group, are false.",
   "groups": [
     {
       "key": "ai_stocks",

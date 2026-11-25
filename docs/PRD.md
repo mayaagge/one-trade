@@ -136,6 +136,8 @@ These four address the two hardest problems, getting players to come back and ge
 
 ## The research questions, pre-registered
 
+Amended on 25 November 2026 by PREREG_AMENDMENT.md, before any price was downloaded: the freeze date moved to 24 November 2026, Hypothesis 2's windows moved with it, and the "no prices before 1 December" rule became "no prices before the prereg-v2 tag is on GitHub". PREREG.md keeps the original wording and is not edited; this section carries the amended dates.
+
 Three hypotheses are frozen in a tagged git commit (prereg) before any real data is seen. The Research mode computes "supported", "not supported" or "not enough data" automatically, and its headline is generated from the verdicts. Hypotheses 1 and 2 are about markets. Hypothesis 3 is about whether the game teaches anything. Every result is reported, whichever way it comes out.
 
 ### Hypothesis 1: hidden concentration
@@ -150,7 +152,7 @@ Three hypotheses are frozen in a tagged git commit (prereg) before any real data
 
 3. Control set: 500 portfolios of 3 to 8 holdings drawn from VTI, VXUS, BND, GLD and the 3 non-AI stocks (JPM, JNJ, PG).
 
-4. For each portfolio, compute the ratio of effective risk sources to holdings, using 3 years of daily returns ending on the freeze date (the last trading day on or before 30 November 2026).
+4. For each portfolio, compute the ratio of effective risk sources to holdings, using 3 years of daily returns ending on the freeze date (24 November 2026).
 
 5. The random seed is 2026, fixed and published in the repo.
 
@@ -164,13 +166,13 @@ Three hypotheses are frozen in a tagged git commit (prereg) before any real data
 
 **Test design:**
 
-1. Window: 10 years of daily returns, December 2016 to November 2026.
+1. Window: 10 years of daily returns, 24 November 2016 to 24 November 2026, the 10 years ending on the freeze date. Markets were closed on 24 November 2016 (Thanksgiving), so the data begins at the first trading day on or after it.
 
 2. AI basket: equal weight, limited to basket members with the full 10 years of history. A second version that adds names as they list is reported beside it.
 
 3. Benchmark for the verdict: the equal-weight S&P 500 (RSP). In it each AI stock is about 0.2% of the index, so the correlation is not mostly arithmetic. The S&P 500 itself is reported beside it.
 
-4. Compare correlation in the earliest 12 months (Dec 2016 to Nov 2017) with the most recent 12 months (Dec 2025 to Nov 2026).
+4. Compare correlation in the earliest 12 months (24 November 2016 to 23 November 2017) with the most recent 12 months (25 November 2025 to 24 November 2026).
 
 5. Uncertainty: a 90% interval for the difference, using a block bootstrap with 20-day blocks and 2,000 resamples.
 
@@ -210,8 +212,8 @@ Every choice that could be tuned after seeing results is fixed here, before any 
 | --- | --- | --- |
 | The 3 non-AI stocks | JPM (banks), JNJ (health care), PG (consumer staples) | Hypothesis 1's universe and control set |
 | Random seed | 2026 | Hypothesis 1's portfolio sampler and Hypothesis 2's block bootstrap |
-| Freeze date | The last trading day on or before 30 November 2026 | The last day of every return window in Hypotheses 1 and 2 |
-| Earliest download date | 1 December 2026 | No price is fetched before this date, so the freeze date's window is complete when the data arrives |
+| Freeze date | 24 November 2026, a normal trading day (amended 25 November 2026 from 30 November 2026) | The last day of every return window in Hypotheses 1 and 2 |
+| Earliest download date | Once the prereg-v2 tag is on GitHub (amended 25 November 2026 from 1 December 2026) | No price is fetched until the amendment is publicly timestamped |
 | AI basket | The 13 names in basket.json | Both hypotheses, including the leave-one-out reruns |
 | Full universe | The 9 groups in tickers.json | The ticker list the game and both hypotheses draw from |
 
