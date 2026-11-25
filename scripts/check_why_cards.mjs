@@ -110,6 +110,26 @@ export const LESSON_PORTFOLIOS = [
     // as the case that shows the order is not a formality.
     expect: { key: 'pair', values: { a: 'BND', b: 'LQD' } },
     note: 'riskGapOver fires on NVDA at 10%/38% and loses to the pair rule by order',
+    // The pair here carries 33.9% of the risk, which clears the pair rule's own
+    // 20% condition comfortably, so this one keeps the pair card by decision
+    // rather than by accident. Separating it from the VEA/VXUS case below is not
+    // possible on pair risk share: the case worth keeping carries LESS (30%)
+    // than this one does. Raising the threshold to reach this portfolio costs 49
+    // of the check's 76 pair cards. BUILD_LOG.md has the table.
+    decided: 'Keeps the pair card. No threshold separates it from a 0.99 pair worth naming',
+  },
+  {
+    key: 'tight-pair-in-a-corner',
+    what: 'A 0.94 pair carrying 13% of the risk, beside a holding that carries 45%',
+    lesson: 'A pair can be the same bet and still not be the bet that decided the number.',
+    // This is p17 from the level 2 guess pool, not a case built for the rule: one
+    // of the 20 portfolios the game actually deals. A test holds the two equal,
+    // so a change to the pool cannot leave this lesson quietly describing
+    // something else.
+    dollars: { ABBV: 4500, QQQ: 700, AAPL: 2900, MU: 700, VTI: 1200 },
+    poolId: 'p17',
+    expect: { key: 'pairLowRisk', values: { a: 'QQQ', b: 'VTI', r: '0.94', riskPct: '13%' } },
+    note: 'ABBV is 45% of the money and 45% of the risk, so no gap rule and no group rule fires either',
   },
 ];
 
@@ -180,8 +200,20 @@ export function checkLessonPortfolios(game, groups, why, portfolios = LESSON_POR
   });
 }
 
+/**
+ * The tickers a player can actually hold: every ticker in a tickers.json GROUP.
+ *
+ * NOT game.tickers. That carries the two benchmarks as well - ^GSPC, which
+ * defines market stress days, and RSP, the equal-weight S&P 500 behind
+ * Hypothesis 2's verdict - and neither is a holding anybody can pick. js/game.js
+ * builds the game's universe the same way, from the groups alone.
+ */
+export function playableUniverse(tickersDoc) {
+  return tickersDoc.groups.flatMap((g) => g.tickers.map((t) => (typeof t === 'string' ? t : t.ticker)));
+}
+
 /** How often each rule fires, and how often it is the card shown. */
-export function frequencies(game, levels, groups, why, { samples = SAMPLES, seed = CHECK_SEED } = {}) {
+export function frequencies(game, levels, groups, why, universe, { samples = SAMPLES, seed = CHECK_SEED } = {}) {
   const keys = [...why.order, 'fallback'];
   const fired = Object.fromEntries(keys.map((k) => [k, 0]));
   const won = Object.fromEntries(keys.map((k) => [k, 0]));
@@ -205,7 +237,6 @@ export function frequencies(game, levels, groups, why, { samples = SAMPLES, seed
   // Seeded 5-holding level 3 builds at an even split, the plainest allocation a
   // player can type.
   const rng = makeRng(seed);
-  const universe = game.tickers.filter((t) => !t.startsWith('^'));
   let drawn = 0;
   let skipped = 0;
   while (drawn < samples && skipped < samples * 10) {
@@ -218,8 +249,10 @@ export function frequencies(game, levels, groups, why, { samples = SAMPLES, seed
       record(facts, card);
       drawn += 1;
     } catch {
-      // A late listing - VRT or PLTR - can shorten the window below the 252 days
-      // the game trusts. Those builds are skipped rather than measured.
+      // A late listing - VRT or PLTR, the two registered ones - can shorten the
+      // window below the 252 days the game trusts. Those builds are skipped
+      // rather than measured, and counted so the number is visible: a silent
+      // skip once hid the two benchmarks being drawn as if they were holdings.
       skipped += 1;
     }
   }
@@ -252,7 +285,7 @@ function main() {
     console.log('');
   }
 
-  const table = frequencies(game, levels, groups, why);
+  const table = frequencies(game, levels, groups, why, playableUniverse(readJson('tickers.json')));
   console.log(`How often each rule fires, and how often it is the card shown`);
   console.log(`(${table.pool} pool portfolios + ${table.builds} seeded level 3 builds = ${table.counted})\n`);
   console.log(`  ${pad('rule', 15)}${pad('fires', 14)}shown`);
@@ -263,6 +296,7 @@ function main() {
   if (table.skipped > 0) {
     console.log(`\n  ${table.skipped} draws skipped: a late listing left fewer than ${MIN_DAYS} overlapping days.`);
   }
+  console.log(`  Drawn from the ${playableUniverse(readJson('tickers.json')).length} tickers a player can hold, which excludes the two benchmarks.`);
 
   console.log('\nEducational, not investment advice.');
 

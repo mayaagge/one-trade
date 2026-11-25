@@ -33,7 +33,8 @@
     "groupRisk",
     "pair",
     "riskGapOver",
-    "riskGapUnder"
+    "riskGapUnder",
+    "pairLowRisk"
   ],
   "orderNote": "The first rule in this list whose test passes is the card that gets shown. One card, not a list: on a phone, one cause a player can carry away beats three they skim. Group concentration comes first because it is the fullest version of the lesson - five AI stocks is both 'your closest pair moves together' and 'one group holds the risk', and the second says more. The risk-gap rules come last because they are about the split rather than about what a player picked.",
   "rules": [
@@ -55,9 +56,11 @@
       "key": "pair",
       "says": "the most correlated pair",
       "when": {
-        "correlationAtLeast": 0.7
+        "correlationAtLeast": 0.7,
+        "pairRiskAtLeast": 0.2
       },
-      "thresholdNote": "Left where it was after the real-data check: moving it only trades this card against the fallback, and one number meaning one thing across the whole game is worth more than a balanced table.",
+      "thresholdNote": "The correlation was left where it was after the real-data check: moving it only trades this card against the fallback, and one number meaning one thing across the whole game is worth more than a balanced table.",
+      "pairRiskNote": "pairRiskAtLeast asks that the two holdings carry at least a fifth of the portfolio's risk between them. Without it the card could name two bond funds correlated 0.94 that are 5% of what moves the portfolio - a true sentence about a corner of it, crowding out what is actually driving the number. 20% was measured: it removes 10 of the 76 pair cards in the 420-portfolio check, every one of them a pair under a fifth of the risk. Going higher gets expensive fast - at 35% the rule loses 49 of 76, including VEA and VXUS at 0.99, two funds that are nearly the same fund, which is the clearest statement of this whole game's lesson. The pair that carries little risk is not dropped; it falls to pairLowRisk below.",
       "whenNote": "0.70 is the 'same bet' edge already used by levels.json's buckets and by the daily 'Same bet?' puzzle, so one number means one thing across the whole game.",
       "template": "{a} and {b} are the closest pair you hold, at {r}. They rise and fall together, so the two of them count as closer to one bet than two."
     },
@@ -72,6 +75,16 @@
       "template": "{ticker} is {dollarPct} of your money but {riskPct} of your risk. Share of risk is not share of dollars: a holding that swings harder than the rest carries more of the risk than its size suggests."
     },
     {
+      "key": "pairLowRisk",
+      "says": "a pair that moves together but carries little of the risk",
+      "when": {
+        "correlationAtLeast": 0.7,
+        "pairRiskBelow": 0.2
+      },
+      "whenNote": "The exact complement of the pair rule's own risk condition: pairRiskBelow here and pairRiskAtLeast there must be the same number, or a pair would fall between the two rules and get no card at all. A test holds them equal, and holds the two correlation thresholds equal too.",
+      "template": "{a} and {b} move together, at {r}, but between them they are only {riskPct} of your risk. They are the same bet - just not the bet that decided this portfolio."
+    },
+    {
       "key": "riskGapUnder",
       "says": "a holding's share of money is far bigger than its share of risk",
       "when": {
@@ -83,6 +96,7 @@
       "template": "{ticker} is {dollarPct} of your money but only {riskPct} of your risk. It moves more quietly than the rest, so it takes up room in the portfolio without adding much to what can go wrong."
     }
   ],
+  "rulesTail": "pairLowRisk is the pair card demoted rather than dropped. A pair correlated 0.70 or more that carries less than a fifth of the risk is still the same bet, and still worth naming - but it is not what decided the number, and it says so. It sits LAST in the order on purpose: if it ran before the risk-gap rules it would simply hand back the cards pairRiskAtLeast took away, and the condition would have been for nothing. Last means it speaks only when nothing else had anything to say.",
   "fallback": {
     "key": "fallback",
     "says": "nothing stands out",

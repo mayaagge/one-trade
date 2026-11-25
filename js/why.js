@@ -54,6 +54,7 @@ export const DISCLAIMER = 'Educational, not investment advice.';
 export const PLACEHOLDERS = {
   bucketCard: ['a', 'b', 'r'],
   pair: ['a', 'b', 'r'],
+  pairLowRisk: ['a', 'b', 'r', 'riskPct'],
   groupRisk: ['group', 'count', 'total', 'dollarPct', 'riskPct'],
   riskGapOver: ['ticker', 'dollarPct', 'riskPct'],
   riskGapUnder: ['ticker', 'dollarPct', 'riskPct'],
@@ -61,7 +62,7 @@ export const PLACEHOLDERS = {
 };
 
 /** The rule keys this file knows how to apply. why.json may not invent one. */
-export const RULE_KEYS = ['groupRisk', 'pair', 'riskGapOver', 'riskGapUnder'];
+export const RULE_KEYS = ['groupRisk', 'pair', 'pairLowRisk', 'riskGapOver', 'riskGapUnder'];
 
 /**
  * The lead-in lines, one of which opens a card on the levels that take one.
@@ -248,18 +249,33 @@ export function whyFacts({ tickers, weights, matrix, groups = null }) {
     group: groups ? groups.get(ticker) ?? null : null,
   }));
 
-  // The closest pair. Ties keep index order, which is weight order, so the
+  // The closest pair, and what share of the portfolio's risk the two of them
+  // carry between them. Ties keep index order, which is weight order, so the
   // answer does not depend on how the object was built.
+  //
+  // THE PAIR IS THE MOST CORRELATED PAIR, chosen before any thought about risk.
+  // The template says "the closest pair you hold", and a pair picked for its
+  // risk share rather than its correlation would make that sentence false. The
+  // risk share is a condition on whether the card is worth showing, not on which
+  // pair it is about: a pair carrying a third of the risk is a true observation
+  // about a corner of the portfolio, and saying it crowds out what is actually
+  // driving the number.
   let pair = null;
   if (tickers.length >= 2) {
     const corr = correlation(matrix);
+    let at = null;
     for (let i = 0; i < tickers.length - 1; i += 1) {
       for (let j = i + 1; j < tickers.length; j += 1) {
-        if (pair === null || corr[i][j] > pair.r) {
-          pair = { a: tickers[i], b: tickers[j], r: corr[i][j] };
-        }
+        if (at === null || corr[i][j] > corr[at[0]][at[1]]) at = [i, j];
       }
     }
+    const [i, j] = at;
+    pair = {
+      a: tickers[i],
+      b: tickers[j],
+      r: corr[i][j],
+      riskShare: shares[i] + shares[j],
+    };
   }
 
   // Groups, with each one's risk summed from its holdings' shares.
@@ -297,11 +313,34 @@ export function ruleCandidate(facts, rule, { pairThreshold = null } = {}) {
   const when = rule.when;
   const none = { key: rule.key, fires: false, values: null };
 
-  if (rule.key === 'pair') {
+  if (rule.key === 'pairLowRisk') {
+    // The pair card demoted: the same two holdings, named with what they are
+    // actually carrying. The exact complement of the pair rule's risk condition,
+    // so no pair falls between the two and gets nothing.
     if (!facts.pair) return none;
     return {
       key: rule.key,
-      fires: facts.pair.r >= when.correlationAtLeast,
+      fires: facts.pair.r >= when.correlationAtLeast && facts.pair.riskShare < when.pairRiskBelow,
+      values: {
+        a: facts.pair.a,
+        b: facts.pair.b,
+        r: formatCorrelation(facts.pair.r, pairThreshold),
+        riskPct: percent(facts.pair.riskShare),
+      },
+    };
+  }
+
+  if (rule.key === 'pair') {
+    if (!facts.pair) return none;
+    // Two conditions, and both are about whether the card is worth a player's
+    // attention: the pair has to move together AND has to be carrying enough of
+    // the portfolio's risk for that to be what matters about it.
+    const closeEnough = facts.pair.r >= when.correlationAtLeast;
+    const bigEnough = !Number.isFinite(when.pairRiskAtLeast)
+      || facts.pair.riskShare >= when.pairRiskAtLeast;
+    return {
+      key: rule.key,
+      fires: closeEnough && bigEnough,
       values: { a: facts.pair.a, b: facts.pair.b, r: formatCorrelation(facts.pair.r, pairThreshold) },
     };
   }

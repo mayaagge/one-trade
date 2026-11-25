@@ -139,7 +139,7 @@ test('every template in why.json uses only placeholders the code can fill', () =
   // validateWhy already throws on an unknown placeholder; this states the list
   // the files agree on, so a new placeholder cannot be added to why.json alone.
   assert.deepEqual(Object.keys(PLACEHOLDERS).sort(),
-    ['bucketCard', 'fallback', 'groupRisk', 'pair', 'riskGapOver', 'riskGapUnder'].sort());
+    ['bucketCard', 'fallback', 'groupRisk', 'pair', 'pairLowRisk', 'riskGapOver', 'riskGapUnder'].sort());
 });
 
 test('validateWhy rejects a template with a placeholder the code cannot fill', () => {
@@ -180,6 +180,81 @@ test('the pair rule fires on a near-duplicate pair and names it', () => {
   assert.equal(candidate.values.a, 'A0');
   assert.equal(candidate.values.b, 'A2');
   assert.equal(candidate.values.r, '0.99');
+});
+
+test('the two pair rules are exact complements, so no pair falls between them', () => {
+  // pairRiskAtLeast on the pair rule and pairRiskBelow on pairLowRisk have to be
+  // the same number, and the correlation thresholds have to match too. If they
+  // drifted apart, a pair would satisfy neither rule and a card a player should
+  // have seen would vanish into the fallback.
+  const pair = WHY.rules.find((r) => r.key === 'pair').when;
+  const low = WHY.rules.find((r) => r.key === 'pairLowRisk').when;
+  assert.equal(pair.pairRiskAtLeast, low.pairRiskBelow);
+  assert.equal(pair.correlationAtLeast, low.correlationAtLeast);
+
+  // And in practice: over every pool portfolio, a pair correlated enough fires
+  // exactly one of the two rules, never both and never neither.
+  const portfolios = LEVELS.guessPool.portfolios;
+  let checked = 0;
+  for (let i = 0; i < portfolios.length; i += 1) {
+    const { result } = play(2, [], 2, { random: () => i / portfolios.length });
+    const facts = result.whyFacts;
+    if (facts.pair.r < pair.correlationAtLeast) continue;
+    const fires = ['pair', 'pairLowRisk']
+      .filter((k) => ruleCandidate(facts, WHY.rules.find((r) => r.key === k), {}).fires);
+    assert.equal(fires.length, 1,
+      `${result.drawnId}: pair at ${facts.pair.r.toFixed(3)} carrying `
+      + `${(facts.pair.riskShare * 100).toFixed(1)}% fired ${fires.length} of the two pair rules`);
+    checked += 1;
+  }
+  assert.equal(checked > 0, true, 'no pool portfolio had a pair correlated enough to check');
+});
+
+test('pairLowRisk runs last, or it would undo the condition on the pair rule', () => {
+  // If it ran before the risk-gap rules it would simply hand back every card
+  // pairRiskAtLeast took away, and the condition would have been for nothing.
+  assert.equal(WHY.order[WHY.order.length - 1], 'pairLowRisk');
+});
+
+test('a tight pair carrying little risk is demoted, not dropped', () => {
+  // p17 from the level 2 pool: QQQ and VTI correlate at 0.94 but are 13% of the
+  // risk, while ABBV is 45% of the money and 45% of the risk - so no gap rule and
+  // no group rule fires, and before pairLowRisk existed this read "nothing stands
+  // out here".
+  const lesson = LESSON_PORTFOLIOS.find((l) => l.key === 'tight-pair-in-a-corner');
+  const { card, facts } = cardFor(GAME, GROUPS, WHY, lesson.dollars);
+  assert.equal(card.key, 'pairLowRisk');
+  assert.equal(facts.pair.riskShare < 0.2, true);
+  assert.equal(facts.pair.r >= 0.7, true);
+  assert.equal(card.text.includes('only 13% of your risk'), true);
+  assert.equal(card.text.includes('Nothing stands out'), false);
+  // The plain pair rule is the one that steps aside, and it is the risk
+  // condition that makes it - the correlation is well over the bar.
+  const plain = ruleCandidate(facts, WHY.rules.find((r) => r.key === 'pair'), {});
+  assert.equal(plain.fires, false);
+});
+
+test('the demoted-pair lesson is a portfolio the game actually deals', () => {
+  // Built from p17 rather than invented for the rule, so the lesson is about a
+  // round a player will really be given. If the pool ever changes, this fails
+  // rather than quietly describing a portfolio that no longer exists.
+  const lesson = LESSON_PORTFOLIOS.find((l) => l.key === 'tight-pair-in-a-corner');
+  const pooled = LEVELS.guessPool.portfolios.find((p) => p.id === lesson.poolId);
+  assert.notEqual(pooled, undefined, `the pool no longer carries ${lesson.poolId}`);
+  assert.deepEqual(lesson.dollars, pooled.dollars);
+});
+
+test('a 0.99 pair keeps its card: this is what the 20% threshold protects', () => {
+  // VEA and VXUS are nearly the same fund. In p20 they carry 30% of the risk,
+  // which clears the pair rule's 20%. A threshold set high enough to reach the
+  // mostly-bond lesson portfolio at 33.9% would have turned this into the
+  // fallback, and this pair is the clearest statement of what the game teaches.
+  const { result } = play(2, [], 3, { random: () => 19 / 20 });
+  assert.equal(result.drawnId, 'p20');
+  assert.equal(result.whyFacts.pair.a, 'VEA');
+  assert.equal(result.whyFacts.pair.b, 'VXUS');
+  assert.equal(result.whyFacts.pair.r > 0.98, true);
+  assert.equal(result.whyCard.key, 'pair');
 });
 
 test('the pair rule does not fire when nothing is correlated', () => {
@@ -223,6 +298,8 @@ test('the thresholds in why.json are the ones the real-data check settled on', (
   const when = (key) => WHY.rules.find((r) => r.key === key).when;
   assert.equal(when('groupRisk').groupRiskAtLeast, 0.7);
   assert.equal(when('pair').correlationAtLeast, 0.7);
+  assert.equal(when('pair').pairRiskAtLeast, 0.2);
+  assert.equal(when('pairLowRisk').pairRiskBelow, 0.2);
   assert.equal(when('riskGapOver').gapAtLeast, 0.2);
   assert.equal(when('riskGapUnder').gapAtLeast, 0.15);
   // The pair threshold is the same 0.70 that levels.json's "same bet" bucket
@@ -280,8 +357,8 @@ test('the group rule fires when one group holds most of the risk', () => {
 });
 
 test('the order in why.json settles a portfolio where several rules fire', () => {
-  const rule = WHY.order;
-  assert.deepEqual(rule, ['groupRisk', 'pair', 'riskGapOver', 'riskGapUnder']);
+  assert.deepEqual(WHY.order,
+    ['groupRisk', 'pair', 'riskGapOver', 'riskGapUnder', 'pairLowRisk']);
   // p01 fires the group rule and the pair rule (QQQ and VOO correlate at 0.95);
   // the group card is the one shown.
   const { result } = play(2, [], 2, { random: () => 0 });
@@ -517,6 +594,7 @@ test('the lesson set covers more than one rule, so it is not a single case', () 
   const keys = new Set(LESSON_PORTFOLIOS.map((l) => l.expect.key));
   assert.equal(keys.has('groupRisk'), true);
   assert.equal(keys.has('pair'), true);
+  assert.equal(keys.has('pairLowRisk'), true);
   assert.equal(keys.has('riskGapOver'), true);
   // Every lesson portfolio allocates the game's full $10,000, so the percents in
   // the cards are the ones a player would be looking at. cardFor() throws if not,

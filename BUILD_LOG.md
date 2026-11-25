@@ -946,7 +946,7 @@ cannot invent wrong answers" - so nothing in the code writes a sentence. Every
 sentence a player can read is a template in `why.json`, and the code only decides
 which template applies and fills in its named placeholders.
 
-**463 of 463 tests pass**, 36 of them new, and `node scripts/check_why_cards.mjs`
+**468 of 468 tests pass**, 41 of them new, and `node scripts/check_why_cards.mjs`
 exits 0.
 
 ### What was built
@@ -955,7 +955,7 @@ exits 0.
 | --- | --- |
 | `why.json` | The templates, the lead-in lines, the thresholds and the order, with a note on every threshold saying what it is and why that number. No code in it, and no code outside it writes a sentence a player reads |
 | `js/why.js` | Which template applies, and the facts it is allowed to look at. Pure - no DOM, no fetch, no prices |
-| `tests/why.test.js` | 36 tests: the numbers against numpy, the rules, the order, the fallback, all three of level 1's buckets, all four lead-ins, the lesson portfolios, and the mechanical check that no prose is generated |
+| `tests/why.test.js` | 41 tests: the numbers against numpy, the rules, the order, the fallback, all three of level 1's buckets, all four lead-ins, the lesson portfolios, and the mechanical check that no prose is generated |
 | `scripts/check_why_cards.mjs` | The frequency table, reproducible, plus the lesson portfolios as a check that exits non-zero when one gets the wrong card |
 | `js/round.js` | `reveal()` now returns `whyCard` and `whyFacts`; `measureFor()` hands back the window matrix so the card reads the same window the measure was taken over |
 | `js/game.js`, `css/style.css` | Loads `why.json`, passes the group index into the round, and renders the card between the stars and the level's general explanation |
@@ -1044,6 +1044,11 @@ on the live file too, but not the same hair.
 | The group threshold | **70% of the risk, up from the 50% first drafted** | Measured, not guessed: at 50% the group card won 73% of 420 portfolios. The table above is the evidence |
 | The two gap thresholds | **20 points over, 15 under** | The gaps sum to zero, so an under-gap always competes against an over-gap on the same portfolio. At a shared 20 the under card never appeared |
 | The pair threshold | **Left at 0.70** | It is the "same bet" edge `levels.json`'s buckets and the daily puzzle already use. One number meaning one thing across the game beats a balanced table |
+| The pair rule's second condition | **The pair must carry at least 20% of the portfolio's risk** | Your instruction. 20% rather than the 35% the mostly-bond portfolio needed, because 35% costs 49 of 76 pair cards including VEA and VXUS at 0.99 |
+| How the pair is chosen | **Still the most correlated pair, before any thought about risk** | The template says "the closest pair you hold". A pair picked for its risk share would make that sentence false |
+| The pair that carries little risk | **Demoted to its own template, not dropped** | Your instruction. Two of the ten cards the condition removed had fallen to the fallback, and a 0.94 pair reading "nothing stands out here" is not an improvement |
+| Where `pairLowRisk` sits | **Last, after the risk-gap rules** | Anywhere earlier and it hands back every card the condition took away |
+| The mostly-bond portfolio | **Keeps its pair card, recorded as a decision** | The case worth keeping (VEA/VXUS at 30%) carries less pair risk than this one (33.9%), so no threshold separates them |
 | Level 2's lead-in | **Reports on the guess - close, or wide of it - not on passing** | Your instruction, and the level has no portfolio to pass or miss. Picked from `pass.measure`, not from a level number, so level 7 inherits it |
 | What "close" means | **`stars >= 2`, the level's own two-star band** | The line sits under the stars it describes. A second copy of "within 1 bet" could drift from the first |
 | The lesson portfolios | **Five, in the script, checked by both the script and the tests** | A random sample missed the five-AI-stocks bug entirely. The cases that carry the lesson have to be named |
@@ -1065,6 +1070,9 @@ Driven end to end in headless Chrome inside a 390px frame, on the live
 - Level 3, five AI stocks: **1.03 bets**, "Here's what held you back:" and the
   group card naming all five. This is the round that found the `minGroups` bug.
 - Level 1 shows no lead-in line at all.
+- Level 2, dealt p17 at 2.68 bets: "Close guess. One thing to notice:" and the
+  demoted pair card, "QQQ and VTI move together, at 0.94, but between them they
+  are only 13% of your risk."
 - Level 2, dealt p16 at 2.58 bets and guessed close: two stars and "Close guess.
   One thing to notice:". Dealt p03 at 1.30 and guessed wide: one star and
   "Here's what made this one tricky:". The line matches the stars above it in
@@ -1162,8 +1170,93 @@ back the same on any machine. On seed 23 they are 35% group, 25% pair, 23%
 risk-gap-over, 5% risk-gap-under and 11% fallback - the same shape as the table
 that set the thresholds, from a different sampler.
 
+### The pair rule now asks whether the pair matters, and a bug in the check
+
+A pair of bond funds correlated 0.94 that is 5% of what moves a portfolio is a
+true sentence about a corner of it, and saying it crowds out what is actually
+driving the number. So the pair rule gained a second condition: the two holdings
+have to carry at least **20% of the portfolio's risk** between them.
+
+**The pair is still chosen for its correlation, before any thought about risk.**
+The template says "the closest pair you hold", and a pair picked for its risk
+share instead would make that sentence false. The risk share decides whether the
+card is worth showing, not which pair it is about.
+
+Measuring this first turned up **a bug in `scripts/check_why_cards.mjs` itself**.
+It sampled from `game.tickers`, which carries the two benchmarks - `^GSPC` and
+`RSP` - as well as the holdings. Neither is in a `tickers.json` group, so
+`whyFacts()` threw on them, and the throw was caught by the loop that skips
+builds with too short a window. 49 of 400 draws were being dropped and reported
+as late listings. It now draws from the 40 tickers a player can actually hold,
+the way `js/game.js` builds the game's universe, and nothing is skipped at all.
+The frequency table in the previous section was measured before that fix; the
+corrected baseline is 43% group, 18% pair, 24% over, 6% under, 9% fallback.
+
+### Why 20%, when the portfolio that prompted it needed 35%
+
+The portfolio that started this is the fifth lesson portfolio: three bond funds
+and $1,000 of NVDA, where NVDA is 10% of the money and 38% of the risk, and the
+card talks about BND and LQD instead. Its pair carries **33.9%** of the risk, so
+reaching it needs a threshold around 35%.
+
+At 35% the pair rule loses **49 of its 76 cards** in the 420-portfolio check, and
+five of those name a pair correlated 0.95 or higher - including **VEA and VXUS at
+0.99, three times**. Two funds that are nearly the same fund is the clearest
+statement this game has of its own lesson, and at 35% each of those rounds would
+have read "nothing stands out here".
+
+And it cannot be tuned around. **The case worth keeping carries less pair risk
+than the case worth dropping**: VEA/VXUS at 30%, BND/LQD at 33.9%. No threshold
+on this measure separates them, which is the whole finding.
+
+| pair risk at least | groupRisk | pair | riskGapOver | riskGapUnder | pairLowRisk | fallback |
+| --- | --- | --- | --- | --- | --- | --- |
+| no condition | 43% | 18% | 24% | 6% | - | 9% |
+| **20% (chosen)** | **43%** | **16%** | **26%** | **6%** | **0.5%** | **9%** |
+| 30% | 43% | 9% | 30% | 6% | - | 12% |
+| 35% | 43% | 6% | 32% | 6% | - | 12% |
+| 45% | 43% | 4% | 33% | 7% | - | 14% |
+
+So 20% removes 10 of the 76 pair cards, every one of them a pair under a fifth of
+the risk, and no pair correlated 0.95 or more among them. The mostly-bond lesson
+portfolio keeps its pair card, and the lesson set now records that as a decision
+with the reason beside it rather than leaving it to be rediscovered.
+
+### The demoted pair card
+
+Eight of those 10 cards went to a risk-gap rule, which is the point. Two fell to
+the fallback, and a 0.94 pair becoming "nothing stands out here" is not an
+improvement. So the pair card is **demoted rather than dropped**: a new rule,
+`pairLowRisk`, with its own template.
+
+> QQQ and VTI move together, at 0.94, but between them they are only 13% of your
+> risk. They are the same bet - just not the bet that decided this portfolio.
+
+It is **last in the order**, which is the only position that works: ahead of the
+risk-gap rules it would hand back every card the condition took away, and the
+condition would have been for nothing. Last means it speaks only when nothing
+else had anything to say. It is shown on 2 of the 420 portfolios, which is
+exactly the two that had fallen to the fallback - the fallback itself did not
+grow by a single card.
+
+Its `pairRiskBelow` and the pair rule's `pairRiskAtLeast` have to be the same
+number or a pair would satisfy neither rule and lose its card entirely. A test
+holds the two equal, and then checks the consequence directly: over every pool
+portfolio, a pair correlated 0.70 or more fires exactly one of the two rules,
+never both and never neither.
+
+The sixth lesson portfolio is this case, and it is **p17 from the level 2 guess
+pool** rather than a portfolio built for the rule: QQQ and VTI at 0.94 carrying
+13%, beside ABBV at 45% of the money and 45% of the risk, so no gap rule and no
+group rule fires either. A test holds it equal to the pool's own p17, so a change
+to the pool cannot leave the lesson quietly describing something else.
+
 ### What to watch
 
+- **`pairLowRisk` is shown on 2 of 420 portfolios.**  That is by design - it is
+  the last word before the fallback - but it is rare enough that it will be hard
+  to see in a playtest, and rare enough to rot unnoticed. The lesson portfolio is
+  what keeps it honest.
 - **The fallback is 13% of cards, up from 5%.** That is the cost of the stricter
   thresholds, and it is the honest answer for a portfolio with nothing
   concentrated in it. But "nothing stands out" is the least useful thing the game
