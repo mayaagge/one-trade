@@ -1314,6 +1314,7 @@
      ]
     ],
     "effective_bets": 1.0000000000000002,
+    "correlation_only_ratio": 0.5000000000000001,
     "risk_shares": [
      0.5,
      0.5
@@ -1321,7 +1322,8 @@
     "beta_to_basket": 0.007398396826595227
    },
    "expected_exact": {
-    "effective_bets": 1.0
+    "effective_bets": 1.0,
+    "correlation_only_ratio": 0.5
    }
   },
   {
@@ -1382,13 +1384,15 @@
      ]
     ],
     "effective_bets": 2.0,
+    "correlation_only_ratio": 1.0,
     "risk_shares": [
      0.5,
      0.5
     ]
    },
    "expected_exact": {
-    "effective_bets": 2.0
+    "effective_bets": 2.0,
+    "correlation_only_ratio": 1.0
    }
   },
   {
@@ -2432,6 +2436,7 @@
      ]
     ],
     "effective_bets": 1.0163827712190758,
+    "correlation_only_ratio": 0.9034138103202113,
     "risk_shares": [
      0.09971997731706064,
      0.9002800226829393
@@ -3748,6 +3753,7 @@
      ]
     ],
     "effective_bets": 1.239618366248812,
+    "correlation_only_ratio": 0.4758483395769511,
     "risk_shares": [
      0.4697691115013657,
      0.05653395328848761,
@@ -5611,6 +5617,7 @@
      ]
     ],
     "effective_bets": 4.020301111516544,
+    "correlation_only_ratio": 1.0300851881249284,
     "risk_shares": [
      0.1937051022977546,
      0.2641025059282581,

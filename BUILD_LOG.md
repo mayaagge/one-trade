@@ -124,3 +124,80 @@ weights alone put the median below 0.60", so the property cannot quietly
 disappear.
 
 Educational, not investment advice.
+
+## 2026-11-25: Amendment 2 and the correlation-only ratio
+- Changed: Drafted PREREG_AMENDMENT_2.md, which keeps the registered 0.60 verdict
+  and reports it with the 0.523 independence benchmark beside it, and adds a
+  stricter primary test for Hypothesis 1: the correlation-only ratio
+  R = ENB(w, Sigma) / ENB(w, diag Sigma). Added correlationOnlyRatio and
+  registeredSets to js/hypothesis1.js, js/calibration.js and
+  scripts/calibrate_threshold.mjs, with tests first in every case
+  (tests/calibration.test.js, plus 13 new tests in tests/hypothesis1.test.js).
+  Added correlation_only_ratio to tests/make_fixtures.py and regenerated the
+  fixtures; every pre-existing number in known_answers.json is byte-identical.
+  180 of 180 tests pass. Still no prices: the calibration never takes a return
+  series.
+- I decided or corrected: Chose the correlation-only ratio over comparing the two
+  medians, because it holds weights and volatilities fixed and needs no new
+  random draws, so the registered 500 portfolios and seed 2026 stay as tagged.
+  Set the diversified structure at 0.30 rather than 0.15, the typical correlation
+  between stocks in different sectors, because a lower value would have made the
+  test easier to pass. Required the threshold to be calibrated on declared
+  synthetic structures before tagging rather than guessed. Claude found that the
+  first draft's structures were degenerate and stopped before publishing a number
+  from them, which is what the draft-then-tag order is for.
+
+### Why the calibration needed a volatility ladder
+
+The first draft of section 4 gave every holding the same volatility. An
+equicorrelated matrix with equal volatilities has all but one of its eigenvalues
+exactly tied, and effective bets has no single right answer when eigenvalues are
+tied. This is the same weakness as the tied-eigenvalue note above, met again in a
+place where it decides a published number.
+
+What it did, measured: all 500 portfolios changed their R when only the
+volatility level changed, one of them by 0.57. numpy moved too - 0.4470 at a 1%
+volatility against 0.4449 at 5% - because numpy's eigensolver and our Jacobi pick
+different eigenvectors out of a tied subspace, and both are entitled to. Carried
+through the rule, the threshold would have been published as 0.55 or 0.54
+depending on a parameter that is meant to mean nothing.
+
+Spreading volatility evenly from 0.8% to 2.0% a day across a portfolio's holdings
+separates the eigenvalues. The median R is then invariant to the ladder's level
+to 2.2e-16, the smallest relative eigenvalue gap across sizes 3 to 8 is 0.0079,
+and numpy and the browser agree to all 12 printed digits: 0.503774609006 for the
+tight structure and 0.703964103449 for the diversified one. A test refuses a flat
+ladder outright, so this cannot creep back.
+
+Only one ladder was tried, and the amendment says so. The ladder was changed
+because the old structure produced an unreproducible number, not because of which
+number it produced.
+
+### The threshold
+
+`node scripts/calibrate_threshold.mjs` gives median R of 0.503775 under the tight
+structure and 0.703964 under the diversified one, a midpoint of 0.603869, so the
+threshold is **0.60**. Landing on the same number as the registered v1 threshold
+is a coincidence of rounding: one is a median ratio of risk sources to holdings,
+the other is that ratio divided by what the same weights and volatilities would
+give with correlations switched off.
+
+One test caught a real bug on the way: building the matrix as `rho * d[i] * d[j]`
+on one side and `rho * d[j] * d[i]` on the other is not symmetric to the last bit,
+because the two multiply in a different order, and jacobiEigen assumes a
+genuinely symmetric matrix. Each off-diagonal entry is now computed once and
+written to both sides, as covariance() in js/math.js already did.
+
+Educational, not investment advice.
+
+### Decisions recorded for amendment 2, 25 November 2026
+
+| Decision | What was chosen | Why |
+| --- | --- | --- |
+| The stricter test | **Option A, the correlation-only ratio** R = ENB(w, Sigma) / ENB(w, diag Sigma) | The only candidate that holds both the weights and the volatilities fixed, so nothing but correlation differs. It also needs no new random draws, so the registered 500 portfolios and seed 2026 stay exactly as tagged. The two rejected options were comparing the beginner and control medians (simplest, but the pools differ in size and composition, so weight and size effects leak in) and a weight-matched paired control (rigorous, but it registers a second 500-portfolio sample) |
+| The diversified anchor | **0.30**, not 0.15 | Typical correlation between stocks in different sectors. A lower value would have made the test easier to pass, because the diversified structure sets the easier end of the scale and a looser one lifts the cut-off |
+| The tight anchor | 0.70, unchanged | What a concentrated, single-theme market looks like |
+| The structures' volatility | **A ladder, 0.8% to 2.0% a day, replacing equal volatilities** | Equal volatilities tie all but one eigenvalue, and effective bets has no single answer when eigenvalues are tied. See the section above: the threshold would have been published as 0.55 or 0.54 depending on a meaningless parameter, and numpy and the browser disagreed. The ladder is the only parameter here changed in response to a computation, and it was changed because the old structure was unreproducible, not because of the number it produced |
+| The threshold | **0.60**, from a midpoint of 0.603869 | Derived by the declared rule, not chosen. Supported if the beginner median R is strictly below 0.60 |
+| The download gate | **Moved from `prereg-v2` to `prereg-v3`** in CLAUDE.md rule 6 and in scripts/fetch_data.py | The stricter test and its threshold have to be timestamped publicly before any price exists, or adding them would be worthless. The snapshot's provenance field is renamed `prereg_v3_commit` to match |
+

@@ -173,6 +173,64 @@ export function portfolioRatio(portfolio, returnsByTicker) {
   return effectiveBets(weights, covariance(aligned)) / tickers.length;
 }
 
+/**
+ * The correlation-only ratio R, the primary test added by PREREG_AMENDMENT_2.md
+ * section 3.
+ *
+ *   R = ENB(w, Sigma) / ENB(w, diag Sigma)
+ *
+ * The denominator uses THE SAME dollar weights and THE SAME per-holding
+ * volatilities as the numerator, with every correlation switched off. So the
+ * only thing that differs between the two is the correlations, and R measures
+ * their effect and nothing else.
+ *
+ * WHY IT WAS ADDED, in plain language. The registered ratio of effective risk
+ * sources to holdings turned out to measure mostly how unevenly a flat Dirichlet
+ * draw spreads money. On holdings that are exactly uncorrelated and exactly
+ * equally volatile - where there is no hidden concentration at all - the
+ * registered median still comes out at 0.523, below the registered threshold of
+ * 0.60. R is immune to that by construction: on those same holdings it is
+ * exactly 1.
+ *
+ * How to read it:
+ *   R = 1    correlation cost this portfolio nothing; any shortfall was weights.
+ *   R = 0.5  correlation halved the risk sources the weights would have allowed.
+ *   R > 1    correlation HELPED: it spread risk more evenly than the weights
+ *            alone would have. This happens with negative correlations, and it
+ *            is never clipped to 1, because clipping would hide a real reading.
+ *
+ * R does not see weight concentration at all - holding the weights fixed is
+ * exactly how it isolates correlation. That limit is stated in
+ * PREREG_AMENDMENT_2.md section 8, which is why both tests are reported.
+ */
+export function correlationOnlyRatio(weights, cov) {
+  if (!Array.isArray(cov) || cov.length === 0) {
+    throw new Error('correlationOnlyRatio: expected a non-empty square covariance matrix');
+  }
+  const n = cov.length;
+  for (const row of cov) {
+    if (!Array.isArray(row) || row.length !== n) {
+      throw new Error(`correlationOnlyRatio: expected a ${n}-by-${n} covariance matrix`);
+    }
+  }
+  if (weights.length !== n) {
+    throw new Error(
+      `correlationOnlyRatio: ${weights.length} weights for a ${n}-by-${n} covariance matrix`,
+    );
+  }
+  // Same variances down the diagonal, every correlation set to zero.
+  const independent = Array.from({ length: n }, (_, i) => Array.from(
+    { length: n }, (_, j) => (i === j ? cov[i][i] : 0),
+  ));
+  return effectiveBets(weights, cov) / effectiveBets(weights, independent);
+}
+
+/** The correlation-only ratio for one portfolio, worked out from daily returns. */
+export function portfolioCorrelationOnlyRatio(portfolio, returnsByTicker) {
+  const aligned = alignReturns(portfolio.tickers, returnsByTicker);
+  return correlationOnlyRatio(portfolio.weights, covariance(aligned));
+}
+
 // --- summarising and the verdict ---------------------------------------------
 
 /** The middle value, or the average of the two middle values of an even count. */
@@ -210,6 +268,29 @@ export function verdictFor({ median: medianRatio, days, minDays = MIN_DAYS }) {
   }
   if (days < minDays) return 'not enough data';
   return medianRatio < MEDIAN_THRESHOLD ? 'supported' : 'not supported';
+}
+
+/**
+ * The two registered portfolio sets, drawn from one seeded stream: the 500
+ * beginner portfolios first, then the 500 control portfolios.
+ *
+ * This is the single place either set is drawn. hypothesis1 uses it, and so does
+ * the threshold calibration in PREREG_AMENDMENT_2.md section 4, which has to
+ * score the very same 500 portfolios the page scores. Drawing them in two places
+ * would let the two drift apart without anyone noticing.
+ *
+ * The order matters and must not change: the beginner set is drawn first, so
+ * every portfolio in both sets depends on it staying first.
+ */
+export function registeredSets({ basket, seed = SEED }) {
+  const rng = makeRng(seed);
+  const beginner = sampleSet({
+    rng,
+    pool: beginnerPool(basket),
+    isValid: (tickers) => isBeginnerPortfolio(tickers, basket),
+  });
+  const control = sampleSet({ rng, pool: CONTROL_POOL });
+  return { beginner, control };
 }
 
 // --- the whole hypothesis -----------------------------------------------------
@@ -250,16 +331,7 @@ export function hypothesis1({ returnsByTicker, basket, seed = SEED }) {
     };
   }
 
-  // One generator, used for the beginner set and then the control set, so the
-  // whole run is one reproducible stream from seed 2026.
-  const rng = makeRng(seed);
-
-  const beginnerSet = sampleSet({
-    rng,
-    pool,
-    isValid: (tickers) => isBeginnerPortfolio(tickers, basket),
-  });
-  const controlSet = sampleSet({ rng, pool: CONTROL_POOL });
+  const { beginner: beginnerSet, control: controlSet } = registeredSets({ basket, seed });
 
   const beginner = summarise(beginnerSet.map((p) => portfolioRatio(p, returnsByTicker)));
   const control = summarise(controlSet.map((p) => portfolioRatio(p, returnsByTicker)));

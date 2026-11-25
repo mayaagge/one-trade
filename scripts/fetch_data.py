@@ -4,8 +4,8 @@ Usage:
     .venv/bin/python scripts/fetch_data.py                      # full list
     .venv/bin/python scripts/fetch_data.py --tickers NVDA,PLTR --out data/test_two.json
 
-Rules (see PREREG_AMENDMENT.md):
-  * Refuses to run unless the prereg-v2 tag is on GitHub.
+Rules (see PREREG_AMENDMENT.md and PREREG_AMENDMENT_2.md):
+  * Refuses to run unless the prereg-v3 tag is on GitHub.
   * Window: first trading day on or after 24 Nov 2016, to 24 Nov 2026.
   * If any ticker fails or is empty, nothing is written and the exit code is 1.
 """
@@ -17,13 +17,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-TAG = "prereg-v2"
+TAG = "prereg-v3"
 WINDOW_START = "2016-11-24"
 FREEZE_DATE = "2026-11-24"
 
 
 def prereg_commit():
-    """Return the commit hash the prereg-v2 tag points to, or None if not on GitHub."""
+    """Return the commit hash the prereg-v3 tag points to, or None if not on GitHub."""
     out = subprocess.run(
         ["git", "ls-remote", "--tags", "origin", f"refs/tags/{TAG}", f"refs/tags/{TAG}^{{}}"],
         cwd=ROOT, capture_output=True, text=True,
@@ -135,7 +135,7 @@ def main():
     # 5. Write the snapshot.
     snapshot = {
         "fetched_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "prereg_v2_commit": commit,
+        "prereg_v3_commit": commit,
         "yfinance_version": yf.__version__,
         "window_start_requested": WINDOW_START,
         "freeze_date": FREEZE_DATE,

@@ -20,8 +20,12 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 
 import { makeRng, SEED } from '../js/rng.js';
+import { covariance } from '../js/math.js';
 import {
   PORTFOLIO_COUNT,
   MIN_HOLDINGS,
@@ -41,12 +45,19 @@ import {
   summarise,
   verdictFor,
   hypothesis1,
+  correlationOnlyRatio,
+  portfolioCorrelationOnlyRatio,
+  registeredSets,
 } from '../js/hypothesis1.js';
 
 // --- synthetic fixtures -----------------------------------------------------
 
 const BASKET = ['NVDA', 'AMD', 'AVGO', 'MRVL', 'MU', 'ANET', 'VRT', 'MSFT',
   'GOOGL', 'AMZN', 'META', 'ORCL', 'PLTR'];
+
+// The numpy known answers, for the correlation-only ratio tests at the end.
+const here = dirname(fileURLToPath(import.meta.url));
+const fixtures = JSON.parse(readFileSync(join(here, 'fixtures', 'known_answers.json'), 'utf8'));
 
 /** A tiny deterministic wave, so every ticker gets a different, non-flat series. */
 function wave(offset, days) {
@@ -425,4 +436,178 @@ test('hypothesis1 is reproducible and never mentions investment advice as fact',
   assert.deepEqual(second, first);
   assert.equal(first.seed, SEED);
   assert.equal(first.disclaimer, 'Educational, not investment advice.');
+});
+
+// --- the correlation-only ratio R -------------------------------------------
+//
+// PREREG_AMENDMENT_2.md section 3. R is effective bets with the real covariance
+// matrix, divided by effective bets with the SAME weights and the SAME
+// volatilities but every correlation switched off:
+//
+//   R = ENB(w, Sigma) / ENB(w, diag Sigma)
+//
+// R = 1 means correlation cost the portfolio nothing and the whole shortfall was
+// uneven weights. R = 0.5 means correlation halved the risk sources the weights
+// would otherwise have allowed. Because weights and volatilities are identical
+// above and below the line, nothing but the correlations differs between them.
+
+test('R is exactly 1 when nothing is correlated, whatever the weights', () => {
+  // THE test for this measure: if R did not isolate correlation, uneven weights
+  // would drag it below 1 here, exactly as they drag the registered ratio to 0.52.
+  const diagonal = [
+    [4e-4, 0, 0],
+    [0, 1e-4, 0],
+    [0, 0, 9e-4],
+  ];
+  for (const weights of [[1 / 3, 1 / 3, 1 / 3], [0.8, 0.1, 0.1], [0.02, 0.9, 0.08]]) {
+    const r = correlationOnlyRatio(weights, diagonal);
+    assert.equal(Math.abs(r - 1) < 1e-12, true, `weights ${weights} gave R = ${r}`);
+  }
+});
+
+test('R is exactly 0.5 for two identical assets held 50/50', () => {
+  // Hand-derivable: identical assets give 1 effective bet, and switching off
+  // their correlation gives 2, so R is one half.
+  const v = 1e-4;
+  const r = correlationOnlyRatio([0.5, 0.5], [[v, v], [v, v]]);
+  assert.equal(Math.abs(r - 0.5) < 1e-12, true, `R was ${r}`);
+});
+
+test('R ignores the scale of volatility, because it is a correlation measure', () => {
+  const cov = [[4e-4, 1.2e-4, 0.5e-4], [1.2e-4, 9e-4, 2e-4], [0.5e-4, 2e-4, 1e-4]];
+  const weights = [0.5, 0.3, 0.2];
+  const base = correlationOnlyRatio(weights, cov);
+  for (const factor of [4, 100, 0.01]) {
+    const scaled = cov.map((row) => row.map((value) => value * factor));
+    assert.equal(Math.abs(correlationOnlyRatio(weights, scaled) - base) < 1e-12, true,
+      `scaling every variance by ${factor} changed R`);
+  }
+});
+
+test('R falls as correlation rises', () => {
+  const weights = [0.4, 0.35, 0.25];
+  const v = 1e-4;
+  const ratios = [0, 0.3, 0.5, 0.7, 0.9].map((rho) => {
+    const cov = [
+      [v, rho * v, rho * v],
+      [rho * v, v, rho * v],
+      [rho * v, rho * v, v],
+    ];
+    return correlationOnlyRatio(weights, cov);
+  });
+  assert.equal(Math.abs(ratios[0] - 1) < 1e-12, true, 'zero correlation must give exactly 1');
+  for (let i = 1; i < ratios.length; i += 1) {
+    assert.equal(ratios[i] < ratios[i - 1], true,
+      `R did not fall: ${ratios[i - 1]} then ${ratios[i]}`);
+  }
+});
+
+test('R above 1 is allowed and is not clamped', () => {
+  // Negative correlation can spread risk more evenly than the weights alone
+  // would, so R goes above 1. That is a real reading, not an error: it says
+  // correlation HELPED. Nothing may quietly clip it to 1.
+  const v = 1e-4;
+  const r = correlationOnlyRatio([0.7, 0.3], [[v, -0.6 * v], [-0.6 * v, v]]);
+  assert.equal(r > 1, true, `negative correlation should lift R above 1, got ${r}`);
+});
+
+test('R matches numpy on all five known-answer cases, to 1e-9', () => {
+  // The same relative 1e-9 rule the rest of the browser math lives by
+  // (CLAUDE.md rule 3). Expected values come from tests/make_fixtures.py.
+  for (const testCase of fixtures.cases) {
+    const cov = testCase.covariance_input ?? covariance(testCase.returns);
+    const actual = correlationOnlyRatio(testCase.weights, cov);
+    const expected = testCase.expected.correlation_only_ratio;
+    const diff = Math.abs(actual - expected);
+    const scale = Math.max(Math.abs(expected), Math.abs(actual));
+    assert.equal(diff <= Math.max(1e-12, scale * 1e-9), true,
+      `${testCase.name}: expected ${expected}, got ${actual}`);
+  }
+});
+
+test('the two hand-derivable cases carry their exact R in the fixtures', () => {
+  const exact = {
+    two_identical_assets: 0.5,
+    two_independent_equal_vol: 1.0,
+  };
+  for (const [name, expected] of Object.entries(exact)) {
+    const testCase = fixtures.cases.find((c) => c.name === name);
+    assert.equal(testCase.expected_exact.correlation_only_ratio, expected,
+      `${name} should record an exact R of ${expected}`);
+    assert.equal(
+      Math.abs(correlationOnlyRatio(testCase.weights, testCase.covariance_input) - expected) < 1e-12,
+      true,
+      `${name}: the browser does not reproduce the exact R`,
+    );
+  }
+});
+
+test('portfolioCorrelationOnlyRatio works from returns, like the registered ratio', () => {
+  // Two holdings with identical returns: R must be 0.5, as above.
+  const r = portfolioCorrelationOnlyRatio(
+    { tickers: IDENTICAL.tickers, weights: [0.5, 0.5] },
+    IDENTICAL.returnsByTicker,
+  );
+  assert.equal(Math.abs(r - 0.5) < 1e-9, true, `R was ${r}`);
+});
+
+test('portfolioCorrelationOnlyRatio is 1 on exactly uncorrelated returns', () => {
+  const { tickers, returnsByTicker } = orthogonalFour();
+  const r = portfolioCorrelationOnlyRatio({ tickers, weights: [0.4, 0.3, 0.2, 0.1] }, returnsByTicker);
+  assert.equal(Math.abs(r - 1) < 1e-9, true, `R was ${r}, expected exactly 1`);
+});
+
+test('portfolioCorrelationOnlyRatio refuses a holding it has no returns for', () => {
+  assert.throws(
+    () => portfolioCorrelationOnlyRatio(
+      { tickers: ['A', 'MISSING'], weights: [0.5, 0.5] }, IDENTICAL.returnsByTicker,
+    ),
+    /MISSING/,
+  );
+});
+
+// --- the registered sets, shared with the calibration ------------------------
+
+test('registeredSets returns the 500 beginner and 500 control portfolios', () => {
+  const sets = registeredSets({ basket: BASKET, seed: SEED });
+  assert.equal(sets.beginner.length, 500);
+  assert.equal(sets.control.length, 500);
+  for (const portfolio of sets.beginner) {
+    assert.equal(isBeginnerPortfolio(portfolio.tickers, BASKET), true);
+  }
+  for (const portfolio of sets.control) {
+    for (const ticker of portfolio.tickers) {
+      assert.equal(CONTROL_POOL.includes(ticker), true, `${ticker} is not a control name`);
+    }
+  }
+});
+
+test('registeredSets is reproducible and is one stream, beginner first', () => {
+  assert.deepEqual(
+    registeredSets({ basket: BASKET, seed: SEED }),
+    registeredSets({ basket: BASKET, seed: SEED }),
+  );
+  // The beginner set must be the FIRST thing drawn from the stream, so that the
+  // calibration in PREREG_AMENDMENT_2.md section 4 scores the same 500
+  // portfolios hypothesis1 scores.
+  const expectedBeginner = sampleSet({
+    rng: makeRng(SEED),
+    pool: beginnerPool(BASKET),
+    count: PORTFOLIO_COUNT,
+    isValid: (names) => isBeginnerPortfolio(names, BASKET),
+  });
+  assert.deepEqual(registeredSets({ basket: BASKET, seed: SEED }).beginner, expectedBeginner);
+});
+
+test('hypothesis1 scores exactly the portfolios registeredSets draws', () => {
+  // Guards against the script and the page ever drifting apart.
+  const pool = beginnerPool(BASKET);
+  const returnsByTicker = syntheticReturns(pool, 300);
+  const result = hypothesis1({ returnsByTicker, basket: BASKET, seed: SEED });
+  const sets = registeredSets({ basket: BASKET, seed: SEED });
+
+  const expectedBeginner = sets.beginner.map((p) => portfolioRatio(p, returnsByTicker));
+  const expectedControl = sets.control.map((p) => portfolioRatio(p, returnsByTicker));
+  assert.deepEqual(result.beginner.ratios, expectedBeginner);
+  assert.deepEqual(result.control.ratios, expectedControl);
 });

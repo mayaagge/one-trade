@@ -46,6 +46,19 @@ def effective_bets(weights, cov):
     return float(np.exp(-np.sum(shares * np.log(shares))))
 
 
+def correlation_only_ratio(weights, cov):
+    """The correlation-only ratio R of PREREG_AMENDMENT_2.md section 3.
+
+    Effective bets with the real covariance matrix, divided by effective bets
+    with the SAME weights and the SAME volatilities but every correlation
+    switched off. R = 1 means correlation cost the portfolio nothing; R = 0.5
+    means correlation halved the risk sources its weights would have allowed.
+    """
+    cov = np.asarray(cov, dtype=float)
+    independent = np.diag(np.diag(cov))          # same volatilities, zero correlations
+    return effective_bets(weights, cov) / effective_bets(weights, independent)
+
+
 def risk_shares(weights, cov):
     w = np.asarray(weights, dtype=float)
     return (w * (cov @ w)) / float(w @ cov @ w)
@@ -75,7 +88,7 @@ def build_cases():
         "weights": [0.5, 0.5],
         "returns": identical,
         "covariance_input": np.array([[v, v], [v, v]]),
-        "expected_exact": {"effective_bets": 1.0},
+        "expected_exact": {"effective_bets": 1.0, "correlation_only_ratio": 0.5},
     })
 
     # Case 2: two independent, equally volatile assets. Hand-derivable: ENB is
@@ -91,7 +104,7 @@ def build_cases():
         "weights": [0.5, 0.5],
         "returns": plus_minus,
         "covariance_input": np.array([[v, 0.0], [0.0, v]]),
-        "expected_exact": {"effective_bets": 2.0},
+        "expected_exact": {"effective_bets": 2.0, "correlation_only_ratio": 1.0},
     })
 
     # Case 3: two holdings, correlation about 0.6, unequal volatility.
@@ -152,6 +165,7 @@ def main():
             "covariance": cov_sample.tolist(),
             "correlation": correlation(returns).tolist(),
             "effective_bets": effective_bets(weights, cov_used),
+            "correlation_only_ratio": correlation_only_ratio(weights, cov_used),
             "risk_shares": risk_shares(weights, cov_used).tolist(),
         }
         # Beta needs matching day counts, so only the 252-day cases get one.
@@ -193,7 +207,8 @@ def main():
 
     print("wrote", OUT)
     for case in out:
-        bits = [f"ENB={case['expected']['effective_bets']:.12f}"]
+        bits = [f"ENB={case['expected']['effective_bets']:.12f}",
+                f"R={case['expected']['correlation_only_ratio']:.12f}"]
         if case["expected_exact"]:
             bits.append(f"(exact {case['expected_exact']['effective_bets']})")
         print(f"  {case['name']:<28} holdings={len(case['weights'])} {' '.join(bits)}")
