@@ -84,6 +84,10 @@ Thresholds are checked against real data before launch, so each level has at lea
 
 **Scoring:** each level gives 1 star for passing, 2 if the guess was within 1, and 3 if within 0.5. Returns never earn points, and there is no leaderboard.
 
+**Scoring on a level whose answer is a correlation.** Level 1's answer is a correlation between −1 and 1, so bands of 1 and 0.5 would give 2 stars to every guess. Level 1 therefore scores: 1 star for passing (a correlation of 0.8 or more), 2 for naming the right "Same bet?" bucket (0.7 and above is the same bet; 0.3 to 0.7 is partly; below 0.3 is different bets), and 3 for a guess within 0.10 of the actual correlation. The buckets are the ones the daily puzzle already uses, not new numbers. Every other level keeps the bands of 1 and 0.5 above.
+
+**A displayed number never disagrees with the pass check.** The pass check compares the unrounded measure against the threshold. A result within 0.005 of its threshold, where a rounded display could read as the other side of it, is shown to 4 decimals instead: a correlation of 0.7996 against a 0.8 threshold is shown as 0.7996 and fails, never as "0.80" and fails.
+
 **The guess comes first.** Every level asks the player to predict the answer before the reveal. Predicting and then being corrected is the main learning moment.
 
 ## Game modes

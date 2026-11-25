@@ -1,0 +1,380 @@
+{
+  "version": 1,
+  "decided": "2026-11-25",
+  "note": "Levels 1 to 3. Every rule the game checks is data in this file, so an instructor or a reviewer can read it without reading code. Levels 4 to 7 are not built yet.",
+  "disclaimer": "Educational, not investment advice.",
+  "startingDollars": 10000,
+  "window": {
+    "days": 756,
+    "minDays": 252,
+    "note": "About 3 years of daily returns, over each portfolio's own overlapping days, as docs/PRD.md asks for a single portfolio. The daily 'Same bet?' puzzle uses one year instead, by its own design."
+  },
+  "levels": [
+    {
+      "id": 1,
+      "title": "Two of a kind",
+      "concept": "Correlation",
+      "challenge": "Pick two holdings with different names that move together.",
+      "holdings": {
+        "exactly": 2
+      },
+      "pool": [
+        "VOO",
+        "VTI",
+        "QQQ",
+        "VXUS",
+        "VEA",
+        "BND",
+        "TLT",
+        "LQD",
+        "GLD",
+        "XOM",
+        "CVX",
+        "JPM",
+        "BAC",
+        "NVDA"
+      ],
+      "poolNote": "Fourteen names with several same-bet pairs in them, and a near miss that matters: VTI and VXUS correlate at 0.7997 over the current window, a hair under the threshold. It is shown to 4 decimals so the number on screen cannot read as a pass.",
+      "guess": {
+        "measure": "correlation",
+        "prompt": "Before the reveal: how closely do these two move together, from -1 to 1?",
+        "min": -1,
+        "max": 1
+      },
+      "pass": {
+        "measure": "correlation",
+        "comparison": ">=",
+        "threshold": 0.8,
+        "says": "a correlation of 0.80 or more"
+      },
+      "buckets": [
+        {
+          "key": "same",
+          "min": 0.7,
+          "label": "the same bet"
+        },
+        {
+          "key": "partly",
+          "min": 0.3,
+          "label": "partly the same bet"
+        },
+        {
+          "key": "different",
+          "min": -1,
+          "label": "different bets"
+        }
+      ],
+      "bucketNote": "The same three buckets the daily 'Same bet?' puzzle uses.",
+      "stars": {
+        "pass": 1,
+        "two": {
+          "test": "bucket",
+          "says": "named the right bucket"
+        },
+        "three": {
+          "test": "within",
+          "of": 0.1,
+          "says": "within 0.10 of the real correlation"
+        }
+      },
+      "explain": "Two holdings with different names can be the same bet. Correlation measures how closely their daily moves line up: 1 means they move together every day, 0 means their moves are unrelated.",
+      "why": "An S&P 500 fund and a total-market fund hold almost the same companies in almost the same proportions, so they rise and fall together. The names differ; the bet does not."
+    },
+    {
+      "id": 2,
+      "title": "How many bets?",
+      "concept": "Effective bets",
+      "challenge": "Here is a starter portfolio. Guess how many separate bets it really makes, then see the answer.",
+      "holdings": {
+        "fixed": true,
+        "from": "guessPool"
+      },
+      "guess": {
+        "measure": "effectiveBets",
+        "prompt": "Before the reveal: how many separate bets does this portfolio make?",
+        "min": 1,
+        "max": 5
+      },
+      "pass": {
+        "measure": "guess",
+        "says": "make a guess"
+      },
+      "stars": {
+        "pass": 1,
+        "two": {
+          "test": "within",
+          "of": 1,
+          "says": "within 1 bet"
+        },
+        "three": {
+          "test": "within",
+          "of": 0.5,
+          "says": "within half a bet"
+        }
+      },
+      "explain": "Effective bets counts independent sources of risk, not holdings. Five holdings that move together are closer to one bet. It counts risk rather than money, so a bond fund with a small share of the dollars can still be a real second bet.",
+      "why": "This portfolio is drawn from a pool of 20, and level 7's first mystery portfolio comes from the same pool, so the two are equally hard on average. That is how Hypothesis 3 measures whether players improve.",
+      "poolRef": "guessPool"
+    },
+    {
+      "id": 3,
+      "title": "Three real bets",
+      "concept": "Diversifying across groups",
+      "challenge": "Build a 5-holding portfolio that makes at least 3 separate bets.",
+      "holdings": {
+        "exactly": 5
+      },
+      "pool": "all",
+      "poolNote": "The whole ticker list, all nine groups. Spreading across groups that really behave differently is the only way through this one.",
+      "guess": {
+        "measure": "effectiveBets",
+        "prompt": "Before the reveal: how many separate bets does your portfolio make?",
+        "min": 1,
+        "max": 5
+      },
+      "pass": {
+        "measure": "effectiveBets",
+        "comparison": ">=",
+        "threshold": 3,
+        "says": "at least 3 effective bets"
+      },
+      "stars": {
+        "pass": 1,
+        "two": {
+          "test": "within",
+          "of": 1,
+          "says": "within 1 bet"
+        },
+        "three": {
+          "test": "within",
+          "of": 0.5,
+          "says": "within half a bet"
+        }
+      },
+      "explain": "Holdings from the same group tend to move together, so they collapse into one bet. Three real bets needs three groups that behave differently, not three names.",
+      "why": "Five AI stocks are nearly one bet. A fund, a bond fund, gold, an energy name and a staples name are closer to five, because what drives each of them differs."
+    }
+  ],
+  "guessPool": {
+    "size": 20,
+    "note": "Level 2's portfolio and the first of level 7's mystery portfolios are both drawn from this one pool, as PREREG.md requires, so on average they are equally hard.",
+    "portfolios": [
+      {
+        "id": "p01",
+        "dollars": {
+          "VEA": 1000,
+          "QQQ": 6900,
+          "VOO": 2100
+        },
+        "expectedBets": 1.1000862815695418
+      },
+      {
+        "id": "p02",
+        "dollars": {
+          "QQQ": 300,
+          "ABBV": 1000,
+          "MU": 5200,
+          "CVX": 1900,
+          "ORCL": 1600
+        },
+        "expectedBets": 1.1969798109238827
+      },
+      {
+        "id": "p03",
+        "dollars": {
+          "VTI": 3900,
+          "AVGO": 4500,
+          "ANET": 1400,
+          "CRM": 200
+        },
+        "expectedBets": 1.2957346032823838
+      },
+      {
+        "id": "p04",
+        "dollars": {
+          "MSFT": 500,
+          "CSCO": 3700,
+          "GLD": 800,
+          "ADBE": 1500,
+          "ORCL": 3500
+        },
+        "expectedBets": 1.3947675508792186
+      },
+      {
+        "id": "p05",
+        "dollars": {
+          "VOO": 200,
+          "UNH": 5500,
+          "QQQ": 4300
+        },
+        "expectedBets": 1.4901508895332096
+      },
+      {
+        "id": "p06",
+        "dollars": {
+          "BAC": 1300,
+          "VXUS": 2600,
+          "VEA": 4600,
+          "BND": 1500
+        },
+        "expectedBets": 1.5945613794247433
+      },
+      {
+        "id": "p07",
+        "dollars": {
+          "AAPL": 3300,
+          "PG": 1000,
+          "AVGO": 2300,
+          "VTI": 1800,
+          "CSCO": 1600
+        },
+        "expectedBets": 1.6877448514882127
+      },
+      {
+        "id": "p08",
+        "dollars": {
+          "MU": 2600,
+          "META": 2400,
+          "AAPL": 1700,
+          "GLD": 3300
+        },
+        "expectedBets": 1.7862637078714863
+      },
+      {
+        "id": "p09",
+        "dollars": {
+          "INTC": 2100,
+          "ADBE": 1800,
+          "QQQ": 5900,
+          "ORCL": 200
+        },
+        "expectedBets": 1.8906359421661079
+      },
+      {
+        "id": "p10",
+        "dollars": {
+          "CRM": 1000,
+          "WMT": 5200,
+          "NVDA": 2200,
+          "QQQ": 1600
+        },
+        "expectedBets": 1.9853070769840906
+      },
+      {
+        "id": "p11",
+        "dollars": {
+          "KO": 3300,
+          "GS": 2000,
+          "VEA": 2500,
+          "BND": 2200
+        },
+        "expectedBets": 2.0841037697598375
+      },
+      {
+        "id": "p12",
+        "dollars": {
+          "AVGO": 1100,
+          "GLD": 1700,
+          "CSCO": 3200,
+          "JPM": 3700,
+          "VWO": 300
+        },
+        "expectedBets": 2.183218752978775
+      },
+      {
+        "id": "p13",
+        "dollars": {
+          "BAC": 3600,
+          "QQQ": 400,
+          "WMT": 3900,
+          "GLD": 500,
+          "AMZN": 1600
+        },
+        "expectedBets": 2.278613407479284
+      },
+      {
+        "id": "p14",
+        "dollars": {
+          "TLT": 3200,
+          "VOO": 200,
+          "BAC": 300,
+          "JNJ": 1100,
+          "VTI": 5200
+        },
+        "expectedBets": 2.3766713241155006
+      },
+      {
+        "id": "p15",
+        "dollars": {
+          "BND": 3300,
+          "VTI": 3100,
+          "AMD": 1100,
+          "COP": 2500
+        },
+        "expectedBets": 2.485211527252114
+      },
+      {
+        "id": "p16",
+        "dollars": {
+          "AAPL": 700,
+          "TLT": 2600,
+          "PG": 200,
+          "PLTR": 1300,
+          "GLD": 5200
+        },
+        "expectedBets": 2.5775650851390277
+      },
+      {
+        "id": "p17",
+        "dollars": {
+          "ABBV": 4500,
+          "QQQ": 700,
+          "AAPL": 2900,
+          "MU": 700,
+          "VTI": 1200
+        },
+        "expectedBets": 2.6749463790534858
+      },
+      {
+        "id": "p18",
+        "dollars": {
+          "GOOGL": 1900,
+          "VOO": 7300,
+          "VRT": 400,
+          "WMT": 400
+        },
+        "expectedBets": 2.775902323518256
+      },
+      {
+        "id": "p19",
+        "dollars": {
+          "INTC": 600,
+          "GLD": 1900,
+          "XOM": 1000,
+          "VTI": 3200,
+          "COP": 3300
+        },
+        "expectedBets": 2.874070834769085
+      },
+      {
+        "id": "p20",
+        "dollars": {
+          "AVGO": 1500,
+          "META": 100,
+          "VEA": 2400,
+          "VXUS": 2700,
+          "UNH": 3300
+        },
+        "expectedBets": 2.9659814591504485
+      }
+    ],
+    "seed": 7,
+    "seedNote": "A game seed, deliberately not the registered seed 2026.",
+    "generatedBy": "scripts/make_pool.mjs",
+    "window": {
+      "days": 756,
+      "minDays": 252
+    },
+    "expectedBetsNote": "Computed from the committed data/prices.json when the pool was generated. The game recomputes it at play time; a test holds the two to 1e-9."
+  }
+}
