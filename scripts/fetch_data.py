@@ -21,6 +21,13 @@ TAG = "prereg-v3"
 WINDOW_START = "2016-11-24"
 FREEZE_DATE = "2026-11-24"
 
+# Rows before this date are the pre-merger SPAC shell, not the operating
+# company, so they are trimmed before analysis (see BUILD_LOG.md).
+TICKER_TRIM_START = {
+    "VRT": "2020-02-10",  # Vertiv's first trading day under VRT, after the
+                           # GS Acquisition Holdings merger closed 2020-02-07.
+}
+
 
 def prereg_commit():
     """Return the commit hash the prereg-v3 tag points to, or None if not on GitHub."""
@@ -94,6 +101,8 @@ def main():
         if col is None or len(col) == 0:
             failed.append(s)
         else:
+            if s in TICKER_TRIM_START:
+                col = col.loc[TICKER_TRIM_START[s]:]
             closes[s] = col
 
     # 4. Report history and gaps.
@@ -139,6 +148,9 @@ def main():
         "yfinance_version": yf.__version__,
         "window_start_requested": WINDOW_START,
         "freeze_date": FREEZE_DATE,
+        "trimmed": {s: {"start": start,
+                         "reason": "pre-merger SPAC shell, not the operating company"}
+                    for s, start in TICKER_TRIM_START.items() if s in closes},
         "prices": {s: {"dates": [d.strftime("%Y-%m-%d") for d in c.index],
                        "close": [round(float(v), 6) for v in c.values]}
                    for s, c in closes.items()},

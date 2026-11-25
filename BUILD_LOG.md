@@ -249,3 +249,30 @@ from a midpoint of 0.603869. No price data was fetched, and none exists in the
 repository.
 
 Educational, not investment advice.
+
+## Trimming VRT to its post-merger history, 25 November 2026
+
+The first full fetch under `prereg-v3` returned 2,090 rows for VRT starting
+2018-08-02, while `tickers.json` already marks VRT `full_history: false` for
+the gap that creates. Before any hypothesis touched the snapshot, the pre-2020
+rows were checked for what they actually are.
+
+Vertiv went public via a SPAC merger (with GS Acquisition Holdings Corp), not
+an IPO: the "VRT" rows before the merger are the SPAC shell trading near its
+$10 trust value, not Vertiv's own stock. The 381 rows before 2020-02-07 in the
+fetched data run $9.64–$12.78 with a mean of $10.11 — flat around $10, the
+signature of an unredeemed SPAC trust, not an operating company's price. The
+merger closed 2020-02-07; Vertiv's stock began trading as VRT on the NYSE on
+the next trading day, Monday 2020-02-10.
+
+| Decision | What was chosen | Why |
+| --- | --- | --- |
+| Where to cut VRT's history | **2020-02-10**, Vertiv's first trading day under the VRT ticker, not the 2020-02-07 merger-close date or the 2018-08-02 SPAC IPO date | yfinance returns one continuous price series under the VRT symbol reaching back to the SPAC's own IPO, because the ticker was reused rather than newly listed. Everything before the first post-merger trading day prices a shell, not Vertiv |
+| Where the trim lives | **`scripts/fetch_data.py`**, as a `TICKER_TRIM_START` table applied to the downloaded series before the history report and before the snapshot is written, not a one-off edit to `data/prices.json` | A hand-edited snapshot would be silently overwritten by the next fetch and would not explain itself. The trim is reproducible and the reason travels with the code |
+| Where the trim is recorded | A `trimmed` field in the snapshot JSON itself, naming the start date and the reason, alongside `prereg_v3_commit` | Anyone reading `data/prices.json` later should see that VRT's history was shortened and why, without having to find this log entry |
+
+This is a data-cleaning decision, made by inspecting the prices themselves, not
+by trying thresholds against a hypothesis result: no hypothesis has been run
+against this snapshot yet, and none is run in this change.
+
+Educational, not investment advice.
