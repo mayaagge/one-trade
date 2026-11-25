@@ -10,3 +10,6 @@ __pycache__/
 .wrangler/
 
 .DS_Store
+
+# Trial downloads, never committed
+data/test_*
