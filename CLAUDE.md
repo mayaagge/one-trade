@@ -31,9 +31,11 @@ I am a first-year at UChicago. I know Python, JavaScript, web pages, Github, and
 ## Project layout
 - index.html: the page
 - js/: browser code (math.js, levels.js, game.js and so on)
+- js/returns.js: the snapshot turned into date-aligned daily returns
 - worker/: the Cloudflare Worker
-- data/: the price snapshot
+- data/: the price snapshot, and results.json
 - scripts/fetch_data.py: downloads prices
+- scripts/run_research.mjs: reproduces every verdict, writes data/results.json
 - tests/: known-answer tests
 - docs/PRD.md: the specification
 

@@ -20,6 +20,7 @@ SHARE_CUTOFF = 1e-12     # variance shares at or below this are dropped from the
 REL_TOL = 1e-9           # CLAUDE.md rule 3
 ABS_TOL = 1e-12          # fallback for numbers near zero
 DAYS = 252
+ROLLING_WINDOW = 126      # "the rolling 126-day correlation", PREREG.md Hypothesis 2
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "known_answers.json")
 
@@ -68,6 +69,54 @@ def beta_to(portfolio_returns, basket_returns):
     p = np.asarray(portfolio_returns, dtype=float)
     b = np.asarray(basket_returns, dtype=float)
     return float(np.cov(p, b, ddof=1)[0, 1] / np.var(b, ddof=1))
+
+
+# --- the series measures, exactly as js/returns.js and js/hypothesis2.js must
+# --- implement them ----------------------------------------------------------
+
+def simple_returns(closes):
+    """Daily simple returns: close-to-close percent change, one fewer than closes.
+
+    PRD, "How the numbers work": "Daily returns are simple returns (close-to-close
+    percent change), used consistently everywhere a return appears."
+    """
+    c = np.asarray(closes, dtype=float)
+    return c[1:] / c[:-1] - 1.0
+
+
+def equal_weight_basket(member_returns):
+    """The plain average of the members' returns, one day at a time.
+
+    Rebalanced daily, which is the reading of "AI basket: equal weight" that keeps
+    it equal weight for all ten years (see BUILD_LOG.md).
+    """
+    return np.asarray(member_returns, dtype=float).mean(axis=1)
+
+
+def growing_basket(member_returns):
+    """The equal-weight average of the members that have listed by each day.
+
+    PREREG.md Hypothesis 2: "A second version that adds names as they list is
+    reported beside it." A member that has not listed yet is NaN here and null in
+    the browser, and is left out of that day's average rather than counted as a
+    zero return.
+    """
+    m = np.asarray(member_returns, dtype=float)
+    return np.nanmean(m, axis=1)
+
+
+def rolling_correlation(a, b, window=ROLLING_WINDOW):
+    """Pearson correlation over a sliding window, labelled by the window's LAST day.
+
+    The first value covers days 0 to window-1 inclusive, so a series of n days
+    gives n - window + 1 values.
+    """
+    a = np.asarray(a, dtype=float)
+    b = np.asarray(b, dtype=float)
+    return np.array([
+        np.corrcoef(a[i:i + window], b[i:i + window])[0, 1]
+        for i in range(len(a) - window + 1)
+    ])
 
 
 # --- the five cases ---------------------------------------------------------
@@ -152,8 +201,116 @@ def build_cases():
     return cases, basket
 
 
+# --- the series cases, for js/returns.js and Hypothesis 2's two additions ----
+
+def build_series_cases():
+    """Known answers for prices-to-returns, both baskets and rolling correlation.
+
+    A fresh generator at the same registered seed, so nothing here moves a single
+    number in build_cases() above.
+    """
+    rng = np.random.default_rng(SEED)
+    cases = []
+
+    # 1. Four returns anyone can check by hand, including a flat day.
+    cases.append({
+        "name": "returns_hand_derivable",
+        "description": "Closes a reader can divide in their head: +10%, -10%, flat, +25%.",
+        "hand_derivable": True,
+        "kind": "simple_returns",
+        "closes": [100.0, 110.0, 99.0, 99.0, 123.75],
+        "expected_exact": [0.1, -0.1, 0.0, 0.25],
+    })
+
+    # 2. A longer sampled series, to catch rounding the hand case cannot.
+    closes = 100.0 * np.exp(np.cumsum(rng.normal(0.0004, 0.013, 300)))
+    cases.append({
+        "name": "returns_sampled_300",
+        "description": "300 sampled closes; checks the browser's arithmetic, not just its shape.",
+        "hand_derivable": False,
+        "kind": "simple_returns",
+        "closes": closes.tolist(),
+        "expected_exact": None,
+    })
+
+    # 3. The equal-weight basket: the plain daily average of its members.
+    members = rng.normal(0.0, 0.018, (200, 3))
+    cases.append({
+        "name": "basket_equal_weight_3_members",
+        "description": "Three members present every day; the basket is their daily average.",
+        "hand_derivable": False,
+        "kind": "equal_weight_basket",
+        "members": members.tolist(),
+        "expected_exact": None,
+    })
+
+    # 4. The growing basket: two members list partway through, and days before a
+    #    member lists leave it out of the average rather than counting it as zero.
+    growing = rng.normal(0.0, 0.018, (200, 4))
+    listed_from = [0, 0, 50, 120]
+    with_gaps = [
+        [None if t < listed_from[i] else float(growing[t, i]) for i in range(4)]
+        for t in range(200)
+    ]
+    cases.append({
+        "name": "basket_growing_4_members",
+        "description": (
+            "Four members, two of them listing on days 50 and 120. Before a member lists "
+            "it is null and is left out of that day's average, not counted as a zero."
+        ),
+        "hand_derivable": False,
+        "kind": "growing_basket",
+        "members": with_gaps,
+        "listed_from": listed_from,
+        "expected_exact": None,
+    })
+
+    # 5. A rolling correlation short enough to follow by hand: window 3 over 6 days
+    #    gives 4 values, each labelled by the last day of its window.
+    cases.append({
+        "name": "rolling_correlation_window_3",
+        "description": "Window 3 over 6 days: 4 values, each covering the 3 days ending at it.",
+        "hand_derivable": False,
+        "kind": "rolling_correlation",
+        "window": 3,
+        "a": [0.01, -0.02, 0.015, 0.004, -0.011, 0.007],
+        "b": [0.012, -0.015, 0.009, -0.002, -0.014, 0.003],
+        "expected_exact": None,
+    })
+
+    # 6. The registered 126-day window, on 300 sampled days: 175 values.
+    a = rng.normal(0.0, 0.015, 300)
+    b = 0.55 * a + np.sqrt(1 - 0.55 ** 2) * rng.normal(0.0, 0.015, 300)
+    cases.append({
+        "name": "rolling_correlation_window_126",
+        "description": "The registered 126-day window over 300 days, two series correlated near 0.55.",
+        "hand_derivable": False,
+        "kind": "rolling_correlation",
+        "window": ROLLING_WINDOW,
+        "a": a.tolist(),
+        "b": b.tolist(),
+        "expected_exact": None,
+    })
+
+    for case in cases:
+        if case["kind"] == "simple_returns":
+            case["expected"] = simple_returns(case["closes"]).tolist()
+        elif case["kind"] == "equal_weight_basket":
+            case["expected"] = equal_weight_basket(case["members"]).tolist()
+        elif case["kind"] == "growing_basket":
+            members = np.array([[np.nan if v is None else v for v in row]
+                                for row in case["members"]], dtype=float)
+            case["expected"] = growing_basket(members).tolist()
+        elif case["kind"] == "rolling_correlation":
+            case["expected"] = rolling_correlation(case["a"], case["b"], case["window"]).tolist()
+        else:
+            raise ValueError(f"unknown series case kind: {case['kind']}")
+    return cases
+
+
 def main():
     cases, basket = build_cases()
+    series_cases = build_series_cases()
     out = []
     for case in cases:
         returns = case["returns"]
@@ -200,6 +357,8 @@ def main():
         ),
         "basket_returns": basket.tolist(),
         "cases": out,
+        "rolling_window": ROLLING_WINDOW,
+        "series_cases": series_cases,
     }
     with open(OUT, "w") as handle:
         json.dump(doc, handle, indent=1)
@@ -212,6 +371,8 @@ def main():
         if case["expected_exact"]:
             bits.append(f"(exact {case['expected_exact']['effective_bets']})")
         print(f"  {case['name']:<28} holdings={len(case['weights'])} {' '.join(bits)}")
+    for case in series_cases:
+        print(f"  {case['name']:<32} {case['kind']:<22} {len(case['expected'])} values")
 
 
 if __name__ == "__main__":

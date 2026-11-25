@@ -318,3 +318,132 @@ returns are kept, because they are what a dollar amount in the game actually
 does.
 
 Educational, not investment advice.
+
+## The research data step, 25 November 2026 (session 1.11)
+
+Milestone 1's last Check clause needs Hypotheses 1 and 2 to come from real data.
+They did in session 1.10, but from a throwaway script, so nobody - including me -
+could re-derive the four numbers it reported. This step turns the snapshot into
+returns properly, fixes the early window, uses one window per run, adds the three
+things PREREG.md asks to be reported beside the verdicts, and commits a script
+that reproduces the lot into `data/results.json`.
+
+Tests first in every case, synthetic data for all the new logic, and four new
+numpy known-answer fixtures so the new math is held to 1e-9 like the rest:
+simple returns, the equal-weight basket, the growing basket and the rolling
+126-day correlation. Every pre-existing number in `known_answers.json` is
+byte-identical. **230 of 230 tests pass**, and
+`node scripts/calibrate_threshold.mjs` still prints 0.60 from a midpoint of
+0.603869, so the published threshold has not moved.
+
+### What changed, and why
+
+| Change | Why |
+| --- | --- |
+| New `js/returns.js`: prices to date-aligned simple returns | Lining tickers up by POSITION only works while every ticker traded on exactly the same days. It is now by date, and no date is assumed |
+| It refuses a missing interior day, for **all 42 tickers**, after each ticker's own first date | A hole turns one day's return into two days' worth. VRT and PLTR are not exempt: their late start is registered, a hole in the middle of it would not be. Today's snapshot is clean - all 40 full-history tickers match `^GSPC`'s calendar exactly, and VRT and PLTR are exact subsets of it |
+| `scripts/fetch_data.py` downloads from 2016-11-14, eight trading days before the window | A return on the window's first day needs the close from the day before, which sits OUTSIDE the registered window. Without it the earliest 12 months had 250 returns over 251 trading days. The window itself is untouched and is sliced in `js/returns.js`, from dates |
+| One window per run in Hypothesis 1, not per portfolio | `alignReturns` used to take each portfolio's own overlap. A portfolio holding PLTR would then be scored over a different stretch of market history from the portfolio beside it, and the median of 500 would be a median across mixed periods. The overlap is now taken once across every name the sampler can draw. (In the game, where one portfolio is the whole run, per-portfolio overlap stays the right reading of the same PRD sentence.) It changed no number here, because every ticker already covers the full 756 days - but it was luck, not design |
+| `growingBasket()` and `rollingCorrelation()` in `js/hypothesis2.js` | The two things PREREG.md asks to be reported beside the verdict. A member that has not listed yet is left out of that day's average, never counted as a zero return, which would drag the basket towards zero. Each rolling value is labelled with the LAST day of its window, so the marked 30 November 2022 means the 126 days ENDING then |
+| `^GSPC` reported beside RSP, with the reason attached to the number | RSP stays the verdict's benchmark. The index result travels with the sentence explaining why it is not the answer |
+| New `scripts/run_research.mjs`, writing `data/results.json` | One command reproduces every verdict, and the headline sentence is generated from the verdicts rather than written by hand, as the PRD asks |
+
+### Yahoo's adjusted closes are not reproducible between fetches
+
+Found when comparing the refetched snapshot against the committed one, before
+replacing it.
+
+35 of the 42 tickers came back different. The 7 that were byte-identical -
+ADBE, AMD, AMZN, ANET, GLD, PLTR and `^GSPC` - are exactly the non-dividend
+payers plus the index. Every dividend payer moved, by up to **1.2e-6 relative**,
+and the ratio new/old varied row to row rather than being one constant factor,
+so it was not the clean dividend re-adjustment I had expected.
+
+It is not caused by the lead-in. Refetching **KO with the unchanged original
+start date** disagreed with the committed snapshot on 1,731 of 2,513 days, by up
+to 8.1e-7 relative:
+
+```
+start=2016-11-24   identical to the committed snapshot: 782/2513   worst 8.1e-7
+start=2016-11-14   identical to the committed snapshot: 825/2513   worst 8.6e-7
+```
+
+The two fetches were 36 minutes apart, so no dividend was paid between them. The
+likely cause is rounding in Yahoo's back-adjustment, which would differ per
+request - but **that cause is inferred, not confirmed**: I did not read
+yfinance's or Yahoo's arithmetic. What is measured is that the differences do not
+track the start date, appear only in dividend payers, and sit at about 1e-6
+relative.
+
+**So the committed `data/prices.json` is the reference data.** Verdicts are
+reproducible from that file, not from a fresh fetch. `scripts/run_research.mjs`
+therefore reads only the committed snapshot - `--prices` was removed and errors
+if passed - and records the snapshot's SHA-256 in `data/results.json`, so any
+result can be matched to the exact bytes it came from. A rerun reporting a
+different hash is a rerun on different data.
+
+### The three-way comparison, before replacing the snapshot
+
+Three runs: the committed snapshot (which reproduces session 1.10 exactly), the
+refetched prices truncated back to the old start date (price differences alone),
+and the refetched prices with the lead-in (price differences plus the day the
+early window had been losing).
+
+| Quantity | Old snapshot (1.10) | Price wobble only | + the lead-in day |
+| --- | --- | --- | --- |
+| H1 headline R, beginner median | 0.7727881369 | +1.1e-8 | 0 |
+| H1 headline R, control median | 0.8443011078 | +3.0e-7 | 0 |
+| H1 registered ratio, beginner median | 0.3265544235 | -1.2e-8 | 0 |
+| H1 registered ratio, control median | 0.3811663035 | +2.4e-8 | 0 |
+| H1 shares below threshold (29.4%, 92.8%) | - | 0 | 0 |
+| H2 RSP, earliest 12 months | 0.5282729893 | -3.1e-6 | -9.1e-4 |
+| H2 RSP, recent 12 months | 0.4729138847 | +3.8e-7 | 0 |
+| H2 RSP, the rise | -0.0553591046 | +3.5e-6 | +9.1e-4 |
+| H2 RSP, interval lower | -0.2650537367 | +2.3e-6 | -8.3e-3 |
+| H2 `^GSPC`, the rise | +0.2154691152 | -1.6e-8 | +1.3e-3 |
+
+**All four verdicts are identical in all three runs, and so are all 13
+leave-one-out reruns.** The price noise is 100 to 1000 times smaller than the
+window fix it arrived with, and Hypothesis 1 does not move at all at the
+precision the page prints. The snapshot was replaced on that evidence, with the
+reproducibility limit recorded here and in the PRD's methods notes rather than
+discovered again later.
+
+### What moved against session 1.10, and why
+
+| Number | Session 1.10 | Now | Why |
+| --- | --- | --- | --- |
+| H1 headline R, beginner median | 0.773 | 0.773 | Unchanged. Every ticker already covered the full 756-day window, so the one-window fix moved nothing, and the price wobble is 1e-8 |
+| H1 registered ratio, beginner median | 0.327 | 0.327 | Unchanged, same reasons |
+| H2 against RSP, the rise | -0.0554 | -0.0544 | The earliest 12 months gained its first day, 25 November 2016. 250 returns became 251 |
+| H2 against RSP, 90% interval | [-0.2651, 0.0442] | [-0.2733, 0.0520] | The same extra day. The interval moves more than the point estimate because the block bootstrap draws over a 251-day window instead of a 250-day one, so the whole resample sequence differs |
+| H2 against `^GSPC`, the rise | +0.2155 | +0.2167 | The same extra day |
+
+Nothing in that list changes a verdict. The registered benchmark still shows the
+AI basket's correlation with the market **falling**, not rising, so Hypothesis 2
+is still "not supported"; the index still shows a rise, and is still not the
+registered answer.
+
+### New numbers, with no session-1.10 counterpart
+
+| Reported | Result |
+| --- | --- |
+| Growing basket vs RSP (adds names as they list) | rise -0.0404, interval [-0.2505, 0.0663], not supported. Its earliest 12 months is identical to the full-history basket's, because VRT and PLTR had not listed yet, so only the recent window differs |
+| Growing basket vs `^GSPC` | rise +0.2203, supported on that benchmark, which is not the verdict's |
+| Rolling 126-day correlation | 2,388 values per pair, 2017-05-26 to 2026-11-24. At the marked 30 November 2022: 0.8921 (full-history basket vs RSP), 0.8979 (growing vs RSP), 0.9320 and 0.9301 against `^GSPC` |
+| Leave-one-out | No single drop flips any of the three verdicts |
+
+### Decisions recorded
+
+| Decision | What was chosen | Why |
+| --- | --- | --- |
+| Where the registered window is applied | **In `js/returns.js`, by date**, with `scripts/fetch_data.py` downloading a few days earlier | Keeps the registered boundaries exactly as PREREG_AMENDMENT.md states them while giving the first day the close it needs. The lead-in rows are never returns of their own |
+| The lead-in length | **8 trading days** (from 2016-11-14) | One prior trading day is all the arithmetic needs; the rest is slack against holidays, and costs nothing because the window is sliced by date |
+| Interior-day gaps | **Refuse, for all 42 tickers, after each ticker's own first date** | Your change to the plan. A hole in a short history is still a hole, and quietly spanning it would inflate one day's move and dent the correlation around it |
+| Hypothesis 1's window | **One per run**, from `commonWindow()` across the whole universe | A median of 500 portfolios has to be a median over one window. Uneven input is now refused rather than trimmed, because trimming is what hid this |
+| Which pairs get a rolling series | **All four**: both baskets against both benchmarks | The rolling series is reporting, not a verdict, and a reader comparing RSP with the index deserves the same picture for each |
+| Which pairs get the leave-one-out reruns | **The registered pair only** (full-history basket vs RSP) | It is the only Hypothesis 2 combination that carries a verdict, and the reruns exist to test whether a verdict depends on one name |
+| The reference data | **The committed snapshot, with its SHA-256 in `data/results.json`** | A fresh fetch is not the same data. Pinning the file and publishing its hash is what makes "reproducible" mean something |
+| What the reruns keep in `data/results.json` | **Verdicts and medians, not the 500-value distributions** | PREREG.md asks for the full distributions of the baseline run, which are there in full, and of the reruns asks only whether a drop flips a verdict. Keeping all 13 distributions made the file 3.1 MB for nothing |
+
+Educational, not investment advice.

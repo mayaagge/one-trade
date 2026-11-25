@@ -330,14 +330,57 @@ test('the ratio always lands between 1/N and 1', () => {
   }
 });
 
-test('portfolioRatio uses only the overlapping days of its holdings', () => {
+test('ONE WINDOW: portfolioRatio refuses holdings with different day counts', () => {
+  // The PRD's "holdings with less history use their overlapping days" still
+  // holds, but the overlap is taken ONCE for the whole run - by
+  // returns.commonWindow() - not separately for each portfolio. Scoring 500
+  // portfolios on 500 different stretches of market history and then taking a
+  // median would mix periods: a portfolio holding PLTR would be measured over a
+  // different market from the portfolio beside it. So an uneven input is a
+  // caller's mistake, and it is refused rather than quietly trimmed.
   const returnsByTicker = {
     A: wave(1, 300),
     B: wave(5, 260),          // 40 fewer days of history
   };
-  const ratio = portfolioRatio({ tickers: ['A', 'B'], weights: [0.5, 0.5] }, returnsByTicker);
-  assert.equal(Number.isFinite(ratio), true, `ratio was ${ratio}`);
-  assert.equal(ratio > 0 && ratio <= 1 + 1e-9, true);
+  assert.throws(
+    () => portfolioRatio({ tickers: ['A', 'B'], weights: [0.5, 0.5] }, returnsByTicker),
+    (error) => error.message.includes('A') && error.message.includes('B')
+      && error.message.includes('300') && error.message.includes('260'),
+  );
+  assert.throws(
+    () => portfolioCorrelationOnlyRatio({ tickers: ['A', 'B'], weights: [0.5, 0.5] }, returnsByTicker),
+    /same number of days/,
+  );
+});
+
+test('ONE WINDOW: hypothesis1 refuses a universe whose histories are uneven', () => {
+  const { pool, returnsByTicker } = independentUniverse();
+  const uneven = { ...returnsByTicker };
+  uneven[pool.at(-1)] = returnsByTicker[pool.at(-1)].slice(50);   // one short name
+  assert.throws(
+    () => hypothesis1({ returnsByTicker: uneven, basket: BASKET }),
+    (error) => error.message.includes(pool.at(-1)) && /commonWindow|same number of days/.test(error.message),
+  );
+});
+
+test('ONE WINDOW: hypothesis1 scores every portfolio on the most recent 756 days, and nothing else', () => {
+  // Hand it far more history than the window and it must use the last 756 days;
+  // hand it exactly those 756 days and every number must come out identical.
+  // If any portfolio were reaching further back than the run's window, these two
+  // medians would differ.
+  const pool = beginnerPool(BASKET);
+  const long = Object.fromEntries(pool.map((ticker, i) => [ticker, wave(i * 11 + 1, 2000)]));
+  const trimmed = Object.fromEntries(pool.map((ticker) => [ticker, long[ticker].slice(-756)]));
+
+  const fromLong = hypothesis1({ returnsByTicker: long, basket: BASKET });
+  const fromTrimmed = hypothesis1({ returnsByTicker: trimmed, basket: BASKET });
+
+  assert.equal(fromLong.days, 756);
+  assert.equal(fromTrimmed.days, 756);
+  assert.equal(fromLong.headline.beginner.median, fromTrimmed.headline.beginner.median);
+  assert.equal(fromLong.registered.beginner.median, fromTrimmed.registered.beginner.median);
+  assert.equal(fromLong.headline.control.median, fromTrimmed.headline.control.median);
+  assert.equal(fromLong.registered.control.median, fromTrimmed.registered.control.median);
 });
 
 test('portfolioRatio refuses a holding it has no returns for', () => {

@@ -6,7 +6,10 @@ Usage:
 
 Rules (see PREREG_AMENDMENT.md and PREREG_AMENDMENT_2.md):
   * Refuses to run unless the prereg-v3 tag is on GitHub.
-  * Window: first trading day on or after 24 Nov 2016, to 24 Nov 2026.
+  * Registered window: first trading day on or after 24 Nov 2016, to 24 Nov 2026.
+  * Downloads from a few days earlier as lead-in, so the window's first day has a
+    close before it to compute a return from. The window itself is unchanged and is
+    applied by js/returns.js.
   * If any ticker fails or is empty, nothing is written and the exit code is 1.
 """
 import argparse
@@ -20,6 +23,21 @@ ROOT = Path(__file__).resolve().parent.parent
 TAG = "prereg-v3"
 WINDOW_START = "2016-11-24"
 FREEZE_DATE = "2026-11-24"
+
+# A few days of lead-in BEFORE the registered window, and why it is needed.
+#
+# The registered window starts at the first trading day on or after 24 November
+# 2016 (PREREG_AMENDMENT.md section 2). A daily return on that first day is the
+# change from the close BEFORE it, so without a close from the previous trading
+# day the window silently loses its own first day: the earliest 12 months came
+# out with 250 returns over 251 trading days.
+#
+# So the download reaches back to FETCH_START and the registered window is
+# applied later, by js/returns.js, from dates. The extra rows are lead-in only:
+# they supply the first in-window return's starting price and are never a return
+# of their own. Nothing about the registered window moves - this is the same
+# calendar fact as the window beginning after Thanksgiving.
+FETCH_START = "2016-11-14"
 
 # Rows before this date are the pre-merger SPAC shell, not the operating
 # company, so they are trimmed before analysis (see BUILD_LOG.md).
@@ -87,7 +105,7 @@ def main():
 
     # 2. Download. yfinance's end date is exclusive, so ask for the day after the freeze date.
     end_exclusive = (pd.Timestamp(FREEZE_DATE) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
-    raw = yf.download(symbols, start=WINDOW_START, end=end_exclusive, interval="1d",
+    raw = yf.download(symbols, start=FETCH_START, end=end_exclusive, interval="1d",
                       auto_adjust=True, progress=False, group_by="column", threads=True)
 
     # 3. Collect one series per ticker; list every failure.
@@ -106,7 +124,9 @@ def main():
             closes[s] = col
 
     # 4. Report history and gaps.
-    print(f"Window: first trading day on or after {WINDOW_START} to {FREEZE_DATE}")
+    print(f"Registered window: first trading day on or after {WINDOW_START} to {FREEZE_DATE}")
+    print(f"Downloaded from {FETCH_START}, a few days earlier, so the window's first day has\n"
+          f"a close before it to compute a return from. js/returns.js applies the window.")
     print(f"{'ticker':8} {'rows':>5}  {'first date':10}  {'last date':10}  notes")
     ref_dates = None
     if "^GSPC" in closes:
@@ -146,6 +166,12 @@ def main():
         "fetched_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "prereg_v3_commit": commit,
         "yfinance_version": yf.__version__,
+        "fetch_start": FETCH_START,
+        "fetch_start_reason": (
+            "Lead-in only. A return on the window's first trading day needs the close from "
+            "the trading day before it, which sits outside the registered window. The "
+            "registered window is unchanged and is applied by js/returns.js."
+        ),
         "window_start_requested": WINDOW_START,
         "freeze_date": FREEZE_DATE,
         "trimmed": {s: {"start": start,
@@ -158,7 +184,9 @@ def main():
     out = ROOT / args.out
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(snapshot))
-    print(f"\nWrote {out.relative_to(ROOT)} ({len(closes)} tickers)")
+    # A trial run may write outside the repo (a scratch file), where relative_to raises.
+    shown = out.relative_to(ROOT) if out.is_relative_to(ROOT) else out
+    print(f"\nWrote {shown} ({len(closes)} tickers)")
     return 0
 
 

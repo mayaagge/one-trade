@@ -22,6 +22,9 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 
 import { makeRng, SEED } from '../js/rng.js';
 import {
@@ -31,7 +34,11 @@ import {
   CORRELATION_RISE,
   MIN_WINDOW_DAYS,
   MIN_FULL_HISTORY_NAMES,
+  ROLLING_WINDOW,
+  CHATGPT_RELEASE,
   equalWeightBasket,
+  growingBasket,
+  rollingCorrelation,
   pairCorrelation,
   blockIndices,
   bootstrapDifferences,
@@ -40,6 +47,32 @@ import {
   verdictFor,
   hypothesis2,
 } from '../js/hypothesis2.js';
+
+// The numpy known answers, for the growing basket and the rolling correlation.
+const here = dirname(fileURLToPath(import.meta.url));
+const fixtures = JSON.parse(readFileSync(join(here, 'fixtures', 'known_answers.json'), 'utf8'));
+const REL = fixtures.tolerance.relative;   // 1e-9, CLAUDE.md rule 3
+const ABS = fixtures.tolerance.absolute;   // 1e-12
+
+function seriesCase(name) {
+  const found = fixtures.series_cases.find((c) => c.name === name);
+  assert.ok(found, `fixture ${name} is missing; rerun tests/make_fixtures.py`);
+  return found;
+}
+
+function assertClose(actual, expected, what) {
+  assert.equal(Number.isFinite(actual), true, `${what}: expected a finite number, got ${actual}`);
+  const diff = Math.abs(actual - expected);
+  const scale = Math.max(Math.abs(expected), Math.abs(actual));
+  const ok = scale < 1 ? diff <= Math.max(ABS, scale * REL) : diff / scale <= REL;
+  assert.equal(ok, true, `${what}: expected ${expected}, got ${actual} (difference ${diff})`);
+}
+
+function assertVectorClose(actual, expected, what) {
+  assert.equal(actual.length, expected.length,
+    `${what}: expected ${expected.length} values, got ${actual.length}`);
+  for (let i = 0; i < expected.length; i += 1) assertClose(actual[i], expected[i], `${what}[${i}]`);
+}
 
 // --- synthetic fixtures -----------------------------------------------------
 
@@ -392,3 +425,144 @@ test('hypothesis2 gives a different answer under a different seed, but the same 
   assert.notEqual(a.interval.lower, b.interval.lower, 'the interval does');
   assert.equal(a.verdict, b.verdict, 'a 0.70 rise is far too clear for the seed to matter');
 });
+
+// --- 6. the growing basket, reported beside the full-history one -------------
+//
+// PREREG.md, Hypothesis 2 step 2: "AI basket: equal weight, limited to basket
+// members with the full 10 years of history. A second version that adds names as
+// they list is reported beside it." The second version is what these cover. It
+// carries no verdict: RSP against the full-history basket is the registered
+// answer, and this is reported next to it.
+
+test('the growing basket averages only the members that have listed', () => {
+  // B lists on day 2. Before that the basket is A alone; from day 2 it is the
+  // average of both. A member that has not listed is null, never a zero return:
+  // counting an unlisted name as a flat day would drag the basket towards zero
+  // and bias its correlation with the market downwards.
+  const returnsByTicker = {
+    A: [0.02, 0.04, 0.06, 0.08],
+    B: [null, null, 0.00, 0.04],
+  };
+  assert.deepEqual(
+    growingBasket(returnsByTicker, ['A', 'B']),
+    [0.02, 0.04, 0.03, 0.06],
+  );
+});
+
+test('the growing basket matches numpy on 4 members listing on days 50 and 120', () => {
+  const fixture = seriesCase('basket_growing_4_members');
+  const tickers = ['M0', 'M1', 'M2', 'M3'];
+  const returnsByTicker = Object.fromEntries(
+    tickers.map((ticker, i) => [ticker, fixture.members.map((row) => row[i])]),
+  );
+  assertVectorClose(
+    growingBasket(returnsByTicker, tickers), fixture.expected, 'the growing basket',
+  );
+});
+
+test('the growing basket equals the equal-weight basket when every member is present', () => {
+  // The two must agree whenever nothing is missing, or the "second version"
+  // would be a different measure rather than the same one over more names.
+  const fixture = seriesCase('basket_equal_weight_3_members');
+  const tickers = ['M0', 'M1', 'M2'];
+  const returnsByTicker = Object.fromEntries(
+    tickers.map((ticker, i) => [ticker, fixture.members.map((row) => row[i])]),
+  );
+  assert.deepEqual(
+    growingBasket(returnsByTicker, tickers),
+    equalWeightBasket(returnsByTicker, tickers),
+  );
+});
+
+test('the growing basket refuses a day on which no member has listed', () => {
+  // There is nothing to average, and returning 0 would invent a flat market day.
+  assert.throws(
+    () => growingBasket({ A: [null, 0.01], B: [null, 0.02] }, ['A', 'B']),
+    /no member/,
+  );
+  assert.throws(() => growingBasket({ A: [0.01] }, ['A', 'MISSING']), /MISSING/);
+  assert.throws(() => growingBasket({ A: [0.01, 0.02], B: [0.01] }, ['A', 'B']), /same number of days/);
+});
+
+test('a null in the MIDDLE of a member is refused, not skipped', () => {
+  // js/returns.js refuses missing interior days outright, so a hole here means
+  // something upstream went wrong. Skipping it would silently change which names
+  // that day's average is over.
+  assert.throws(
+    () => growingBasket({ A: [0.01, 0.02, 0.03], B: [0.01, null, 0.03] }, ['A', 'B']),
+    /gap|interior/,
+  );
+});
+
+// --- 7. the rolling 126-day correlation --------------------------------------
+//
+// PREREG.md, Hypothesis 2, "Also reported": "the rolling 126-day correlation
+// over the full 10 years, with 30 November 2022 (ChatGPT's release) marked as a
+// reference date only." Marked, and nothing more: it enters no verdict and no
+// window boundary.
+
+test('the rolling window is the registered 126 days, and ChatGPT\'s release is the marked date', () => {
+  assert.equal(ROLLING_WINDOW, 126, 'PREREG fixes a rolling 126-day correlation');
+  assert.equal(CHATGPT_RELEASE, '2022-11-30');
+});
+
+test('rollingCorrelation matches numpy, window 3 and the registered window 126', () => {
+  for (const name of ['rolling_correlation_window_3', 'rolling_correlation_window_126']) {
+    const fixture = seriesCase(name);
+    const series = rollingCorrelation(fixture.a, fixture.b, { window: fixture.window });
+    assertVectorClose(series.values, fixture.expected, name);
+  }
+});
+
+test('each rolling value is labelled with the LAST day of its window', () => {
+  // A point dated 30 November 2022 therefore covers the 126 trading days ENDING
+  // that day, not starting it. The page has to say which, or the marker means
+  // nothing.
+  const dates = Array.from({ length: 6 }, (_, i) => `2022-01-0${i + 1}`);
+  const fixture = seriesCase('rolling_correlation_window_3');
+  const series = rollingCorrelation(fixture.a, fixture.b, { window: 3, dates });
+
+  assert.equal(series.values.length, 4, '6 days with a 3-day window gives 4 values');
+  assert.deepEqual(series.dates, dates.slice(2), 'the first value is dated at day 3');
+  assert.equal(series.window, 3);
+  assert.equal(series.labelledBy, 'the last day of each window');
+});
+
+test('rollingCorrelation marks a date, and says plainly when the marker is outside the series', () => {
+  const dates = Array.from({ length: 6 }, (_, i) => `2022-01-0${i + 1}`);
+  const fixture = seriesCase('rolling_correlation_window_3');
+  const marked = rollingCorrelation(fixture.a, fixture.b, { window: 3, dates, mark: '2022-01-05' });
+  assert.equal(marked.mark.date, '2022-01-05');
+  assert.equal(marked.mark.index, 2, 'the third of the four values');
+  assert.equal(marked.mark.inSeries, true);
+  assertClose(marked.mark.value, marked.values[2], 'the marked value');
+
+  // 2022-01-02 falls before the first full window, so there is no value to mark.
+  const early = rollingCorrelation(fixture.a, fixture.b, { window: 3, dates, mark: '2022-01-02' });
+  assert.equal(early.mark.inSeries, false);
+  assert.equal(early.mark.value, null);
+  assert.equal(typeof early.mark.note, 'string');
+
+  // A marker that is not itself a trading day attaches to the first value on or
+  // after it, and says so, rather than vanishing. 30 November 2022 was a trading
+  // day, but nothing should depend on that.
+  const gapped = ['2022-01-03', '2022-01-04', '2022-01-05', '2022-01-06', '2022-01-07', '2022-01-11'];
+  const holiday = rollingCorrelation(fixture.a, fixture.b, { window: 3, dates: gapped, mark: '2022-01-10' });
+  assert.equal(holiday.mark.inSeries, true);
+  assert.equal(holiday.mark.date, '2022-01-11', 'the first value on or after the marked date');
+  assert.equal(holiday.mark.requested, '2022-01-10');
+});
+
+test('rollingCorrelation refuses a window longer than the series', () => {
+  assert.throws(() => rollingCorrelation([0.01, 0.02], [0.01, 0.02], { window: 126 }), /126/);
+  assert.throws(
+    () => rollingCorrelation([0.01, 0.02, 0.03], [0.01, 0.02], { window: 2 }),
+    /same number of days|3 days against 2/,
+  );
+  assert.throws(
+    () => rollingCorrelation([0.01, 0.02, 0.03], [0.01, 0.02, 0.03], { window: 3, dates: ['a', 'b'] }),
+    /dates/,
+  );
+});
+
+// Educational, not investment advice.

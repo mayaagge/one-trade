@@ -193,10 +193,25 @@ export function sampleSet({
 // --- the measure -------------------------------------------------------------
 
 /**
- * Line up a portfolio's holdings on their overlapping days, most recent first
- * in the window. The PRD: "Holdings with less history use their overlapping
- * days, with a minimum of 252." So the window is the shortest history among the
- * holdings, capped at 756 days, taken from the end of each series.
+ * Line up a portfolio's holdings, day by day, as js/math.js expects.
+ *
+ * ONE WINDOW FOR THE WHOLE RUN. The PRD's rule - "holdings with less history use
+ * their overlapping days, with a minimum of 252" - still holds, but the overlap
+ * is worked out ONCE for every name the run can draw, by
+ * returns.commonWindow(), and every portfolio is then scored on those same days.
+ * It is not worked out again per portfolio.
+ *
+ * Why that matters here: Hypothesis 1 takes the MEDIAN of 500 portfolios and
+ * compares it with a threshold. If each portfolio used its own overlap, one
+ * holding a short-history name such as PLTR would be measured over a different
+ * stretch of market history from the portfolio beside it, and the median would
+ * be a median across mixed periods rather than one answer about one window. (In
+ * the game, where a single portfolio is the whole run, per-portfolio overlap is
+ * the right reading of the same sentence - there is only one portfolio to be
+ * consistent with.)
+ *
+ * So uneven histories are a caller's mistake, and are refused rather than
+ * quietly trimmed: trimming is what hides the problem.
  */
 function alignReturns(tickers, returnsByTicker) {
   const series = tickers.map((ticker) => {
@@ -206,10 +221,20 @@ function alignReturns(tickers, returnsByTicker) {
     }
     return values;
   });
-  const days = Math.min(WINDOW_DAYS, ...series.map((values) => values.length));
-  const windows = series.map((values) => values.slice(values.length - days));
+  const days = series[0].length;
+  for (const [i, values] of series.entries()) {
+    if (values.length !== days) {
+      throw new Error(
+        'alignReturns: every holding must have the same number of days, because the run uses '
+        + `one window for every portfolio. ${tickers[0]} has ${days} and ${tickers[i]} has `
+        + `${values.length}. Slice the returns once with returns.commonWindow() before scoring.`,
+      );
+    }
+  }
+  const window = days > WINDOW_DAYS ? series.map((values) => values.slice(days - WINDOW_DAYS)) : series;
+  const used = Math.min(days, WINDOW_DAYS);
   // One row per day, one column per holding, as js/math.js expects.
-  return Array.from({ length: days }, (_, t) => windows.map((values) => values[t]));
+  return Array.from({ length: used }, (_, t) => window.map((values) => values[t]));
 }
 
 /**
@@ -457,7 +482,22 @@ export function hypothesis1({ returnsByTicker, basket, seed = SEED }) {
       throw new Error(`hypothesis1: no returns for ${ticker}`);
     }
   }
-  const days = Math.min(WINDOW_DAYS, ...needed.map((ticker) => returnsByTicker[ticker].length));
+  // One window for the whole run, checked here rather than discovered halfway
+  // through scoring: every name the run can draw must arrive on the same days,
+  // so that the median is a median over one window. See alignReturns above.
+  const lengths = new Map(needed.map((ticker) => [ticker, returnsByTicker[ticker].length]));
+  const first = lengths.get(needed[0]);
+  const uneven = needed.filter((ticker) => lengths.get(ticker) !== first);
+  if (uneven.length > 0) {
+    const shown = uneven.slice(0, 3).map((ticker) => `${ticker} has ${lengths.get(ticker)}`).join(', ');
+    throw new Error(
+      'hypothesis1: every name in the universe must arrive with the same number of days, so '
+      + `that all ${PORTFOLIO_COUNT} portfolios are scored on one window. ${needed[0]} has `
+      + `${first} but ${shown}${uneven.length > 3 ? `, and ${uneven.length - 3} more` : ''}. `
+      + 'Slice the snapshot once with returns.commonWindow() before calling this.',
+    );
+  }
+  const days = Math.min(WINDOW_DAYS, first);
 
   const base = {
     seed,
