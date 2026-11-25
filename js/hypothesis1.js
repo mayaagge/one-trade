@@ -28,6 +28,27 @@ export const MAX_HOLDINGS = 8;
 export const MEDIAN_THRESHOLD = 0.60;
 
 /**
+ * The threshold for the correlation-only ratio R, the primary test added by
+ * PREREG_AMENDMENT_2.md section 3: supported if the beginner median R is
+ * STRICTLY below this. A median of exactly 0.60 is not supported.
+ *
+ * Not a chosen number. It is the midpoint of the median R under two structures
+ * declared before it was computed - a tight market where every pair correlates
+ * 0.70, and a diversified one at 0.30 - rounded to two decimals from 0.603869.
+ * The procedure is in js/calibration.js and runs with
+ * `node scripts/calibrate_threshold.mjs`; a test recomputes this constant from
+ * it, so changing a correlation, the ladder or the sampler breaks the test
+ * instead of quietly republishing a different threshold under a tagged number.
+ * Published and timestamped at the prereg-v3 tag.
+ *
+ * That this equals MEDIAN_THRESHOLD above is a coincidence of rounding. The two
+ * measure different things: that one is a median ratio of effective risk sources
+ * to holdings, this one is that ratio divided by what the same weights and
+ * volatilities would give with every correlation switched off.
+ */
+export const CORRELATION_ONLY_THRESHOLD = 0.60;
+
+/**
  * The covariance window: "3 years of daily returns ending on the freeze date".
  * The PRD puts that at 756 trading days, and sets 252 as the floor below which
  * there is not enough data. The 252 floor is NOT in PREREG.md - it is carried

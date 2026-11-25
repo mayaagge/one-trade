@@ -35,7 +35,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { SEED } from '../js/rng.js';
-import { correlationOnlyRatio, registeredSets, median } from '../js/hypothesis1.js';
+import {
+  correlationOnlyRatio,
+  registeredSets,
+  median,
+  CORRELATION_ONLY_THRESHOLD,
+} from '../js/hypothesis1.js';
 import { jacobiEigen } from '../js/math.js';
 import {
   TIGHT_CORRELATION,
@@ -256,4 +261,33 @@ test('the median is the same one Hypothesis 1 uses', () => {
     correlationOnlyRatio([0.5, 0.3, 0.2], declaredCovariance(3, TIGHT_CORRELATION)),
     correlationOnlyRatio([0.34, 0.33, 0.33], declaredCovariance(3, TIGHT_CORRELATION)),
   ]));
+});
+
+// --- the published constant --------------------------------------------------
+
+test('the published threshold is 0.60, as tagged in prereg-v3', () => {
+  assert.equal(CORRELATION_ONLY_THRESHOLD, 0.60,
+    'PREREG_AMENDMENT_2.md section 3: supported if the beginner median R is strictly below 0.60');
+});
+
+test('the published threshold is what the declared procedure actually produces', () => {
+  // The constant is not typed in and trusted. This recomputes it from the
+  // declared structures, so changing a correlation, the ladder or the sampler
+  // breaks the test rather than quietly republishing a different threshold under
+  // a tagged number.
+  const { beginner } = registeredSets({ basket: BASKET, seed: SEED });
+  const result = calibrateThreshold({ portfolios: beginner });
+  assert.equal(result.threshold, CORRELATION_ONLY_THRESHOLD,
+    `the procedure gives ${result.threshold}, but the published constant is ${CORRELATION_ONLY_THRESHOLD}`);
+  assert.equal(Math.abs(result.midpoint - 0.603869) < 5e-7, true,
+    `the recorded midpoint is 0.603869, the procedure gives ${result.midpoint}`);
+  assert.equal(Math.abs(result.tight.median - 0.503775) < 5e-7, true,
+    `the recorded tight median is 0.503775, the procedure gives ${result.tight.median}`);
+  assert.equal(Math.abs(result.diversified.median - 0.703964) < 5e-7, true,
+    `the recorded diversified median is 0.703964, the procedure gives ${result.diversified.median}`);
+});
+
+test('the threshold is read strictly: exactly 0.60 is not supported', () => {
+  assert.equal(0.5999 < CORRELATION_ONLY_THRESHOLD, true);
+  assert.equal(0.60 < CORRELATION_ONLY_THRESHOLD, false, 'exactly on the cut-off is not below it');
 });
