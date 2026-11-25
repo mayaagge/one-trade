@@ -345,6 +345,22 @@ main { outline: none; }
   stroke-width: 2;               /* a surface ring, not a border */
 }
 
+/* The live part of the rolling chart: everything after the freeze date. The band
+   is drawn under the grid and the series, so it tints the plot without hiding a
+   gridline. Its boundary rule is dashed, which the marked reference date is not,
+   so the two lines cannot be confused. */
+.chart-shade { fill: var(--series-1-soft); }
+.chart-shade-rule {
+  stroke: var(--series-1);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+.chart-shade-label {
+  fill: var(--text-secondary);
+  font-size: 11px;
+  text-anchor: end;
+}
+
 .chart-crosshair { stroke: var(--axis); stroke-width: 1; }
 .chart-hover-dot { fill: var(--series-1); stroke: var(--surface-1); stroke-width: 2; }
 
@@ -375,3 +391,4 @@ main { outline: none; }
   min-height: 1.4em;
   margin: 6px 0 0;
 }
+

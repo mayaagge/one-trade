@@ -1,11 +1,17 @@
 // js/research.js - the Research page.
 //
-// This file does NO maths. Every number on the page is read straight out of
+// Every verdict, and every number behind one, is read straight out of
 // data/results.json, which scripts/run_research.mjs writes from the committed
-// price snapshot. That is deliberate: the page cannot print a number that the
-// reproducible script did not produce.
+// price snapshot. That is deliberate: the page cannot print a verdict number
+// that the reproducible script did not produce.
+//
+// ONE EXCEPTION, and docs/PRD.md names it: the rolling 126-day correlation
+// continues past the freeze date on live prices from data/game.json. That tail
+// is computed in the browser by js/liveRolling.js, is shaded and labelled on the
+// chart, and enters no verdict. Nothing else on this page computes anything.
 
 import { renderLineChart, yearEndSample } from './chart.js';
+import { liveTailState } from './liveRolling.js';
 
 // Each chart's data, kept against the element it draws into. The SVG is sized to
 // the element's real width rather than scaled down from a fixed box, so the axis
@@ -14,6 +20,7 @@ import { renderLineChart, yearEndSample } from './chart.js';
 const CHART_SPEC = new WeakMap();
 
 export const RESULTS_URL = 'data/results.json';
+export const GAME_URL = 'data/game.json';
 export const DISCLAIMER = 'Educational, not investment advice.';
 
 // The claims themselves are prose from docs/PRD.md, not computed values.
@@ -258,7 +265,7 @@ function hypothesis2Card(combination, { role }) {
   return card;
 }
 
-function renderHypothesis2(results) {
+function renderHypothesis2(results, live) {
   const h2 = results.hypothesis2;
   const registered = h2.registered;
   const node = section('hypothesis-2', 'Hypothesis 2: a tightening market');
@@ -286,7 +293,7 @@ function renderHypothesis2(results) {
     'note',
   ));
 
-  node.append(renderRolling(registered));
+  node.append(renderRolling(registered, live));
   return node;
 }
 
@@ -294,12 +301,38 @@ function capitalise(text) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-/** The rolling 126-day correlation, with the reference date marked. */
-function renderRolling(registered) {
+/**
+ * The rolling 126-day correlation: the frozen series, then the live tail.
+ *
+ * The frozen half is the published one, copied value for value out of
+ * data/results.json. The tail is whatever js/liveRolling.js could build from
+ * data/game.json - two or more days get the shaded band docs/PRD.md asks for,
+ * and the empty and one-day cases get a plain sentence instead of a band too
+ * narrow to see. `live.status` is "unavailable" when the tail could not be
+ * built, and then this draws exactly what it drew before session 2.3b.
+ */
+function renderRolling(registered, live) {
   const rolling = registered.rolling;
+  const dates = live.dates;
+  const values = live.values;
+  const shaded = live.status === 'band';
+
   const wrap = h('figure', 'chart');
-  wrap.append(h('figcaption', 'chart-title', `Rolling ${rolling.window}-day correlation: the full-history AI basket with ${registered.benchmark}, ${rolling.dates[0]} to ${rolling.dates[rolling.dates.length - 1]}`));
-  wrap.append(paragraph(`Each point is labelled by ${rolling.labelledBy}. ${rolling.note}`, 'chart-sub'));
+  wrap.append(h('figcaption', 'chart-title', `Rolling ${rolling.window}-day correlation: the full-history AI basket with ${registered.benchmark}, ${dates[0]} to ${dates[dates.length - 1]}`));
+  wrap.append(paragraph(
+    `Each point is labelled by ${rolling.labelledBy}. ${rolling.note}`,
+    'chart-sub',
+  ));
+  wrap.append(paragraph(
+    live.liveCount > 0
+      ? `Values through ${live.dates[live.freezeIndex]} are the published, frozen ones and do not move. `
+        + `${shaded ? 'The shaded part is' : 'Anything after it is'} computed in the browser from live `
+        + 'prices, with the same basket, the same benchmark and the same window, and enters no verdict.'
+      : 'Values through the freeze date are the published, frozen ones and do not move. The live part, '
+        + 'once there is one, is computed from live prices with the same basket, benchmark and window, '
+        + 'and enters no verdict.',
+    'chart-sub',
+  ));
 
   const plot = h('div', 'chart-plot');
   wrap.append(plot);
@@ -310,9 +343,10 @@ function renderRolling(registered) {
 
   const tableId = 'rolling-table';
   CHART_SPEC.set(plot, {
-    dates: rolling.dates,
-    values: rolling.values,
+    dates,
+    values,
     mark,
+    live: live.shade,
     valueLabel: `rolling ${rolling.window}-day correlation`,
     formatValue: (v) => v.toFixed(4),
     describedBy: tableId,
@@ -324,14 +358,32 @@ function renderRolling(registered) {
       : rolling.mark.note, 'note'));
   }
 
-  // The table view: every value is reachable without hovering.
-  const sample = yearEndSample(rolling.dates, rolling.values, mark ? [0, mark.index, rolling.dates.length - 1] : [0, rolling.dates.length - 1]);
+  // The live tail in words. Every case says something: a band, a single named
+  // day, nothing yet, or why the tail is missing.
+  wrap.append(paragraph(live.sentence, 'note'));
+
+  // The table view: every value is reachable without hovering, and every live
+  // value is listed, not just the last one in its year.
+  const liveIndices = [];
+  for (let i = live.freezeIndex; i < dates.length; i += 1) {
+    if (i >= 0) liveIndices.push(i);
+  }
+  const sample = yearEndSample(dates, values, [
+    0,
+    ...(mark ? [mark.index] : []),
+    ...liveIndices,
+    dates.length - 1,
+  ]);
   const details = h('details', 'table-view');
-  details.append(h('summary', null, `Show the numbers (${sample.length} of ${rolling.values.length.toLocaleString('en-US')} rows)`));
+  details.append(h('summary', null, `Show the numbers (${sample.length} of ${values.length.toLocaleString('en-US')} rows)`));
   const numbers = table(
-    ['Window ending', `Correlation with ${registered.benchmark}`],
-    sample.map((row) => [row.date, fmt(row.value, 4)]),
-    'One value per calendar year, plus the first day, the marked date and the last day.',
+    ['Window ending', `Correlation with ${registered.benchmark}`, 'Half'],
+    sample.map((row) => [
+      row.date,
+      fmt(row.value, 4),
+      row.index > live.freezeIndex ? 'live, enters no verdict' : 'frozen',
+    ]),
+    'One value per calendar year, plus the first day, the marked date, the freeze date and every day after it.',
   );
   numbers.id = tableId;
   details.append(numbers);
@@ -425,14 +477,34 @@ export function drawCharts(root) {
   }
 }
 
+/**
+ * The live tail of the rolling chart, from data/game.json.
+ *
+ * Kept here, beside the render, so the page has one place that decides what the
+ * chart may draw. `game` is null when the file could not be loaded, and the
+ * state then says so and carries the frozen series alone.
+ */
+export function rollingTail(results, game) {
+  const registered = results.hypothesis2.registered;
+  return liveTailState({
+    frozen: registered.rolling,
+    game,
+    members: registered.members,
+    benchmark: registered.benchmark,
+    freezeDate: results.registered.freezeDate,
+    window: registered.rolling.window,
+  });
+}
+
 /** Render the whole Research view into `root`. */
-export function renderResearch(root, results) {
+export function renderResearch(root, results, game = null) {
   root.replaceChildren();
   const view = h('div', 'view');
+  const live = rollingTail(results, game);
 
   view.append(h('h1', null, 'Research'));
   view.append(paragraph(
-    'Three questions were pre-registered and tagged on GitHub before any price was downloaded. The page computes nothing: every number below is read from data/results.json, which one command regenerates from the committed price snapshot. Every result is reported, whichever way it came out.',
+    'Three questions were pre-registered and tagged on GitHub before any price was downloaded. Every verdict and every number behind one is read from data/results.json, which one command regenerates from the committed price snapshot; the page computes nothing else, apart from the rolling chart’s live tail after the freeze date, which enters no verdict. Every result is reported, whichever way it came out.',
     'lede',
   ));
   view.append(paragraph(DISCLAIMER, 'disclaimer-inline'));
@@ -442,7 +514,7 @@ export function renderResearch(root, results) {
   view.append(headline);
 
   view.append(renderHypothesis1(results));
-  view.append(renderHypothesis2(results));
+  view.append(renderHypothesis2(results, live));
   view.append(renderHypothesis3(results));
   view.append(renderLeaveOneOut(results));
   view.append(renderProvenance(results));
@@ -452,6 +524,23 @@ export function renderResearch(root, results) {
   return view;
 }
 
+/**
+ * The live returns, or null.
+ *
+ * A missing or broken data/game.json costs the chart its tail and nothing else,
+ * so this never throws: the page is about the frozen verdicts, and they do not
+ * depend on this file.
+ */
+async function loadGameData() {
+  try {
+    const response = await fetch(GAME_URL, { cache: 'no-cache' });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
 /** Fetch the results file and render, or say plainly that it could not load. */
 export async function mountResearch(root) {
   root.replaceChildren(h('p', 'loading', 'Loading the research results…'));
@@ -459,7 +548,8 @@ export async function mountResearch(root) {
     const response = await fetch(RESULTS_URL, { cache: 'no-cache' });
     if (!response.ok) throw new Error(`${RESULTS_URL} returned ${response.status}`);
     const results = await response.json();
-    const view = renderResearch(root, results);
+    const game = await loadGameData();
+    const view = renderResearch(root, results, game);
     let lastWidth = window.innerWidth;
     let pending = null;
     window.addEventListener('resize', () => {

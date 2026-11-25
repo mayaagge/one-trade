@@ -19,6 +19,7 @@ import {
   nearestIndex,
   tickIndices,
   yearEndSample,
+  shadeRect,
   DEFAULT_PADDING,
 } from '../js/chart.js';
 
@@ -33,6 +34,7 @@ import {
   reportedCombinations,
   distinctRunCount,
   chartBox,
+  rollingTail,
   CLAIMS,
   DISCLAIMER,
   HYPOTHESIS3_LIMIT,
@@ -156,6 +158,58 @@ test('tickIndices() always includes the first and last point', () => {
   assert.ok(ticks.length <= 6);
   assert.deepEqual(tickIndices(1, 6), [0]);
   assert.deepEqual(tickIndices(0, 6), []);
+});
+
+// ------------------------------------------------------------------- shading
+
+test('shadeRect() covers the live segment and nothing frozen', () => {
+  // 11 points, the first live one at index 9: the band starts at index 8, the
+  // freeze date, so the line drawn to the live values is inside it and the last
+  // frozen-to-frozen segment is not.
+  const box = shadeRect(9, 11, PLOT);
+  assert.equal(box.x, xOf(8, 11, PLOT));
+  assert.equal(box.y, PLOT.top);
+  assert.equal(box.height, PLOT.height);
+  // It ends exactly on the right edge of the plot, never beyond it.
+  assert.equal(box.x + box.width, PLOT.right);
+});
+
+test('shadeRect() on the real series is a sliver at the right-hand edge', () => {
+  const count = RESULTS.hypothesis2.registered.rolling.dates.length + 1;
+  const box = shadeRect(count - 1, count, PLOT);
+  assert.equal(box.x + box.width, PLOT.right);
+  // One day beside ten years: a few tenths of a pixel. This is why a one-day
+  // tail is named in a sentence rather than drawn as a band.
+  assert.ok(box.width < 1, `a single day shaded ${box.width}px`);
+});
+
+test('shadeRect() has nothing to shade past the end of the series', () => {
+  assert.equal(shadeRect(11, 11, PLOT).width, 0);
+  assert.throws(() => shadeRect(-1, 11, PLOT), /first live index/);
+});
+
+test('rollingTail() still draws the published chart when game.json is missing', () => {
+  const state = rollingTail(RESULTS, null);
+  const frozen = RESULTS.hypothesis2.registered.rolling;
+  assert.equal(state.status, 'unavailable');
+  assert.equal(state.shade, null);
+  assert.deepEqual(state.dates, frozen.dates);
+  assert.deepEqual(state.values, frozen.values);
+  assert.match(state.sentence, /frozen series only/i);
+});
+
+test('rollingTail() reads the basket, benchmark and freeze date off the results file', () => {
+  const game = JSON.parse(
+    readFileSync(fileURLToPath(new URL('../data/game.json', import.meta.url)), 'utf8'),
+  );
+  const state = rollingTail(RESULTS, game);
+  assert.notEqual(state.status, 'unavailable', state.reason);
+  assert.equal(state.dates[state.freezeIndex], RESULTS.registered.freezeDate);
+  // The mark's index is an index into the frozen half, so appending must not
+  // move it: the chart marks it by index.
+  const mark = RESULTS.hypothesis2.registered.rolling.mark;
+  assert.equal(state.dates[mark.index], mark.date);
+  assert.equal(state.values[mark.index], mark.value);
 });
 
 // ------------------------------------------------------------------ table view

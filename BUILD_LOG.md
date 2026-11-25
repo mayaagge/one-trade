@@ -722,3 +722,70 @@ nobody reads. So:
   a real fault.
 
 Educational, not investment advice.
+
+## The rolling chart's live tail, 25 November 2026 (session 2.3b)
+
+The Research page now draws the one chart docs/PRD.md allows to move: the rolling
+126-day correlation of the full-history AI basket with RSP continues past the
+freeze date on live prices from `data/game.json`. Everything else on the page is
+still read from `data/results.json`, and no verdict reads the tail.
+
+### What was built
+
+| File | What it does |
+| --- | --- |
+| `js/liveRolling.js` | Reads `data/game.json`, computes the rolling values for windows ending after the freeze date with the same `equalWeightBasket()` and `rollingCorrelation()` the verdicts used, and appends them to the frozen series. Returns a status - `band`, `one-day`, `none` or `unavailable` - and the sentence to print |
+| `js/chart.js` | Gained `shadeRect()` and an optional `live` spec: the band, a dashed boundary rule at the freeze date, the label, and a tooltip that says "live, enters no verdict" on a live reading |
+| `js/research.js` | Loads `data/game.json` beside `data/results.json`, draws the joined series, lists every live day in the table view with a "Half" column, and no longer claims the page "computes nothing" |
+| `index.html` | The footer now names both price files and says the live part enters no verdict |
+| `tests/liveRolling.test.js` | 23 tests: the tail's arithmetic, the frozen half being untouched, the join, the three length cases and five ways of refusing a broken file |
+
+The full suite is 346 tests and passes.
+
+### The two halves are checked where they meet
+
+The window ending on the freeze date has a value in both halves, which makes the
+join a measurement rather than an assumption. Measured on the committed files:
+the live half gives 0.4556382612 where the published series has 0.4556382614, a
+gap of 2.4e-10, which is `data/game.json`'s 10-decimal rounding and nothing else.
+The page refuses the whole tail above 1e-4, as session 2.3a registered, and the
+test also holds today's figure to the project's 1e-9. A wrong basket, a wrong
+benchmark or a misaligned calendar all show up here as a gap far above either
+bound, and the chart then stops at the freeze date and says why.
+
+### Why one live day gets a sentence and not a band
+
+The freeze date was yesterday, so there is exactly one trading day after it. A
+band for it would be 0.28 px wide beside ten years of frozen history - invisible,
+and impossible to hover. So two or more days get the shaded band, and the empty
+and one-day cases get a plain sentence that names the date and the value instead.
+`shadeRect()` is tested at both ends: it starts on the freeze-date point, so no
+frozen value is ever inside the shading, and it stops exactly on the plot's right
+edge.
+
+### Decisions recorded
+
+| Decision | What was chosen | Why |
+| --- | --- | --- |
+| Where the live tail is computed | **In the browser, by `js/liveRolling.js`** | The alternative is a second results file rebuilt every evening, which would put a computed number next to the frozen verdicts in the same file. The tail enters no verdict, so it does not need to be reproducible from a tag |
+| Which functions compute it | **`equalWeightBasket()` and `rollingCorrelation()` from `js/hypothesis2.js`** | The halves have to be one measure. A second implementation of the same arithmetic is the thing most likely to make them disagree |
+| When the two halves disagree | **Drop the tail, draw the frozen series, say why** | A chart that silently joins two different measures is worse than a chart that stops at the freeze date |
+| A missing or broken `data/game.json` | **Costs the chart its tail, not the page** | The verdicts do not depend on that file. `loadGameData()` returns null rather than throwing, and the status carries the reason |
+| One live day | **A sentence, not a band** | At 0.28 px nobody can see or hover it, and an invisible band labelled "after the freeze date" would be a claim the chart does not actually show |
+| The boundary rule's style | **Dashed, where the marked reference date is solid** | Two vertical lines on one chart mean two different things, and the ChatGPT marker was there first |
+
+### What to watch
+
+- The band stays a sliver for months: 20 live days is about 5 px of a 664 px
+  plot. The sentence under the chart carries the numbers until then, and the
+  table view lists every live day, so nothing depends on seeing the band.
+- The join check needs a row for the freeze date in `data/game.json`. That file
+  holds 756 trading days, so the row ages out in about three years, and the tail
+  then refuses itself with "no row for the freeze date". That is the honest
+  answer, but a rebuild of the chart's provenance would be the real fix.
+- `js/research.js` draws the frozen series for the three reported-only
+  combinations and the live tail only for the registered one, which is what
+  docs/PRD.md specifies. If a reader asks why only one chart moves, that is why.
+
+Educational, not investment advice.
+

@@ -96,6 +96,26 @@ function fx(n) {
 }
 
 /**
+ * The shaded band behind the live part of a series.
+ *
+ * `fromIndex` is the index of the FIRST live point, and the band starts at the
+ * point before it - the freeze date, the last frozen value - so every piece of
+ * line drawn to a live value sits inside the shading, and no frozen value does.
+ * It runs to the right edge of the plot, because the live part is the end of the
+ * series by definition.
+ *
+ * Returns { x, y, width, height }. A width of 0 means there is nothing to shade.
+ */
+export function shadeRect(fromIndex, count, plot) {
+  if (!Number.isInteger(fromIndex) || fromIndex < 0) {
+    throw new Error(`shadeRect() got ${fromIndex} as a first live index`);
+  }
+  if (fromIndex >= count) return { x: plot.right, y: plot.top, width: 0, height: plot.height };
+  const x = xOf(Math.max(0, fromIndex - 1), count, plot);
+  return { x, y: plot.top, width: Math.max(0, plot.right - x), height: plot.height };
+}
+
+/**
  * The data index nearest a pixel x. The crosshair snaps to this, so a reader
  * aims at a date rather than at a 2px line.
  */
@@ -149,14 +169,18 @@ function el(name, attrs = {}) {
 /**
  * Draw the chart into `container` and wire the crosshair.
  *
- * spec: { dates, values, mark, width, height, yStep, valueLabel, formatValue }
+ * spec: { dates, values, mark, live, width, height, yStep, valueLabel, formatValue }
  * `mark` is { index, date, value, label } or null.
+ * `live` is { fromIndex, label, band } or null: the part of the series that came
+ * from live prices. `band` false draws the boundary and the label but no shading,
+ * which is what a single live day gets - see js/liveRolling.js.
  */
 export function renderLineChart(container, spec) {
   const {
     dates,
     values,
     mark = null,
+    live = null,
     width = 720,
     height = 300,
     yStep = 0.1,
@@ -182,6 +206,32 @@ export function renderLineChart(container, spec) {
     class: 'chart-svg',
   });
   if (describedBy) svg.setAttribute('aria-describedby', describedBy);
+
+  // The live part, drawn FIRST so the grid, the series and the crosshair all sit
+  // on top of it. Its boundary is the freeze date: left of the rule the values
+  // are the published, frozen ones; right of it they came from live prices.
+  const liveFrom = live && Number.isInteger(live.fromIndex) && live.fromIndex < dates.length
+    ? live.fromIndex
+    : null;
+  if (liveFrom !== null) {
+    const box = shadeRect(liveFrom, dates.length, plot);
+    if (live.band && box.width > 0) {
+      svg.append(el('rect', {
+        x: box.x, y: box.y, width: box.width, height: box.height, class: 'chart-shade',
+      }));
+    }
+    svg.append(el('line', {
+      x1: box.x, x2: box.x, y1: plot.top, y2: plot.bottom, class: 'chart-shade-rule',
+    }));
+    if (live.label) {
+      // Anchored to the LEFT of the boundary: the band itself is only a few days
+      // wide beside ten years, so a label inside it would run off the chart. It
+      // sits a line below the marked-date label, which cannot then collide.
+      const label = el('text', { x: box.x - 6, y: plot.top + 26, class: 'chart-shade-label' });
+      label.textContent = live.label;
+      svg.append(label);
+    }
+  }
 
   // Gridlines and y labels: solid hairlines, one shade off the surface.
   for (const t of domain.ticks) {
@@ -261,16 +311,21 @@ export function renderLineChart(container, spec) {
     dot.setAttribute('cy', y);
     dot.style.display = '';
 
+    // A live reading says so, so a hovered number is never mistaken for one of
+    // the published, frozen values.
+    const isLive = liveFrom !== null && index >= liveFrom;
+    const when = `126 days ending ${dates[index]}${isLive ? ' · live, enters no verdict' : ''}`;
+
     // Value leads, label follows. textContent, never innerHTML.
     tooltip.replaceChildren();
     const value = document.createElement('strong');
     value.textContent = formatValue(v);
-    const when = document.createElement('span');
-    when.textContent = `126 days ending ${dates[index]}`;
-    tooltip.append(value, when);
+    const label = document.createElement('span');
+    label.textContent = when;
+    tooltip.append(value, label);
     tooltip.hidden = false;
     tooltip.style.left = `${(x / width) * 100}%`;
-    readout.textContent = `${formatValue(v)}, 126 days ending ${dates[index]}`;
+    readout.textContent = `${formatValue(v)}, ${when}`;
   }
 
   function hide() {
