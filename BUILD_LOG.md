@@ -44,3 +44,83 @@ components are not always uniquely defined.
 ## 2026-11-25: 1.8 CI
 - Changed: Added a GitHub Actions workflow; 48/48 green on GitHub.
 - I decided or corrected: Pushed straight to main with Node 24; told Claude the next step was 1.5, not 1.9, since the fetch script and research code didn't exist yet.
+## 2026-11-25: 1.5 The research code (Hypothesis 1, Hypothesis 2, leave-one-out)
+- Changed: Added js/rng.js (seeded generator), js/hypothesis1.js (the beginner
+  sampler, the control set, the ratio and the verdict), js/hypothesis2.js (the
+  equal-weight basket, window correlations, the 20-day block bootstrap and the
+  verdict) and js/leaveOneOut.js (13 reruns of both hypotheses). Tests first in
+  all four cases: tests/rng.test.js, tests/hypothesis1.test.js,
+  tests/hypothesis2.test.js and tests/leaveOneOut.test.js, each run red before
+  the module existed. 147 of 147 tests pass. Synthetic data only; nothing in
+  this step fetches a price.
+- I decided or corrected: Told Claude to draw a portfolio's size first and keep
+  it fixed, redrawing only the names until both beginner conditions are met, so
+  the registered 3-to-8 sizes stay uniform instead of favouring the sizes that
+  are easier to satisfy. Fixed the block bootstrap's starts at 0 to n-20 so every
+  block is a full 20 days. Asked for the equal-weight basket to be stated as a
+  daily rebalanced average. Had the Dirichlet draw guarded so u is never exactly
+  zero. Two tests were wrong and the code was right: one assumed a bootstrap
+  interval sits around zero when two samples share a true correlation (it sits
+  around the OBSERVED difference, and two 252-day draws from the same 0.5 came
+  out 0.145 apart), and one read the wrong field off the leave-one-out result.
+
+### The equal-weight AI basket is rebalanced daily
+
+The basket is the plain average of its members' daily returns, which is the same
+as returning to equal weights at every close. Buying equal dollar amounts once
+in 2016 and leaving them would not stay equal weight: NVDA would have grown into
+most of the basket, and the correlation being measured would really be NVDA's.
+PREREG.md says "AI basket: equal weight", and daily rebalancing is the reading
+that keeps it equal weight for all ten years.
+
+### Three things PREREG.md does not settle, decided before any data existed
+
+1. **The control set's size.** PREREG registers 3 to 8 holdings for both sets,
+   but the control pool holds only 7 names, so 8 is impossible. The draw stays 3
+   to 8 and the result is capped at 7, which makes 7 holdings about twice as
+   likely as the other sizes in the control set. A property of the pool, not a
+   change to the draw.
+2. **"Not enough data" for Hypotheses 1 and 2.** PREREG defines it for
+   Hypothesis 3 only. H1 needs 252 overlapping trading days, which is the PRD's
+   existing floor for a covariance window. H2 needs 200 trading days in each
+   12-month window and at least 2 basket names with full history.
+3. **Hypothesis 2's rolling 126-day correlation.** In the PRD as something
+   "also reported", with no verdict role. Left for the reporting step.
+
+Two smaller gaps, resolved the same way: the 90% interval is the 5th and 95th
+percentiles of the 2,000 bootstrap differences, interpolating between neighbours
+as numpy's default does; and a median over an even count is the average of the
+two middle values.
+
+### What the 0.60 threshold actually measures
+
+Found while writing the tests, before any price was downloaded.
+
+Build the friendliest case diversification can have: 22 holdings that are
+exactly uncorrelated and exactly equally volatile, so there is no hidden
+concentration at all. Run the registered sampler on it. The beginner set's
+median ratio is 0.523 and the control set's is 0.512. Both are below 0.60, so
+Hypothesis 1 comes out "supported" on data where its claim is false by
+construction.
+
+The reason is arithmetic, not market structure. When holdings are independent,
+each component's share of variance reduces to w squared over the sum of w
+squared, so the ratio depends on the weights alone. Flat Dirichlet weights are
+uneven enough by themselves to average about 0.52 across sizes 3 to 8. The same
+figure comes out of numpy independently: 0.5117 over 600,000 draws.
+
+So the 0.60 threshold is mostly measuring how unevenly a flat Dirichlet spreads
+money, and only secondarily whether the holdings share risk. Nothing was changed
+in response: PREREG.md is frozen, the threshold stays at 0.60, the sampler is
+exactly as registered, and the verdict will be reported whichever way it comes
+out. What this does change is how the result must be read, and PREREG already
+asks for the two numbers that show it - the control set's median, and the share
+of beginner portfolios below 0.60. If the beginner and control medians come out
+close together, the measure has not separated a concentrated portfolio from a
+diversified one, and the page has to say so rather than claim support.
+
+tests/hypothesis1.test.js carries this as a test, named "FINDING: flat-Dirichlet
+weights alone put the median below 0.60", so the property cannot quietly
+disappear.
+
+Educational, not investment advice.
