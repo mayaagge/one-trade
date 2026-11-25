@@ -609,3 +609,116 @@ the generous reading and the one the PRD's wording implies.
 | The weekly CI job | **Not built**, as you said | `check_levels.mjs` already exits non-zero on failure, so wiring it to a schedule later needs no rewrite |
 
 Educational, not investment advice.
+
+## Live game data, 25 November 2026 (session 2.3a)
+
+The game now has its own price file. `data/prices.json` stays frozen and keeps
+being the only thing the verdicts are computed from; `data/game.json` is the
+most recent 756 trading days of daily returns, rebuilt every weekday evening and
+committed only when it changed.
+
+Session 2.3 was split at your instruction: 2.3a is the data pipeline (items 1 to
+4 and 6), and 2.3b is the Research page's live chart extension (item 5).
+docs/PRD.md now specifies that chart, which 2.3b builds.
+
+### What was built
+
+| File | What it does |
+| --- | --- |
+| `scripts/fetch_data.py` | Gained a `--live` mode: about 4 years ending today, into `data/live_prices.json`. The two modes cannot write each other's file - `--live` refuses `data/prices.json` and the frozen mode refuses the live path - so a cron job cannot overwrite the research snapshot by a mistyped argument. The prereg-v3 gate applies in both modes |
+| `scripts/build_game_data.mjs` | Live prices to `data/game.json`. It calls `buildReturns()` from `js/returns.js` and does no return arithmetic of its own, so the game and the research apply one rule for date alignment, gaps and windows |
+| `data/game.json` | 756 trading days, 42 tickers, one row per trading day. First build: 2023-11-21 to 2026-11-25, 428 KB |
+| `.github/workflows/refresh.yml` | 23:30 UTC on weekdays, plus manual dispatch |
+| `tests/gamedata.test.js` | 28 tests: the builder against `js/returns.js`, the precision measurement, the format, nine ways of refusing a broken file, staleness, and a guard that the frozen research data is untouched |
+| `scripts/check_levels.mjs` | Gained `--prices`, so the weekday job can check the levels against the prices the game will actually be played on. The frozen snapshot never moves, so checking against it would never catch a level going unpassable |
+
+The full suite is 318 tests and passes. `check_levels.mjs` against the live file
+still finds 8 winning pairs for level 1 and 17 winning designs for level 3, with
+VTI + VXUS at 0.7996 still the nearest miss.
+
+### How much history a daily commit costs, measured
+
+You asked for an estimate before the format was settled. I simulated 60 daily
+versions by sliding the 756-day window forward one trading day at a time - the
+real day-to-day change, one row appended and one dropped - committed each into a
+throwaway repository, and measured the packed size.
+
+| Layout | Raw | Gzipped | Marginal per commit | Per year (252 weekdays) |
+| --- | --- | --- | --- | --- |
+| Ticker-major, full precision | 690 KB | 296 KB | 1.53 KiB | 0.38 MB |
+| Date-major, full precision | 694 KB | 298 KB | 1.01 KiB | 0.25 MB |
+| **Date-major, 10 decimals (chosen)** | **437 KB** | **168 KB** | **0.88 KiB** | **0.22 MB** |
+| Date-major, 8 decimals | 374 KB | 134 KB | 0.78 KiB | 0.19 MB |
+
+**The history cost is not large, and my worry about it was wrong.** Git deltas a
+sliding window almost perfectly: about 1.5 KiB per commit even on the layout I
+had planned, so roughly 0.4 MB of packed history a year. The cost that is real
+is the download - every player fetches this file - so the format was chosen for
+the phone, not for the repository.
+
+### Why 10 decimal places and not 8
+
+CLAUDE.md rule 3 holds the browser maths to 1e-9 against numpy. Those tests feed
+fixtures rather than game.json, so rounding here cannot break them directly, but
+a game.json coarse enough to move a correlation by more than 1e-9 would make the
+game disagree with the research code on the same window. Measured across the
+level-1 pairs and two 5-holding portfolios:
+
+| Decimals | Worst correlation drift | Effective-bets drift |
+| --- | --- | --- |
+| 8 | 1.2e-8 | 4.1e-8 |
+| 9 | 2.1e-9 | 2.4e-10 |
+| **10** | **8.5e-11** | **1.2e-10** |
+
+8 and 9 both land at or above the 1e-9 bar; 10 sits an order of magnitude inside
+it and still cuts the download 43%. Two tests in `tests/gamedata.test.js` hold
+this: one asserts 10 decimals stays inside 1e-9, and one asserts that 8 does
+not, so the format cannot be quietly shortened later without answering for the
+measurement.
+
+### The failure policy, as you specified it
+
+Yahoo is unofficial and rate-limits (PRD weakness 5), so a failed evening is
+expected rather than exceptional, and a red X every time it hiccups is a red X
+nobody reads. So:
+
+- **Transient**: 3 attempts, then warn, keep the previous `data/game.json`, stay green.
+- **Integrity**: a gap inside a ticker's history, a missing ticker, a short
+  window, a value that is not a number, a daily move of 50% or more, or a meta
+  field that disagrees with the rows - nothing is written and the run goes red.
+- **Stale**: more than 5 weekdays without fresh prices goes red, so a quiet
+  multi-day outage cannot hide behind nightly warnings.
+- **Levels**: `check_levels.mjs` runs after the commit, so a level dropping below
+  3 winning designs goes red without withholding the day's prices from the game.
+  Live prices moving the goalposts is PRD weakness 3; it is a levels problem to
+  fix, not a reason to serve stale data.
+
+### Decisions recorded
+
+| Decision | What was chosen | Why |
+| --- | --- | --- |
+| Where the game's returns come from | **`js/returns.js`, called by the build script** | The game and the published research must apply one rule for date alignment, gaps and window slicing. A second implementation of that arithmetic is the thing most likely to make them disagree |
+| The committed artefact | **`data/game.json` only**; the raw live download is gitignored | A megabyte of raw closes every evening would bloat the history for nothing, and the returns are what the browser needs |
+| The layout | **One line per trading day**, with a `tickers` header naming the columns | A rebuild changes two lines out of 756, so the diff is readable and git stores a small delta. Ticker-major puts each ticker's whole series on one line, so every line changes every day |
+| Precision | **10 decimal places** | Measured: inside 1e-9, and 43% smaller to download. See the table above |
+| Timestamps in the file | **None at all** | The workflow commits only when the data changed. A generated-at field would change on every run, including market holidays when the data is identical, so every evening would look like fresh data. The commit dates the file |
+| Which file the levels are checked against | **The live prices, after the commit** | The frozen snapshot never moves, so a check against it can never catch a level going unpassable as prices change |
+| How the two price files are kept apart | **Refusals in both scripts**, not just in the workflow | `--live` refuses to write `data/prices.json`; the build script refuses to write `data/prices.json` or `data/results.json`; the workflow fails if anything but `data/game.json` appears in the diff. Three independent guards, because the frozen snapshot is the one thing in this repository that cannot be regenerated |
+| Running the tests inside the refresh job | **Yes** | A push made with `GITHUB_TOKEN` does not trigger the Tests workflow, so without this the daily commit would be the one commit in the repository that nothing checked |
+| Where the live tail of the chart is specified | **docs/PRD.md now, built in 2.3b** | Spec first, then build. The PRD is a specification, not a status report |
+
+### What to watch
+
+- The live tail of the rolling chart is nearly empty right now: the freeze date
+  was yesterday, so there is exactly one trading day after it. 2.3b has to say
+  "no trading days after the freeze date yet" rather than draw an empty band.
+- GitHub disables scheduled workflows after 60 days of repository inactivity, and
+  a push made by Actions does not always count. If the evening commits stop, that
+  is the first thing to check.
+- Yahoo's adjusted closes move by about 1e-6 between fetches for dividend payers
+  (session 1.11), so the live and frozen halves of the chart will not join
+  perfectly at the freeze date. 2.3b compares the two at that date and fails if
+  they differ by more than 1e-4, which turns the known drift into a tripwire for
+  a real fault.
+
+Educational, not investment advice.

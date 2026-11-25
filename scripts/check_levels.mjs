@@ -118,15 +118,26 @@ function report(title, { considered, winners }, show, formatter) {
   return enough;
 }
 
-function main() {
-  const snapshot = JSON.parse(readFileSync(path('data/prices.json'), 'utf8'));
+function main(argv = []) {
+  // --prices points the check at a different price file. The default is the
+  // frozen snapshot, which is what a local run wants. The refresh workflow passes
+  // the live file it has just fetched, because that is the data the game will
+  // actually be played on: a level can only go unpassable as prices move, and the
+  // frozen snapshot never moves.
+  let pricesPath = 'data/prices.json';
+  for (let i = 0; i < argv.length; i += 1) {
+    if (argv[i] === '--prices') { pricesPath = argv[i + 1]; i += 1; } else {
+      throw new Error(`check_levels: unknown argument ${argv[i]}`);
+    }
+  }
+  const snapshot = JSON.parse(readFileSync(path(pricesPath), 'utf8'));
   const tickersFile = JSON.parse(readFileSync(path('tickers.json'), 'utf8'));
   const levels = JSON.parse(readFileSync(path('levels.json'), 'utf8'));
   const built = buildReturns(snapshot);
   const universe = universeFrom(tickersFile);
   const groupOf = groupsFrom(tickersFile);
 
-  console.log(`Levels 1 to 3 against the committed snapshot, ${WINDOW_DAYS}-day windows.`);
+  console.log(`Levels 1 to 3 against ${pricesPath}, ${WINDOW_DAYS}-day windows.`);
   console.log(`Each level needs at least ${REQUIRED_DESIGNS} different winning designs.`);
 
   const level1 = levelById(levels, 1);
@@ -165,4 +176,4 @@ function main() {
   }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) main();
+if (process.argv[1] === fileURLToPath(import.meta.url)) main(process.argv.slice(2));

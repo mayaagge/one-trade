@@ -97,12 +97,14 @@ Thresholds are checked against real data before launch, so each level has at lea
 | **Learn** | Levels 1 to 7, in order; progress saved in the browser | Launch |
 | **Sandbox** | Build any portfolio from the full ticker list and see every measure | Launch |
 | **Crash replay** | Watch a pretend portfolio through the 2020 crash (19 Feb to 23 Mar), the 2022 bear market (3 Jan to 12 Oct) or the January 2025 AI selloff, next to the S&P 500 | Launch |
-| **Research** | Read the three pre-registered hypotheses and their verdicts | Launch |
+| **Research** | Read the three pre-registered hypotheses and their verdicts, and see the rolling correlation chart continue past the freeze date on live data | Launch |
 | **Classroom link** | An instructor picks levels and shares one link; a one-page lesson plan goes with it | Launch |
 | **Feedback** | Three-question form after level 3 | Launch |
 | **My real portfolio** | Enter real holdings in dollars; nothing is stored or sent | Launch, secondary |
 | **Explore the market** | Correlation heatmaps for calm, all and worst-10% days | Launch, secondary |
 | **See inside funds** | Named holdings inside each fund, from SEC filings | Later, optional |
+
+**Research mode and live data.** The verdicts, and every number behind them, come from the committed price snapshot and never move: the registered windows all end on the freeze date, 24 November 2026. One chart is the exception, and only in what it draws. The rolling 126-day correlation of the AI basket with the equal-weight S&P 500 — already reported-only, entering no verdict — continues past the freeze date on live prices. Everything after 24 November 2026 is shaded and labelled **"after the freeze date; enters no verdict"**, so a reader can see whether the measured rise held up without that view ever reaching the registered test. The frozen part of the line is read from the published results file, and the live part is computed from the same basket, benchmark and 126-day window, so the two halves are the same measure.
 
 ## Feature roadmap
 
@@ -293,10 +295,14 @@ Yahoo Finance ──► Cloudflare Worker (allowlist, cache) ──► Browser (
                                                      ▲
                      data/ snapshot (fallback) ──────┘
 
+Weekday evening ──► fetch live prices ──► data/game.json (committed) ──► Browser
+
 Browser ──► Worker: anonymous count pings and guess records only
 ```
 
 The Worker exists because browsers cannot call Yahoo directly. The snapshot keeps the page working if Yahoo rate-limits or changes.
+
+**Two price files, and they are not interchangeable.** `data/prices.json` is the frozen research snapshot: 10 years ending on the freeze date, the exact bytes every published verdict was computed from, written once and then left alone. `data/game.json` is what the game plays on: the most recent 756 trading days of daily returns for every ticker, rebuilt every weekday evening by a scheduled workflow and committed only when it changed. The returns in it are built by `js/returns.js`, the same code that produced the verdicts, so the game and the research apply one rule for date alignment, gaps and window slicing. The raw live download is never committed. If a fetch fails the previous `data/game.json` is kept; a file that goes more than 5 weekdays stale fails the job, as does any gap or missing ticker, so a broken file never replaces a good one. `data/game.json` records "Live prices through [date]", which is what the status chip reads.
 
 | Source | Supplies | When | Notes |
 | --- | --- | --- | --- |

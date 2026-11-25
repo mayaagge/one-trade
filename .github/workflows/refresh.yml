@@ -1,0 +1,137 @@
+name: Refresh game data
+
+# Fetch live prices every weekday evening, rebuild data/game.json, and commit it
+# only if it changed.
+#
+# WHAT THIS JOB MAY WRITE: data/game.json, and nothing else. The frozen research
+# data - data/prices.json and data/results.json - is the exact bytes every
+# published verdict was computed from, so a step below fails the run if anything
+# other than game.json appears in the diff, and scripts/fetch_data.py refuses to
+# write the frozen snapshot in live mode even if asked to.
+#
+# WHEN IT RUNS. 23:30 UTC on weekdays: 18:30 in New York in winter, 19:30 in
+# summer, so the US close at 16:00 has settled either way. GitHub's cron is UTC
+# and does not shift with daylight saving; both times are comfortably after the
+# close, so the schedule does not need to.
+#
+# WHEN THE FETCH FAILS. Yahoo is an unofficial endpoint that rate-limits (PRD
+# weakness 5), so a failed evening is expected rather than exceptional. The fetch
+# is tried 3 times; if it still fails, the previous data/game.json is kept, the
+# run warns, and it stays green - a red X every time Yahoo hiccups is a red X
+# nobody reads. What does go red is data that is actually wrong (a gap, a missing
+# ticker, a short window: scripts/build_game_data.mjs refuses to write those) and
+# data that has gone stale, which is a silent outage rather than a bad evening.
+
+on:
+  schedule:
+    - cron: '30 23 * * 1-5'
+  workflow_dispatch:
+
+# Only data/game.json, and only on this repository: a fork should never try to
+# push to its upstream, and two overlapping runs should never race on one file.
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-game-data
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    if: github.repository == 'mayaagge/one-trade'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install the fetch dependencies
+        run: pip install -r requirements.txt
+
+      # 3 attempts, then give up for tonight. The prereg-v3 gate inside
+      # fetch_data.py is checked on every attempt, as it is on every fetch.
+      - name: Fetch live prices
+        id: fetch
+        continue-on-error: true
+        run: |
+          for attempt in 1 2 3; do
+            echo "::group::Fetch attempt $attempt"
+            if python scripts/fetch_data.py --live; then
+              echo "::endgroup::"
+              echo "fetched=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "::endgroup::"
+            echo "Attempt $attempt failed."
+            if [ "$attempt" -lt 3 ]; then sleep 60; fi
+          done
+          echo "fetched=false" >> "$GITHUB_OUTPUT"
+          exit 1
+
+      # A failed fetch keeps the previous file. That is right for one evening and
+      # wrong for a fortnight, so the committed file's own age decides the colour.
+      - name: Keep the previous data, or go red if it has gone stale
+        if: steps.fetch.outputs.fetched != 'true'
+        run: |
+          echo "::warning title=Live fetch failed::Yahoo did not answer after 3 attempts. Keeping the previous data/game.json."
+          node scripts/build_game_data.mjs --check-stale
+
+      - name: Rebuild data/game.json
+        if: steps.fetch.outputs.fetched == 'true'
+        run: node scripts/build_game_data.mjs
+
+      # A push made with GITHUB_TOKEN does not trigger the Tests workflow, so the
+      # tests run here. Without this the daily commit would be the one commit in
+      # the repository that nothing checked.
+      - name: Run the tests
+        if: steps.fetch.outputs.fetched == 'true'
+        run: node --test "tests/**/*.test.js"
+
+      # data/live_prices.json is gitignored, so it is not in this list; --porcelain
+      # strips to the path, which is compared whole rather than matched loosely.
+      - name: Refuse to commit anything but data/game.json
+        if: steps.fetch.outputs.fetched == 'true'
+        run: |
+          changed=$(git status --porcelain --untracked-files=all | sed 's/^...//')
+          echo "Changed: ${changed:-nothing}"
+          # Not a pipeline: `exit` inside one leaves only the subshell, and this
+          # check would then pass while reporting a failure.
+          bad=0
+          while IFS= read -r file; do
+            if [ -n "$file" ] && [ "$file" != "data/game.json" ]; then
+              echo "::error title=Unexpected change::$file changed. This job may only write data/game.json."
+              bad=1
+            fi
+          done <<< "$changed"
+          if [ "$bad" -ne 0 ]; then exit 1; fi
+
+      - name: Commit, if the data changed
+        if: steps.fetch.outputs.fetched == 'true'
+        run: |
+          # --porcelain rather than `git diff`, so the first run - when game.json is
+          # new and untracked, and a diff is therefore empty - still commits.
+          if [ -z "$(git status --porcelain --untracked-files=all -- data/game.json)" ]; then
+            echo "No change: the market's last trading day is unchanged, so nothing to commit."
+            exit 0
+          fi
+          through=$(node -e "process.stdout.write(JSON.parse(require('fs').readFileSync('data/game.json','utf8')).meta.liveThrough)")
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/game.json
+          git commit -m "Refresh game data: live prices through $through"
+          git push
+
+      # After the commit, and deliberately not blocking it: live prices move, and
+      # docs/PRD.md weakness 3 is that a design which passes a level today may
+      # fail next month. A level with fewer than 3 winning designs is something to
+      # fix in the levels file, not a reason to withhold today's prices from the
+      # game.
+      - name: Can every level still be passed three ways?
+        if: steps.fetch.outputs.fetched == 'true'
+        run: node scripts/check_levels.mjs --prices data/live_prices.json

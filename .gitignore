@@ -13,3 +13,9 @@ __pycache__/
 
 # Trial downloads, never committed
 data/test_*
+
+# The live price fetch: about 4 years of closes, refetched every weekday evening
+# by .github/workflows/refresh.yml. Only data/game.json, built from it, is
+# committed - committing a megabyte of raw closes every evening would bloat the
+# history for nothing, and the frozen data/prices.json is the reference data.
+data/live_prices.json
