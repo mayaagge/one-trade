@@ -4,7 +4,7 @@
   "type": "module",
   "description": "A browser game that teaches diversification. No dependencies.",
   "scripts": {
-    "test": "node --test tests/",
+    "test": "node --test \"tests/**/*.test.js\"",
     "fixtures": ".venv/bin/python tests/make_fixtures.py",
     "serve": "python3 -m http.server 8000"
   }

@@ -40,3 +40,7 @@ components are not always uniquely defined.
 ## 2026-11-25: 1.4b Math implemented
 - Changed: Wrote js/math.js (Jacobi, covariance, correlation, effective bets, risk shares, beta); 48/48 tests green.
 - I decided or corrected: Caught Claude saying prereg-v2 didn't exist after it had shown the tag on GitHub; checked before fetching data.
+
+## 2026-11-25: 1.8 CI
+- Changed: Added a GitHub Actions workflow; 48/48 green on GitHub.
+- I decided or corrected: Pushed straight to main with Node 24; told Claude the next step was 1.5, not 1.9, since the fetch script and research code didn't exist yet.
