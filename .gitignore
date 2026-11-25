@@ -1,0 +1,12 @@
+# Python virtual environment, never committed
+.venv/
+__pycache__/
+*.pyc
+
+# Secrets: the Worker secret and any API keys live in environment
+# variables only, never in the repo (CLAUDE.md rule 7)
+.env
+.dev.vars
+.wrangler/
+
+.DS_Store
