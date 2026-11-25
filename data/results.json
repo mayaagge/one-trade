@@ -1,9 +1,9 @@
 {
  "generated_by": "scripts/run_research.mjs",
- "generated_at": "2026-11-25T21:11:34Z",
+ "generated_at": "2026-11-25T21:16:22Z",
  "code": {
-  "commit": "dd8265cf229d0aaffe5df28eab0cfc367f2e636f",
-  "clean": false
+  "commit": "ae315beb392b117b3aed3ccf418e26f22777c14c",
+  "clean": true
  },
  "snapshot": {
   "path": "data/prices.json",
