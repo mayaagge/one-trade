@@ -1,0 +1,98 @@
+{
+  "version": 1,
+  "decided": "2026-11-25",
+  "rule": "Every individual stock belongs to exactly one group. Funds deliberately overlap the stocks they hold, and that hidden overlap is the lesson the game teaches, so the one-group rule applies to stocks only.",
+  "note": "The AI group is defined by basket.json, which is frozen at the prereg tag. basket.json is authoritative: the symbols repeated here are for readability and a test checks the two files still agree.",
+  "history_note": "full_history means the ticker has daily prices for the whole 10-year window that starts in December 2016. Only VRT and PLTR, both in the AI group, are false.",
+  "groups": [
+    {
+      "key": "ai_stocks",
+      "label": "AI stocks",
+      "source": "basket.json",
+      "reasons_in": "basket.json",
+      "tickers": [
+        "NVDA", "AMD", "AVGO", "MRVL", "MU", "ANET", "VRT",
+        "MSFT", "GOOGL", "AMZN", "META", "ORCL", "PLTR"
+      ]
+    },
+    {
+      "key": "other_large_tech",
+      "label": "Other large tech",
+      "tickers": [
+        { "ticker": "AAPL", "full_history": true, "reason": "The largest consumer tech company, but it sells devices rather than AI computing." },
+        { "ticker": "CRM", "full_history": true, "reason": "Salesforce sells business software subscriptions; AI is a feature, not the main engine." },
+        { "ticker": "ADBE", "full_history": true, "reason": "Adobe sells creative software, and AI image tools are arguably a threat to it." },
+        { "ticker": "CSCO", "full_history": true, "reason": "Most of Cisco's sales still come from networking for ordinary businesses, though its AI orders are growing." },
+        { "ticker": "INTC", "full_history": true, "reason": "Intel makes chips but largely missed the AI boom, so it tests whether 'chipmaker' alone means 'AI bet'." }
+      ]
+    },
+    {
+      "key": "banks",
+      "label": "Banks",
+      "tickers": [
+        { "ticker": "JPM", "full_history": true, "non_ai_stock": true, "reason": "The largest US bank, and the non-AI stock representing banks in Hypothesis 1." },
+        { "ticker": "BAC", "full_history": true, "reason": "A second large US bank, so players can see two banks move almost as one." },
+        { "ticker": "GS", "full_history": true, "reason": "An investment bank, which earns differently from the two lenders above." }
+      ]
+    },
+    {
+      "key": "energy",
+      "label": "Energy",
+      "tickers": [
+        { "ticker": "XOM", "full_history": true, "reason": "The largest US oil company; its price follows oil, not technology." },
+        { "ticker": "CVX", "full_history": true, "reason": "A second oil major, for the same 'two of a kind' lesson as the banks." },
+        { "ticker": "COP", "full_history": true, "reason": "A driller with no refining, so it tracks the oil price more directly." }
+      ]
+    },
+    {
+      "key": "health_care",
+      "label": "Health care",
+      "tickers": [
+        { "ticker": "JNJ", "full_history": true, "non_ai_stock": true, "reason": "A large, steady drugmaker, and the non-AI stock representing health care in Hypothesis 1." },
+        { "ticker": "UNH", "full_history": true, "reason": "A health insurer, which earns from premiums rather than from drugs." },
+        { "ticker": "ABBV", "full_history": true, "reason": "A drugmaker dependent on a few patents, so it moves on its own news." }
+      ]
+    },
+    {
+      "key": "consumer_staples",
+      "label": "Consumer staples",
+      "tickers": [
+        { "ticker": "PG", "full_history": true, "non_ai_stock": true, "reason": "Household basics people buy in any economy, and the non-AI stock representing consumer staples in Hypothesis 1." },
+        { "ticker": "KO", "full_history": true, "reason": "Drinks sold worldwide, with demand that barely changes year to year." },
+        { "ticker": "WMT", "full_history": true, "reason": "The largest US retailer, which tends to hold up when shoppers trade down." }
+      ]
+    },
+    {
+      "key": "international_funds",
+      "label": "International funds",
+      "tickers": [
+        { "ticker": "VXUS", "full_history": true, "preset": true, "reason": "All non-US stocks in one fund; one of the 6 preset funds." },
+        { "ticker": "VEA", "full_history": true, "reason": "Developed markets only (Europe, Japan), which move closely with the US." },
+        { "ticker": "VWO", "full_history": true, "reason": "Emerging markets, the holding least tied to the US market." }
+      ]
+    },
+    {
+      "key": "bonds_and_gold",
+      "label": "Bonds and gold",
+      "tickers": [
+        { "ticker": "BND", "full_history": true, "preset": true, "reason": "The whole US bond market; the preset that adds little risk, which is the point." },
+        { "ticker": "GLD", "full_history": true, "preset": true, "reason": "Gold, which often moves independently of shares." },
+        { "ticker": "TLT", "full_history": true, "reason": "Long-term government bonds, which swing on interest rates." },
+        { "ticker": "LQD", "full_history": true, "reason": "Company bonds, which fall with shares in a crash, unlike government bonds." }
+      ]
+    },
+    {
+      "key": "core_us_funds",
+      "label": "Core US funds",
+      "tickers": [
+        { "ticker": "VOO", "full_history": true, "preset": true, "reason": "The S&P 500 in one fund, for the '500 names, far fewer bets' lesson." },
+        { "ticker": "VTI", "full_history": true, "preset": true, "reason": "The whole US market; the broad fund required by Hypothesis 1's beginner set." },
+        { "ticker": "QQQ", "full_history": true, "preset": true, "reason": "The Nasdaq-100 tech fund, required by level 4's 30% rule." }
+      ]
+    }
+  ],
+  "benchmarks": [
+    { "ticker": "^GSPC", "full_history": true, "role": "market_stress", "reason": "The S&P 500 index, used to define market stress days as the worst 10% of its daily returns, and reported beside RSP in Hypothesis 2." },
+    { "ticker": "RSP", "full_history": true, "role": "h2_verdict", "reason": "The equal-weight S&P 500, the benchmark for Hypothesis 2's verdict, where each AI stock is about 0.2% of the index." }
+  ]
+}

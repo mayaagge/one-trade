@@ -10,7 +10,7 @@ It teaches one idea well: **different tickers can be the same bet.** An S&P 500 
 
 **One-sentence pitch:** Build a portfolio with $10,000 of pretend money, guess how many bets you made, and find out from live market data.
 
-**Status:** the math engine and page are built and run on demo data. Game mode, the full ticker list and the learning measure are still to build. Nothing is live, and no real-data results have been seen.
+**Status:** nothing is built yet. The AI basket and the full ticker list are frozen in basket.json and tickers.json; the math engine, the page, game mode and the learning measure are all still to build. Nothing is live, no prices have been downloaded, and no real-data results have been seen.
 
 **Core game loop** (one round takes 1 to 2 minutes):
 
@@ -144,15 +144,15 @@ Three hypotheses are frozen in a tagged git commit (prereg) before any real data
 
 **Test design:**
 
-1. Universe: the 6 preset funds (VOO, QQQ, VTI, VXUS, BND, GLD), the 13 AI stocks and the 3 non-AI stocks.
+1. Universe: the 6 preset funds (VOO, QQQ, VTI, VXUS, BND, GLD), the 13 AI stocks and the 3 non-AI stocks (JPM, JNJ, PG).
 
 2. Beginner set: 500 portfolios of 3 to 8 holdings. Each holds at least one broad fund (VOO or VTI) and at least one of QQQ or an AI stock. Dollar weights are drawn from a flat Dirichlet distribution.
 
-3. Control set: 500 portfolios of 3 to 8 holdings drawn from VTI, VXUS, BND, GLD and the 3 non-AI stocks.
+3. Control set: 500 portfolios of 3 to 8 holdings drawn from VTI, VXUS, BND, GLD and the 3 non-AI stocks (JPM, JNJ, PG).
 
-4. For each portfolio, compute the ratio of effective risk sources to holdings, using 3 years of daily returns ending on the freeze date.
+4. For each portfolio, compute the ratio of effective risk sources to holdings, using 3 years of daily returns ending on the freeze date (the last trading day on or before 30 November 2026).
 
-5. The random seed is fixed and published in the repo.
+5. The random seed is 2026, fixed and published in the repo.
 
 **Supported if:** the beginner set's median ratio is below 0.60.
 
@@ -201,6 +201,21 @@ Three hypotheses are frozen in a tagged git commit (prereg) before any real data
 ### The AI basket
 
 The 13 names from v1 are frozen in basket.json, each with a one-line reason it counts as AI-driven. Both hypotheses are rerun 13 times, dropping one name each time. If any single drop flips a verdict, the page says so.
+
+### Values fixed at registration
+
+Every choice that could be tuned after seeing results is fixed here, before any price is downloaded. PREREG.md carries this same section, and the prereg tag timestamps it.
+
+| Value | Fixed as | Where it is used |
+| --- | --- | --- |
+| The 3 non-AI stocks | JPM (banks), JNJ (health care), PG (consumer staples) | Hypothesis 1's universe and control set |
+| Random seed | 2026 | Hypothesis 1's portfolio sampler and Hypothesis 2's block bootstrap |
+| Freeze date | The last trading day on or before 30 November 2026 | The last day of every return window in Hypotheses 1 and 2 |
+| Earliest download date | 1 December 2026 | No price is fetched before this date, so the freeze date's window is complete when the data arrives |
+| AI basket | The 13 names in basket.json | Both hypotheses, including the leave-one-out reruns |
+| Full universe | The 9 groups in tickers.json | The ticker list the game and both hypotheses draw from |
+
+One non-AI stock was chosen per non-technology group so the control set spreads across banks, health care and consumer staples rather than sitting inside one industry.
 
 ## How the numbers work
 
@@ -256,7 +271,7 @@ The Worker exists because browsers cannot call Yahoo directly. The snapshot keep
 
 | Source | Supplies | When | Notes |
 | --- | --- | --- | --- |
-| Yahoo Finance | Daily adjusted closes, 10 years, about 40 tickers in 8 groups: AI stocks, other large tech, banks, energy, health care, consumer staples, international funds, and bonds and gold; plus the S&P 500 and RSP | Launch | Unofficial endpoint, personal-use terms. Labeled as unofficial educational data |
+| Yahoo Finance | Daily adjusted closes, 10 years, about 40 tickers in 9 groups: AI stocks, other large tech, banks, energy, health care, consumer staples, international funds, bonds and gold, and core US funds; plus the S&P 500 and RSP | Launch | Unofficial endpoint, personal-use terms. Labeled as unofficial educational data |
 | Levels file | Level rules, thresholds, the pool of 20 guess portfolios, weekly challenge portfolios | Launch | Plain JSON in the repo, so instructors and reviewers can read every rule |
 | SEC Form N-PORT | Fund holdings | Later, optional | Official and free. Quarterly, public about 60 days after quarter end |
 | OpenFIGI | CUSIP/ISIN to ticker | Later, optional | Free, rate-limited, server-side only |
@@ -425,11 +440,11 @@ There are five milestones, in order, and each ends with a check you can verify. 
 
 3. Commit both, run git tag prereg, and push the tag. GitHub now timestamps the tests before any results exist.
 
-4. Extend fetch_data.py to 10 years and the full ticker list, plus RSP and the S&P 500 index.
+4. Write scripts/fetch_data.py: 10 years of daily adjusted closes for the full ticker list in tickers.json, plus RSP and the S&P 500 index.
 
 5. In the browser code, add the Hypothesis 1 sampler (seeded), the control set, the block bootstrap for Hypothesis 2 and the leave-one-out loop.
 
-6. Remove the resilience score and the fixed-rule portfolio comparisons.
+6. Nothing to remove. This is a fresh build, so the resilience score and the fixed-rule portfolio comparisons never existed here; do not build them.
 
 7. Write known-answer tests: tests/make_fixtures.py computes effective bets, share of risk, beta and correlation with numpy for 3 fixed portfolios; tests/math.test.js (run with node --test) checks the browser math matches to 1e-9. Include two hand-derivable cases: two identical assets score 1; two independent, equally volatile assets score 2.
 
