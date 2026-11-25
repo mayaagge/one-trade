@@ -2,8 +2,9 @@
 //
 // This file is the screens and nothing else. Every rule comes from levels.json
 // through js/levels.js, every price from data/game.json through js/gameView.js,
-// and the round itself is js/round.js, which has no DOM in it. If a number
-// appears here it was computed there.
+// every sentence of the "Why?" card from why.json through js/why.js, and the
+// round itself is js/round.js, which has no DOM in it. If a number appears here
+// it was computed there, and if a sentence appears here it was written there.
 //
 // PHONE FIRST. One column, controls big enough for a thumb (44px minimum), no
 // horizontal scrolling, and the keyboard never needed: the money moves on - and
@@ -24,6 +25,7 @@
 import { loadGameData, DISCLAIMER } from './gameView.js';
 import { validateLevels, LEVELS_URL } from './levels.js';
 import { BUILD, GUESS, REVEAL, createRound, DOLLAR_STEP } from './round.js';
+import { WHY_URL, groupIndex, validateWhy } from './why.js';
 
 export const TICKERS_URL = 'tickers.json';
 
@@ -361,7 +363,22 @@ function renderReveal(ctx, round) {
       `That is ${labels[result.buckets.actual]}. You said ${labels[result.buckets.guess]}.`));
   }
 
-  view.append(h('h3', null, 'Why'));
+  // The "Why?" card: the specific cause, in why.json's own words. It goes above
+  // the level's general explanation because it is about THIS portfolio - the
+  // pair the player picked, the group their money went into - and the general
+  // text reads as the lesson behind it.
+  if (result.whyCard) {
+    const card = h('section', 'why-card');
+    card.append(h('h3', 'why-card-head', 'Why?'));
+    // Two templates from why.json, rendered as two lines. They are never joined
+    // into one string: see the note at the top of js/why.js.
+    if (result.whyCard.leadIn) card.append(h('p', 'why-card-lead', result.whyCard.leadIn));
+    card.append(h('p', 'why-card-text', result.whyCard.text));
+    view.append(card);
+  }
+
+  // Headed "The idea" rather than "Why", which the card above now carries.
+  view.append(h('h3', null, 'The idea'));
   view.append(h('p', 'explain', level.explain));
   view.append(h('p', 'explain', level.why));
 
@@ -418,16 +435,20 @@ export async function mountLearn(root, { session = newSession() } = {}) {
   root.replaceChildren(h('p', 'loading', 'Loading the levels and the live prices…'));
   let levels;
   let tickers;
+  let why;
   let game;
   try {
-    const [levelsResponse, tickersResponse] = await Promise.all([
+    const [levelsResponse, tickersResponse, whyResponse] = await Promise.all([
       fetch(LEVELS_URL, { cache: 'no-cache' }),
       fetch(TICKERS_URL, { cache: 'no-cache' }),
+      fetch(WHY_URL, { cache: 'no-cache' }),
     ]);
     if (!levelsResponse.ok) throw new Error(`${LEVELS_URL} returned ${levelsResponse.status}`);
     if (!tickersResponse.ok) throw new Error(`${TICKERS_URL} returned ${tickersResponse.status}`);
+    if (!whyResponse.ok) throw new Error(`${WHY_URL} returned ${whyResponse.status}`);
     levels = validateLevels(await levelsResponse.json());
     tickers = await tickersResponse.json();
+    why = validateWhy(await whyResponse.json());
     game = await loadGameData();
   } catch (error) {
     root.replaceChildren();
@@ -440,10 +461,13 @@ export async function mountLearn(root, { session = newSession() } = {}) {
   }
 
   const universe = tickers.groups.flatMap((g) => g.tickers.map((t) => (typeof t === 'string' ? t : t.ticker)));
+  // Ticker -> group, which the "Why?" card's group rule names.
+  const groups = groupIndex(tickers);
 
   const ctx = {
     levels,
     tickers,
+    why,
     game,
     session,
     round: null,
@@ -453,7 +477,7 @@ export async function mountLearn(root, { session = newSession() } = {}) {
       return at >= 0 && at + 1 < ids.length ? ids[at + 1] : null;
     },
     startRound(levelId) {
-      ctx.round = createRound({ levels, levelId, game, universe });
+      ctx.round = createRound({ levels, levelId, game, universe, groups, why });
       ctx.draw();
     },
     toMenu() {

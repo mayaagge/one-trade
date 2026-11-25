@@ -25,6 +25,7 @@
 
 import { correlation, covariance, effectiveBets } from './math.js';
 import { gameWindow, windowMatrix } from './gameView.js';
+import { pickWhy, whyFacts } from './why.js';
 import {
   bucketOf,
   levelById,
@@ -157,6 +158,47 @@ export function measureFor(level, game, { tickers, weights }, window) {
     days: slice.days,
     startDate: slice.startDate,
     endDate: slice.endDate,
+    // The "Why?" card reads the same window the measure was taken over, so the
+    // matrix is handed back rather than built a second time. reveal() takes it
+    // off before storing the result: a 756-by-5 array does not belong on
+    // something every screen holds.
+    matrix,
+  };
+}
+
+/**
+ * The "Why?" card for a revealed portfolio: the rule that explains it, worded by
+ * a template in why.json. js/why.js holds the rules and the wording; what is
+ * decided here is only which of its two paths a level takes.
+ *
+ * LEVEL 1 TAKES THE BUCKET PATH. A level whose measure is a correlation holds
+ * two holdings and splits no money, so the risk-share rules would describe a
+ * split the player never chose. It gets the card for the "Same bet?" bucket its
+ * pair landed in instead, and no lead-in: the panel above it already gives the
+ * verdict, and the bucket line below it gives it again. The same levels give the pair's correlation a
+ * threshold to be formatted against, because on those levels the pair's
+ * correlation IS the pass-checked number, and the card must not round it to
+ * something the reveal panel does not say.
+ *
+ * Returns both the card and the facts behind it: the facts are what
+ * tests/why.test.js checks against numpy, and they are small - a few numbers per
+ * holding, no matrix.
+ */
+function buildWhyCard(level, { tickers, weights, matrix, groups, why, value, passed }) {
+  if (!why) return { whyCard: null, whyFacts: null };
+  const measure = level.pass.measure === 'guess' ? level.guess.measure : level.pass.measure;
+  const onCorrelation = measure === 'correlation';
+  const facts = whyFacts({ tickers, weights, matrix, groups });
+  return {
+    whyCard: pickWhy(facts, why, {
+      bucket: onCorrelation && Array.isArray(level.buckets) ? bucketOf(level, value) : null,
+      pairThreshold: onCorrelation ? level.pass.threshold ?? null : null,
+      // Only the rule path takes a lead-in. A level 1 reveal already says
+      // whether the pair cleared its threshold and which bucket the guess
+      // named, so a third verdict line would be the same news a third time.
+      passed,
+    }),
+    whyFacts: facts,
   };
 }
 
@@ -167,9 +209,17 @@ export function measureFor(level, game, { tickers, weights }, window) {
  * @param {number} options.levelId   which level
  * @param {object} options.game      data/game.json, parsed
  * @param {string[]} options.universe the whole ticker list, for a level whose pool is "all"
+ * @param {object} [options.why]     why.json, validated, for the "Why?" card
+ * @param {Map} [options.groups]     ticker -> {key, label}, from js/why.js's groupIndex
  * @param {Function} options.random  the draw for level 2's portfolio
+ *
+ * `why` and `groups` are optional, and without them the round plays exactly as
+ * before with result.why left null. A round is a valid round without a card -
+ * the card is a reveal screen feature - and this file stays testable on its own.
  */
-export function createRound({ levels, levelId, game, universe = [], random = Math.random }) {
+export function createRound({
+  levels, levelId, game, universe = [], why = null, groups = null, random = Math.random,
+}) {
   const level = levelById(levels, levelId);
   const window = {
     days: levels.window?.days ?? 756,
@@ -359,7 +409,7 @@ export function createRound({ levels, levelId, game, universe = [], random = Mat
       ? weightsFromDollars(round.dollars)
       : { tickers: [...round.picks], weights: round.picks.map(() => 1 / round.picks.length) };
 
-    const measured = measureFor(level, gameData, weighted, window);
+    const { matrix, ...measured } = measureFor(level, gameData, weighted, window);
     const passed = passes(level, measured.value);
     const stars = starsFor(level, { guess: round.guess, actual: measured.value, passed });
 
@@ -385,6 +435,7 @@ export function createRound({ levels, levelId, game, universe = [], random = Mat
         }
         : null,
       drawnId: round.drawnId,
+      ...buildWhyCard(level, { ...weighted, matrix, groups, why, value: measured.value, passed }),
     };
     round.state = REVEAL;
     return round.result;

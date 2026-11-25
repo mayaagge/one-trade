@@ -631,6 +631,27 @@ main { outline: none; }
 .bucket-line { font-weight: 600; }
 .explain { max-width: 46rem; }
 
+/* The "Why?" card. One rule, one sentence or two, in why.json's own words. The
+   accent bar marks it as being about this portfolio, while the plainer text
+   under it is the general lesson. */
+.why-card {
+  margin: 16px 0;
+  padding: 12px 14px;
+  max-width: 46rem;
+  border-left: 3px solid var(--series-1);
+  border-radius: 0 8px 8px 0;
+  background: var(--surface-1);
+}
+.why-card-head {
+  margin: 0 0 4px;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+}
+.why-card-lead { margin: 0 0 6px; font-weight: 600; }
+.why-card-text { margin: 0; }
+
 /* --- what every round screen carries ------------------------------------- */
 
 .game-foot {

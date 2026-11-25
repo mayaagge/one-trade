@@ -1,0 +1,88 @@
+{
+  "version": 1,
+  "decided": "2026-11-25",
+  "note": "The 'Why?' cards: after each reveal, one card names the specific cause. Every sentence a player reads is a template in this file with named placeholders filled in. js/why.js substitutes values and never composes a sentence, so the card cannot say anything that is not written here. docs/PRD.md: 'template text cannot invent wrong answers'.",
+  "disclaimer": "Educational, not investment advice.",
+  "placeholderNote": "{r} is a correlation, shown to 2 decimals, or to 4 when it sits within 0.005 of the level's own pass threshold, so the card and the reveal panel can never show the same number differently. {riskPct} and {dollarPct} are whole percents. No template states the gap between two percents as its own number: rounding each to a whole percent can make a 15-point gap read as 14 or 16, and a number that disagrees with the two beside it is worse than no number.",
+  "levelOneNote": "Level 1 asks for two holdings and no money split, so the risk-share rules below would describe a split the player never chose. It gets a correlation card instead: one template for each 'Same bet?' bucket in levels.json, keyed by that file's own bucket keys. A test holds the two files to each other.",
+  "bucketCards": {
+    "same": {
+      "says": "the pair moves together",
+      "template": "{a} and {b} move together almost every day, at {r}. Two different names, and very nearly the same bet."
+    },
+    "partly": {
+      "says": "the pair moves together some of the time",
+      "template": "{a} and {b} move together some of the time, at {r}. Partly the same bet: they share some of what drives them, but not all of it."
+    },
+    "different": {
+      "says": "the pair moves on different things",
+      "template": "{a} and {b} move on different things, at {r}. Knowing what one did on a given day tells you little about the other, so these are two real bets."
+    }
+  },
+  "leadIn": {
+    "note": "One line before the card, on the levels that have a portfolio to pass or miss. It is a separate template from the card, rendered as its own line, and the two are never joined into one sentence: that is what keeps 'no generated prose' true with two templates on screen.",
+    "levelsNote": "Levels 2 and 3 only. Level 1's bucket cards carry no lead-in: its own reveal panel already says whether the pair cleared 0.80, and the bucket line under it says which bucket the guess named, so a third verdict line would be the same news a third time.",
+    "levelTwoNote": "Level 2's pass rule in levels.json is 'make a guess', so every level 2 round passes and only the passed line can appear there. That is consistent with the stars panel, which already reads '1 star for make a guess'.",
+    "passed": "You passed. One thing to notice:",
+    "missed": "Here's what held you back:"
+  },
+  "order": [
+    "groupRisk",
+    "pair",
+    "riskGapOver",
+    "riskGapUnder"
+  ],
+  "orderNote": "The first rule in this list whose test passes is the card that gets shown. One card, not a list: on a phone, one cause a player can carry away beats three they skim. Group concentration comes first because it is the fullest version of the lesson - five AI stocks is both 'your closest pair moves together' and 'one group holds the risk', and the second says more. The risk-gap rules come last because they are about the split rather than about what a player picked.",
+  "rules": [
+    {
+      "key": "groupRisk",
+      "says": "one group holds most of the risk",
+      "when": {
+        "groupRiskAtLeast": 0.7,
+        "minHoldings": 3,
+        "minGroups": 1
+      },
+      "whenNote": "Below 3 holdings, 'one group holds most of the risk' is true by arithmetic and teaches nothing: two Core US funds are 100% of their own risk. That is why minHoldings is 3.",
+      "minGroupsNote": "minGroups was 2 in the first draft, to keep the card off a portfolio that is all one group. That was wrong, and a browser check caught it: five AI stocks make 1.03 bets, the lesson this whole game is named after, and the card read 'nothing stands out here'. A portfolio that is ALL one group is the most concentrated one a player can build, not the least worth mentioning. The case the guard was written for - two holdings from one group - is level 1, and level 1 takes the bucket path and never reaches these rules at all.",
+      "thresholdNote": "70% of the risk, chosen on real prices rather than guessed. At the 50% first drafted, this card won 73% of 420 test portfolios - a player would read very nearly the same sentence every round, and 'most of the risk' is a weak claim when a 5-holding portfolio spans only two or three groups. At 70% it wins 38%, and the claim is one a player can see in the numbers. BUILD_LOG.md carries the table.",
+      "template": "{count} of your {total} holdings are {group}. They are {dollarPct} of your money and {riskPct} of your risk, so that is where this portfolio's fortunes are decided - and where the damage lands on a bad day.",
+      "templateNote": "The tail has to read as well at 100% as at 71%, because a portfolio that is all one group now reaches this card. An earlier draft ended 'they are doing most of the work', which understates it when the answer is all of it."
+    },
+    {
+      "key": "pair",
+      "says": "the most correlated pair",
+      "when": {
+        "correlationAtLeast": 0.7
+      },
+      "thresholdNote": "Left where it was after the real-data check: moving it only trades this card against the fallback, and one number meaning one thing across the whole game is worth more than a balanced table.",
+      "whenNote": "0.70 is the 'same bet' edge already used by levels.json's buckets and by the daily 'Same bet?' puzzle, so one number means one thing across the whole game.",
+      "template": "{a} and {b} are the closest pair you hold, at {r}. They rise and fall together, so the two of them count as closer to one bet than two."
+    },
+    {
+      "key": "riskGapOver",
+      "says": "a holding's share of risk is far bigger than its share of money",
+      "when": {
+        "gapAtLeast": 0.2
+      },
+      "whenNote": "20 points of the portfolio. Below that the two percents read as near enough the same, and the card would be making a point out of rounding.",
+      "thresholdNote": "Raised from the 15 first drafted after the real-data check: at 15 points this rule had something to say about three quarters of all portfolios, which is too loose to be called a gap.",
+      "template": "{ticker} is {dollarPct} of your money but {riskPct} of your risk. Share of risk is not share of dollars: a holding that swings harder than the rest carries more of the risk than its size suggests."
+    },
+    {
+      "key": "riskGapUnder",
+      "says": "a holding's share of money is far bigger than its share of risk",
+      "when": {
+        "gapAtLeast": 0.15,
+        "riskShareAtLeast": 0
+      },
+      "thresholdNote": "15 points, deliberately lower than riskGapOver's 20, and the asymmetry is structural rather than a preference. The shares sum to 1, so the gaps sum to 0: a holding 20 points under its dollar share means other holdings are over, and riskGapOver takes them first. Held to the same 20 this card never appeared at all in 420 test portfolios. At 15 it appears in 7%.",
+      "whenNote": "The same 15 points, the other way round. riskShareAtLeast keeps the card off a holding whose share of risk is negative, which happens when a holding offsets the rest rather than adding to it: that is a real thing a portfolio can do, but it is a different lesson from steadiness and has no template of its own. This is the bond-fund case, and it is a separate template rather than a reworded one, because the lesson is the opposite: steadiness, not concentration.",
+      "template": "{ticker} is {dollarPct} of your money but only {riskPct} of your risk. It moves more quietly than the rest, so it takes up room in the portfolio without adding much to what can go wrong."
+    }
+  ],
+  "fallback": {
+    "key": "fallback",
+    "says": "nothing stands out",
+    "template": "Nothing stands out here. No pair you hold moves closely together, no holding carries much more risk than money, and no one group holds most of the risk. That is what a spread-out portfolio looks like from the inside."
+  }
+}

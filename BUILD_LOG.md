@@ -936,3 +936,196 @@ Driven end to end in headless Chrome inside a 390px frame, on the live
   snapshot: the live file would make every assertion a moving target.
 
 Educational, not investment advice.
+
+## The "Why?" cards, 25 November 2026 (session 2.4)
+
+Milestone 2 step 3: after each reveal, one card names the specific cause of the
+number the player just saw. `docs/PRD.md` puts the cards in Tier 1 and gives the
+reason they are built this way rather than with a language model - "template text
+cannot invent wrong answers" - so nothing in the code writes a sentence. Every
+sentence a player can read is a template in `why.json`, and the code only decides
+which template applies and fills in its named placeholders.
+
+**456 of 456 tests pass**, 29 of them new.
+
+### What was built
+
+| File | What it is |
+| --- | --- |
+| `why.json` | The templates, the lead-in lines, the thresholds and the order, with a note on every threshold saying what it is and why that number. No code in it, and no code outside it writes a sentence a player reads |
+| `js/why.js` | Which template applies, and the facts it is allowed to look at. Pure - no DOM, no fetch, no prices |
+| `tests/why.test.js` | 29 tests: the numbers against numpy, the rules, the order, the fallback, all three of level 1's buckets, both lead-ins, and the mechanical check that no prose is generated |
+| `js/round.js` | `reveal()` now returns `whyCard` and `whyFacts`; `measureFor()` hands back the window matrix so the card reads the same window the measure was taken over |
+| `js/game.js`, `css/style.css` | Loads `why.json`, passes the group index into the round, and renders the card between the stars and the level's general explanation |
+
+### Level 1 takes a different path, and that was your call
+
+Level 1 asks for two holdings and splits no money, so the two risk-share rules
+would describe a split the player never chose. It gets a correlation card
+instead: one template for each "Same bet?" bucket in `levels.json`, keyed by that
+file's own bucket keys. The four rules are for levels 2 and 3.
+
+`js/why.js` does not hard-code the bucket names. `PLACEHOLDERS.bucketCard` covers
+every entry in `bucketCards` whatever `levels.json` calls them, and a test asserts
+the two files carry the same set, so neither can drift from the other.
+
+This also closes the gap the last session left open. Level 1's `why` text in
+`levels.json` talks about an S&P 500 fund and a total-market fund whatever pair
+the player picked; the card names the pair they actually picked.
+
+### The thresholds were measured, not guessed
+
+The first draft - one group holding 50% of the risk, a pair at 0.70, a 15-point
+gap either way - was run over 420 portfolios on the frozen snapshot: all 20 pool
+portfolios and 400 random 5-holding level 3 builds. The group card won 73% of
+them. A player would have read very nearly the same sentence every round, and
+"most of the risk" is a weak claim when a 5-holding portfolio spans only two or
+three groups anyway.
+
+Share of the 420 portfolios each card is shown on, as the group threshold moves:
+
+| group risk at least | groupRisk | pair | riskGapOver | riskGapUnder | fallback |
+| --- | --- | --- | --- | --- | --- |
+| 0.50 (first draft) | 73% | 9% | 12% | 2% | 5% |
+| 0.60 | 55% | 14% | 21% | 3% | 6% |
+| 0.65 | 45% | 17% | 27% | 4% | 7% |
+| **0.70 (chosen)** | **38%** | **20%** | **22%** | **7%** | **13%** |
+| 0.80 | 23% | 24% | 40% | 4% | 9% |
+
+All five cards appear across the 20 pool portfolios alone at the chosen
+thresholds: 7 group, 5 risk-gap-over, 4 pair, 3 fallback, 1 risk-gap-under.
+
+### The two risk-gap thresholds differ, and the reason is arithmetic
+
+`riskGapOver` asks for 20 points and `riskGapUnder` for 15. That is not a
+preference. The risk shares sum to 1 and the dollar shares sum to 1, so the gaps
+sum to 0: a holding 20 points under its dollar share puts other holdings over,
+and `riskGapOver` comes first in the order. Held to the same 20 points, the
+under card never appeared at all in the 420 portfolios. At 15 it appears in 7%,
+which is the bond-fund lesson getting shown occasionally rather than never.
+
+`tests/why.test.js` pins this on a numpy fixture rather than describing it:
+`five_mixed` has a 15.6-point gap under and a 15.1-point gap over, so it is the
+case where the under card is the only one that fires.
+
+### The card cannot disagree with the panel beside it
+
+On level 1 the pair's correlation IS the pass-checked number. VTI and VXUS
+correlate a hair under the 0.80 threshold, which `js/levels.js` already shows to
+4 decimals so the panel cannot read as a pass. The card formats that number
+through the same `formatMeasure()` against the same threshold, or the screen
+would say 0.7996 in one place and 0.80 in another about whether the level was
+passed. A test plays that pair and asserts the two strings are equal, without
+hard-coding the number: it is a near miss on the frozen snapshot and a near miss
+on the live file too, but not the same hair.
+
+### No generated prose, checked mechanically
+
+- `fillTemplate()` throws on a placeholder with no value, so `{a}` cannot reach a
+  player, and on a value no placeholder uses, which means the caller and the
+  template disagree about what the card says.
+- `validateWhy()` throws at load on a template using a placeholder nothing can
+  fill, on a rule key the code cannot apply, and on a rule left out of the order,
+  which could otherwise never be shown.
+- A test asserts, for every one of the 20 pool portfolios, that the text shown
+  equals its own template with the values put back in. That is what "no generated
+  prose" means in practice: nothing is concatenated, reworded or appended
+  anywhere in the pipeline.
+
+### Decisions recorded
+
+| Decision | What was chosen | Why |
+| --- | --- | --- |
+| Level 1's cards | **One per "Same bet?" bucket, keyed by `levels.json`** | Your instruction. No money is split on level 1, so a risk-share card would describe a choice the player never made |
+| How many cards per reveal | **One** | `docs/PRD.md` has the card "name the specific cause", singular. On a phone, one cause a player can carry away beats three they skim |
+| Where the card sits | **Above the level's general explanation, which is now headed "The idea"** | The card is about this portfolio; the text under it is the lesson behind it. Two headings both reading "Why" would have been worse |
+| The group threshold | **70% of the risk, up from the 50% first drafted** | Measured, not guessed: at 50% the group card won 73% of 420 portfolios. The table above is the evidence |
+| The two gap thresholds | **20 points over, 15 under** | The gaps sum to zero, so an under-gap always competes against an over-gap on the same portfolio. At a shared 20 the under card never appeared |
+| The pair threshold | **Left at 0.70** | It is the "same bet" edge `levels.json`'s buckets and the daily puzzle already use. One number meaning one thing across the game beats a balanced table |
+| A negative share of risk | **Falls through to the next rule** | A holding that offsets the rest is a real thing a portfolio can do, but it is a different lesson from steadiness, and it has no template. Better no card than the wrong one |
+| `why` and `groups` on `createRound` | **Optional** | A round without a card is still a valid round - the card is a reveal screen feature - and `js/round.js` stays testable on its own |
+| Where the matrix goes | **Returned by `measureFor()`, used by `reveal()`, not stored on the result** | The card has to read the same window the measure was taken over. A 756-by-5 array does not belong on something every screen holds |
+
+### Checked in a browser, at 390px
+
+Driven end to end in headless Chrome inside a 390px frame, on the live
+`data/game.json`:
+
+- Level 1, VOO + VTI: the "same bet" card, "VOO and VTI move together almost
+  every day, at 1.00. Two different names, and very nearly the same bet."
+- Level 3, JNJ + TLT + GOOGL + LQD + COP: **3.56 bets**, 3 stars, "You passed.
+  One thing to notice:" and the card "TLT and LQD are the closest pair you hold,
+  at 0.91." Two bond funds inside a portfolio that passed - the card tells a
+  player what to improve next.
+- Level 3, five AI stocks: **1.03 bets**, "Here's what held you back:" and the
+  group card naming all five. This is the round that found the `minGroups` bug.
+- Level 1 shows no lead-in line at all.
+- The card heading reads "Why?" and the section under it "The idea".
+- `document.documentElement.scrollWidth` equals `innerWidth`: no sideways
+  scrolling, with the card 358px wide inside a 390px frame.
+
+### The result lead-in, and a bug the browser found
+
+A card on levels 2 and 3 now opens with one line saying how the round went -
+"You passed. One thing to notice:" or "Here's what held you back:" - from
+`why.json`'s own `leadIn`. Level 1 takes none: its reveal panel already gives the
+verdict and the bucket line under it gives it again.
+
+It is a SECOND TEMPLATE, not a prefix. The two strings travel to the screen
+separately and render as two lines, and nothing joins them, because a string
+built out of two templates is this code writing a sentence. The test that holds
+the card text to its own template would also have had nothing left to hold.
+
+**Level 2 can only ever show the passed line.** `levels.json` gives it
+`pass.measure: "guess"`, so every level 2 round passes by design. That is
+consistent with the stars panel, which already reads "1 star for make a guess",
+but it does mean "You passed" appears on a level where there was nothing to fail.
+Gating the lead-in on `pass.measure !== 'guess'` is a one-line change if that
+reads wrong in a playtest.
+
+Driving the page to check the two lines turned up a real fault, and in the worst
+place. **Five AI stocks - NVDA, AMD, AVGO, MU, ANET - make 1.03 bets, the lesson
+this whole game is named after, and the card read "Nothing stands out here."**
+
+The cause was `minGroups: 2` on the group rule. It was written to keep the card
+off a portfolio that is all one group, on the reasoning that "one group holds
+100% of its own risk" is arithmetic rather than a lesson. That reasoning is right
+for TWO holdings, and two holdings is level 1 - which takes the bucket path and
+never reaches these rules. What the guard actually did was silence the card on
+the single most concentrated portfolio a player can build. It is now
+`minGroups: 1`, and the card reads "5 of your 5 holdings are AI stocks. They are
+100% of your money and 100% of your risk..."
+
+The group template's tail changed with it. It used to end "they are doing most of
+the work", which understates the case when the answer is all of it; it now ends
+"that is where this portfolio's fortunes are decided - and where the damage lands
+on a bad day", which reads at 100% and at 71%.
+
+Two things worth keeping from how this was found. The 420-portfolio frequency
+table did **not** catch it - the frequencies are identical before and after the
+fix, because not one of 400 random 5-holding builds drew all five from a single
+group. A player picking five AI stocks on purpose is not a random draw, and that
+is the whole point of level 3. And a test now pins the case by name, asserting
+both the card it gets and the sentence it must not contain.
+
+### What to watch
+
+- **The fallback is 13% of cards, up from 5%.** That is the cost of the stricter
+  thresholds, and it is the honest answer for a portfolio with nothing
+  concentrated in it. But "nothing stands out" is the least useful thing the game
+  can say, and if playtests show players reading it often, the fix is another
+  rule rather than a looser threshold.
+- **The group card still wins most often, at 38%.** The AI group holds 13 of the
+  38 tickers, so a random 5-holding build often has two or three AI stocks in it.
+  That is the lesson the game is named after, so it is not wrong, but it is worth
+  watching whether it crowds the others on levels 4 to 7.
+- **The thresholds were tuned on the frozen snapshot.** `data/game.json` is
+  rebuilt every weekday evening, so the frequencies will drift with the market.
+  Nothing breaks when they do - a card is chosen per portfolio, not per cohort -
+  but the table above is Wednesday's, not a constant.
+- **Level 3's card on a passing build named a bond pair.** TLT and LQD at 0.91
+  inside a 3.56-bet portfolio is correct and useful, but it is the first case
+  where the card reads as criticism of a build that passed. Worth seeing how a
+  player takes that.
+
+Educational, not investment advice.
