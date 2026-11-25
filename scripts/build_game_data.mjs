@@ -56,20 +56,26 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const GAME_DAYS = WINDOW_DAYS;
 
 /**
- * Returns are stored to 10 decimal places.
+ * Returns are stored to 12 decimal places.
  *
- * Measured, not guessed (BUILD_LOG.md, session 2.3a): at 10 decimals the worst
- * drift across the level-1 pairs and two 5-holding portfolios is 8.5e-11 on a
- * correlation and 1.2e-10 on an effective-bets count, which is inside the 1e-9
- * this project holds its maths to. At 8 decimals the drift reaches 4.1e-8, which
- * is not. tests/gamedata.test.js measures both, so the figure cannot be
- * shortened without answering for it.
+ * Measured, not guessed, and measured twice. Session 2.3a chose 10 decimals on a
+ * sample of the level-1 pairs and two equal-weight 5-holding portfolios, where
+ * the worst drift was 8.5e-11 on a correlation and 1.2e-10 on an effective-bets
+ * count. Session 2.3c widened the sample to 400 random portfolios of 2 to 5
+ * holdings at random weights, and 10 decimals moved a bets count by up to 2.0e-9
+ * - outside the 1e-9 this project holds its maths to (CLAUDE.md rule 3). Equal
+ * weights turned out to be the kind case.
  *
- * It also matters that the file is small: every player downloads it. Ten
- * decimals takes the file from 690 KB to 437 KB, and from 296 KB to 168 KB
- * gzipped, which is what GitHub Pages serves.
+ * At 12 decimals the worst drift over that same wide sample is 1.8e-11, nearly
+ * two orders of magnitude inside the bar. tests/gamedata.test.js measures both, on
+ * the wide sample, so the figure cannot be shortened without answering for it.
+ *
+ * It also matters that the file is small: every player downloads it. Twelve
+ * decimals takes the file from 428 KB to 489 KB, and from 167 KB to 199 KB
+ * gzipped, which is what GitHub Pages serves. That is the price of the project's
+ * own precision rule, and worth paying.
  */
-export const DECIMALS = 10;
+export const DECIMALS = 12;
 
 /** A daily simple return bigger than this is a data fault, not a market move. */
 export const MAX_DAILY_MOVE = 0.5;

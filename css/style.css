@@ -392,3 +392,255 @@ main { outline: none; }
   margin: 6px 0 0;
 }
 
+/* ------------------------------------------------------------------ the game
+
+   Phone first: one column, controls at least 44px tall so a thumb can hit them,
+   no horizontal scrolling, and no typing - the money moves on - and + buttons
+   and the guess on a slider. The wider screens get is a roomier grid of ticker
+   chips, not a second column: a round reads top to bottom on every size.      */
+
+.view-round { padding-bottom: 32px; }
+
+.round-head { margin-bottom: 12px; }
+.round-step {
+  margin: 0 0 2px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* --- buttons ------------------------------------------------------------- */
+
+.btn {
+  font: inherit;
+  min-height: 44px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.btn:hover:not(:disabled) { border-color: var(--axis); }
+.btn:focus-visible { outline: 2px solid var(--series-1); outline-offset: 2px; }
+.btn:disabled { opacity: 0.45; cursor: default; }
+
+.btn-primary {
+  background: var(--series-1);
+  border-color: var(--series-1);
+  color: #ffffff;
+  font-weight: 600;
+}
+.btn-primary:disabled { background: var(--plane); border-color: var(--border); color: var(--text-secondary); }
+.btn-quiet { color: var(--text-secondary); }
+.btn-wide { display: block; width: 100%; margin-top: 12px; }
+
+/* --- the level menu ------------------------------------------------------ */
+
+.level-list {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0;
+}
+@media (min-width: 52rem) {
+  .level-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+.level-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  background: var(--surface-1);
+}
+.level-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.level-card-head h2 { font-size: 1.05rem; margin: 0 0 4px; }
+.level-stars { color: var(--series-1); letter-spacing: 0.08em; white-space: nowrap; }
+.level-stars-none { color: var(--text-secondary); font-size: 0.82rem; letter-spacing: 0; }
+.level-concept {
+  margin: 0 0 6px;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.level-challenge { margin: 0 0 10px; }
+
+/* --- picking the holdings ------------------------------------------------ */
+
+.picker-count {
+  margin: 0 0 8px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+.picker-group { margin-bottom: 14px; }
+.picker-group-label {
+  margin: 0 0 6px;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.picker-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  min-height: 44px;
+  min-width: 68px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.chip:focus-visible { outline: 2px solid var(--series-1); outline-offset: 2px; }
+.chip:disabled { opacity: 0.35; cursor: default; }
+.chip-on {
+  background: var(--series-1);
+  border-color: var(--series-1);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* --- splitting the money ------------------------------------------------- */
+
+.allocator { margin: 16px 0 4px; }
+.allocator-head { margin: 0 0 8px; }
+.alloc-row, .holding {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.holding { justify-content: space-between; }
+.holding-list { list-style: none; margin: 0 0 12px; padding: 0; }
+.alloc-ticker { font-weight: 600; min-width: 4.5rem; }
+.alloc-amount {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.alloc-share { color: var(--text-secondary); font-size: 0.85rem; }
+.alloc-buttons { display: flex; gap: 8px; }
+.btn-step {
+  min-width: 48px;
+  padding: 10px 0;
+  font-size: 1.2rem;
+  line-height: 1;
+  text-align: center;
+}
+
+/* --- the guess ----------------------------------------------------------- */
+
+.guess-holdings {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.guess-readout {
+  margin: 18px 0 4px;
+  text-align: center;
+  font-size: 3rem;
+  line-height: 1.1;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+/* Nothing to anchor on until the slider moves. */
+.guess-readout-empty { color: var(--text-secondary); font-weight: 400; }
+.guess-slider {
+  display: block;
+  width: 100%;
+  height: 44px;
+  margin: 0;
+  accent-color: var(--series-1);
+}
+/* Before the first tap: a bare line. No thumb and no filled track, because the
+   thumb's resting position is an anchor of its own even with the number hidden.
+   The input keeps its full 44px tap area, and a tap anywhere on the line sets
+   the value there - that is what a range input does natively. */
+.guess-slider-blank {
+  -webkit-appearance: none;
+  appearance: none;
+  background: linear-gradient(var(--grid), var(--grid)) center / 100% 6px no-repeat;
+  border-radius: 999px;
+}
+.guess-slider-blank::-webkit-slider-runnable-track { background: transparent; }
+.guess-slider-blank::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 0;
+  height: 0;
+  border: 0;
+  background: transparent;
+}
+.guess-slider-blank::-moz-range-track { background: transparent; }
+.guess-slider-blank::-moz-range-progress { background: transparent; }
+.guess-slider-blank::-moz-range-thumb {
+  width: 0;
+  height: 0;
+  border: 0;
+  background: transparent;
+}
+.guess-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 8px;
+}
+
+/* --- the reveal ---------------------------------------------------------- */
+
+.reveal-panel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  background: var(--surface-1);
+  text-align: center;
+}
+.reveal-label { margin: 0 0 4px; color: var(--text-secondary); font-size: 0.9rem; }
+.reveal-value {
+  margin: 0;
+  font-size: 3rem;
+  line-height: 1.1;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.reveal-guess { margin: 4px 0 0; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.reveal-line { margin: 10px 0 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.reveal-pass { color: var(--series-1); }
+/* A failed level is a result, not an error: it gets ordinary ink. */
+.reveal-fail { color: var(--text-primary); }
+
+.stars-panel { margin: 14px 0; text-align: center; }
+.stars-row {
+  margin: 0;
+  font-size: 2rem;
+  letter-spacing: 0.1em;
+  color: var(--series-1);
+}
+.stars-why { margin: 2px 0 0; font-size: 0.9rem; color: var(--text-secondary); }
+.bucket-line { font-weight: 600; }
+.explain { max-width: 46rem; }
+
+/* --- what every round screen carries ------------------------------------- */
+
+.game-foot {
+  margin-top: 20px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.live-chip {
+  margin: 0 0 4px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}

@@ -7,10 +7,13 @@
 //   1. The returns in it are the SAME returns js/returns.js builds. The game and
 //      the research code must apply one rule, so game.json is built by calling
 //      buildReturns(), not by a second implementation of the same arithmetic.
-//   2. Storing them to 10 decimal places does not move a result by as much as
+//   2. Storing them to 12 decimal places does not move a result by as much as
 //      1e-9, which is the agreement this project holds its maths to (CLAUDE.md
-//      rule 3). The drift is measured here, not assumed, and 8 decimals is shown
-//      to be too few so the figure cannot be quietly shortened later.
+//      rule 3). The drift is measured here, not assumed, over a WIDE sample of
+//      portfolios, and 10 decimals is shown to be too few so the figure cannot
+//      be quietly shortened later. Session 2.3c is why the sample is wide: the
+//      narrow one this file started with passed at 10 decimals, and 400 random
+//      portfolios at random weights did not.
 //   3. A broken or stale file is refused rather than committed. The checks are
 //      pure functions so they can be exercised on hand-made faults, which is the
 //      only way to see them fire - a real fault appears on a random Tuesday.
@@ -29,6 +32,7 @@ import { fileURLToPath } from 'node:url';
 import { buildReturns } from '../js/returns.js';
 import { covariance, correlation, effectiveBets } from '../js/math.js';
 import { WINDOW_DAYS } from '../scripts/make_pool.mjs';
+import { makeRng } from '../js/rng.js';
 import {
   GAME_DAYS,
   DECIMALS,
@@ -71,10 +75,10 @@ test('the game window is 756 days, the same window the pool and the levels use',
   assert.equal(GAME_DAYS, WINDOW_DAYS, 'the game must score on the same window length as scripts/make_pool.mjs');
 });
 
-test('returns are stored to 10 decimal places', () => {
-  assert.equal(DECIMALS, 10);
-  assert.equal(roundReturn(0.012345678901234567), 0.0123456789);
-  assert.equal(roundReturn(-0.012345678949), -0.0123456789);
+test('returns are stored to 12 decimal places', () => {
+  assert.equal(DECIMALS, 12);
+  assert.equal(roundReturn(0.012345678901234567), 0.012345678901);
+  assert.equal(roundReturn(-0.0123456789014999), -0.012345678901);
   assert.equal(roundReturn(0), 0);
   assert.equal(roundReturn(null), null, 'a day before a ticker listed stays null, not 0');
 });
@@ -87,7 +91,42 @@ test('returns are stored to 10 decimal places', () => {
 // than 1e-9 would make the game disagree with the research code on the same
 // window, which is the thing this project does not allow.
 
-/** Correlations and effective bets for a few real ticker sets, at a given rounding. */
+/**
+ * The portfolios the drift is measured over.
+ *
+ * WHY RANDOM WEIGHTS AND RANDOM LINE-UPS. Equal weights are the kind case: the
+ * narrow sample below (hand-picked sets, equal weights) is inside 1e-9 even at
+ * 10 decimals, which is what session 2.3a measured and what sent 10 decimals
+ * into the file format. A player splits the money however they like, so the
+ * sample has to as well. Seeded, so the measurement is the same every run.
+ */
+const DRIFT_SEED = 99;
+const DRIFT_PORTFOLIOS = 400;
+
+const UNIVERSE = (() => {
+  const spec = readJson('tickers.json');
+  return spec.groups.flatMap((g) => g.tickers.map((t) => (typeof t === 'string' ? t : t.ticker)));
+})();
+
+/** The line-ups and weights, drawn once and reused at every rounding. */
+const DRIFT_SAMPLE = (() => {
+  const rng = makeRng(DRIFT_SEED);
+  const sample = [];
+  for (let i = 0; i < DRIFT_PORTFOLIOS; i += 1) {
+    const pool = [...UNIVERSE];
+    const size = 2 + Math.floor(rng.uniform() * 4);          // 2 to 5 holdings
+    const names = [];
+    while (names.length < size) {
+      names.push(...pool.splice(Math.floor(rng.uniform() * pool.length), 1));
+    }
+    const raw = names.map(() => rng.uniform());
+    const sum = raw.reduce((a, b) => a + b, 0);
+    sample.push({ names, weights: raw.map((x) => x / sum) });
+  }
+  return sample;
+})();
+
+/** Correlations and effective bets at a given rounding, over both samples. */
 function measuresAt(decimals) {
   const round = decimals === null
     ? (v) => v
@@ -100,10 +139,17 @@ function measuresAt(decimals) {
     const rows = Array.from({ length: w.days }, (_, t) => [round(w.byTicker[pair[0]][t]), round(w.byTicker[pair[1]][t])]);
     out.correlations.push(correlation(rows)[0][1]);
   }
+  // The narrow sample session 2.3a measured, kept so the two are comparable.
   for (const names of [['JNJ', 'TLT', 'GOOGL', 'LQD', 'COP'], ['VOO', 'QQQ', 'NVDA', 'MSFT', 'META']]) {
     const w = BUILT.commonWindow(names, GAME_DAYS);
     const rows = Array.from({ length: w.days }, (_, t) => names.map((n) => round(w.byTicker[n][t])));
     out.bets.push(effectiveBets(names.map(() => 1 / names.length), covariance(rows)));
+  }
+  // The wide sample: random line-ups at random weights.
+  for (const { names, weights } of DRIFT_SAMPLE) {
+    const w = BUILT.commonWindow(names, GAME_DAYS);
+    const rows = Array.from({ length: w.days }, (_, t) => names.map((n) => round(w.byTicker[n][t])));
+    out.bets.push(effectiveBets(weights, covariance(rows)));
   }
   return out;
 }
@@ -130,13 +176,16 @@ test(`${DECIMALS} decimals moves no correlation or bets count by as much as 1e-9
   );
 });
 
-test('8 decimals would NOT be inside 1e-9, which is why the format is not shorter', () => {
-  // This test documents the measurement that chose 10 decimals (BUILD_LOG 2.3a).
-  // If a future change shortens the format to save bytes, this is the number it
-  // has to answer for.
+test('10 decimals would NOT be inside 1e-9, which is why the format is not shorter', () => {
+  // This test documents the measurement that chose 12 decimals (BUILD_LOG 2.3c),
+  // and replaces the 8-decimal version of it: 10 decimals is what the file used
+  // to hold, and what a future change to save bytes would most likely reach for.
+  // Over 400 random portfolios at random weights it moves a bets count by about
+  // 2.0e-9. If this ever stops failing, the sample or the data changed, and the
+  // format decision has to be re-measured rather than assumed.
   assert.ok(
-    worstDrift(8) > 1e-9,
-    'if 8 decimals now holds to 1e-9, re-measure and update the format decision in BUILD_LOG.md',
+    worstDrift(10) > 1e-9,
+    'if 10 decimals now holds to 1e-9 on this sample, re-measure and update the format decision in BUILD_LOG.md',
   );
 });
 

@@ -27,6 +27,7 @@
 // Educational, not investment advice.
 
 import { equalWeightBasket, rollingCorrelation, ROLLING_WINDOW } from './hypothesis2.js';
+import { gameDates, tickerSeries } from './gameView.js';
 
 /**
  * How far the live and frozen halves may disagree at the freeze date.
@@ -43,26 +44,10 @@ export const JOIN_TOLERANCE = 1e-4;
 /** The label docs/PRD.md requires on the live part, word for word. */
 export const SHADE_LABEL = 'after the freeze date; enters no verdict';
 
-/** One ticker's column out of game.json's row-per-day layout. */
-export function tickerSeries(game, ticker) {
-  if (!game || !Array.isArray(game.tickers) || !Array.isArray(game.rows)) {
-    throw new Error('data/game.json is not a document with tickers and rows');
-  }
-  const column = game.tickers.indexOf(ticker);
-  if (column === -1) {
-    throw new Error(`data/game.json does not carry ${ticker}`);
-  }
-  // Column 0 is the date, so a ticker's values sit one to the right of its index.
-  return game.rows.map((row) => row[column + 1]);
-}
-
-/** The trading dates in game.json, oldest first. */
-export function gameDates(game) {
-  if (!game || !Array.isArray(game.rows)) {
-    throw new Error('data/game.json has no rows');
-  }
-  return game.rows.map((row) => row[0]);
-}
+// game.json's row-per-day layout is read by js/gameView.js, which the game uses
+// too, so there is one reader of that layout rather than two. Re-exported here
+// because this file's own callers and tests ask for them by name.
+export { tickerSeries, gameDates } from './gameView.js';
 
 /**
  * Rolling correlation values for the windows ending ON or AFTER the freeze date,

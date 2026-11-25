@@ -789,3 +789,150 @@ edge.
 
 Educational, not investment advice.
 
+## The build, guess, reveal round, 25 November 2026 (session 2.3c)
+
+Milestone 2 step 2: levels 1 to 3 are playable. A player picks holdings, splits
+$10,000, commits to a guess, and then sees the answer worked out from
+`data/game.json`. The game never opens `data/prices.json`.
+
+**427 of 427 tests pass**, 81 of them new, and `node scripts/check_levels.mjs`
+still exits 0. The refresh workflow was replayed on a clean clone - rebuild,
+tests, the "only data/game.json may change" check, the commit step and the level
+check - and passes on both paths, the evening where the data is unchanged and the
+evening where it is not.
+
+### What was built
+
+| File | What it is |
+| --- | --- |
+| `js/gameView.js` | The game's reader for `data/game.json`: a ticker's column, the dates, and `gameWindow()`, which is `commonWindow()` from `js/returns.js` over the row-per-day layout |
+| `js/round.js` | One round as a state machine - build, guess, reveal - with no DOM in it. Every rule comes from `levels.json` through `js/levels.js` |
+| `js/game.js` | The screens. Phone first: one column, 44px controls, no typing anywhere |
+| `tests/gameView.test.js`, `tests/round.test.js`, `tests/game.test.js` | 75 tests |
+| `js/liveRolling.js` | Now imports the two row-readers from `js/gameView.js` and re-exports them, so one file reads that layout |
+| `js/app.js`, `css/style.css` | `#learn` mounts the game; the stylesheet gains the game's styles |
+
+Four things the round refuses, each of them something a player or a caller can
+actually do: revealing before a guess, revealing a build the level did not ask
+for, a guess outside the level's own range, and a window shorter than
+`levels.json`'s 252-day minimum.
+
+### The number is checked against code that already existed
+
+The round's whole chain - dollars to weights, window, matrix orientation,
+covariance, effective bets - is checked by replaying all 20 pool portfolios and
+holding each to the `expectedBets` committed in `levels.json`, which
+`scripts/make_pool.mjs` computed by a different path. All 20 agree to 1e-9.
+
+`gameWindow()` is held to `commonWindow()` **exactly**, not to 1e-9, by slicing
+a game document built at full precision. That separates the two questions: does
+this file slice the right days (exactly, yes), and what does the file format's
+rounding cost (below).
+
+### 10 decimal places was not inside 1e-9, so the file is 12 now
+
+Session 2.3a chose 10 decimals on a measurement over the level-1 pairs and two
+equal-weight 5-holding portfolios, where the worst effective-bets drift was
+1.2e-10. Over **400 random portfolios of 2 to 5 holdings at random weights**, 10
+decimals moves a bets count by up to **2.0e-9** (UNH + WMT + GLD), with 2 of the
+400 at or above 1e-9, and moves a level-1 correlation by up to 1.0e-9
+(BND + CVX). The earlier figure was not wrong, it was narrow: the drift depends
+on the portfolio, and equal weights are the kind case.
+
+`data/game.json` is therefore rebuilt at **12 decimals**, where the worst drift
+over the same wide sample is **1.8e-11**. The guard in
+`tests/gamedata.test.js` now measures over that wide sample rather than over two
+portfolios, and asserts both directions: 12 decimals is inside 1e-9, and 10
+decimals is not. The one-step-shorter test used to name 8 decimals; it names 10
+now, because 10 is what the file used to hold and what a future change to save
+bytes would reach for first.
+
+| Decimals | Worst correlation drift | Worst bets drift, wide sample | File, gzipped |
+| --- | --- | --- | --- |
+| 10 | 1.0e-9 (BND + CVX) | 2.0e-9 | 167 KB |
+| **12** | **3.9e-12 (VEA + LQD)** | **1.8e-11** | **199 KB** |
+
+The cost is 61 KB raw and 32 KB gzipped on a file every player downloads. That
+is the price of CLAUDE.md rule 3, and worth paying: the alternative was a game
+that disagreed with the research code on the same window by more than the
+project says it may.
+
+Nothing here moved a verdict. Every published number comes from
+`data/prices.json` at full precision, and `data/results.json` is untouched.
+
+### The guess slider shows nothing until it is touched
+
+The number was already hidden until the first move. The thumb was not, and its
+resting position in the middle of the track - with the filled blue track beside
+it - is a weaker anchor than a number but still an anchor. So before the first
+tap the control is a bare grey line: no thumb, no fill, no number, and Reveal
+disabled.
+
+The first tap anywhere on the line sets the guess where it landed. That is a
+range input's own behaviour, not a click handler of ours, which matters because a
+handler would have to decide what a tap near the end means and would then
+disagree with dragging. Confirmed with a real mouse event through Chrome's
+DevTools protocol, not a synthetic one: a tap 25% along the track set the guess
+to -0.50, showed it, dropped the blank styling and enabled Reveal.
+
+`guessSliderState()` is where this lives, and it is a function of the round
+alone - no document - so the behaviour is tested in node. Six tests cover it,
+including the two cases a "has the thumb moved?" check would get wrong: a tap
+that lands exactly on the midpoint is a guess, and a redraw of the same screen is
+not an interaction.
+
+### Decisions recorded
+
+| Decision | What was chosen | Why |
+| --- | --- | --- |
+| Level 1 has no money step | **Pick two names, no allocation** | A correlation between two holdings is the same number whatever the split, so asking for one would be taps that change nothing. The PRD's challenge for the level is "pick two holdings", not "build" |
+| The guess slider starts blank | **No number, no thumb and no filled track, and Reveal disabled, until the first tap** | Your instruction, and the PRD's reason: "Predicting and then being corrected is the main learning moment." A number already on screen is a number to confirm without thinking, and the thumb's resting position is the same thing more quietly |
+| How the first tap is caught | **The range input's own behaviour, no click handler** | A handler would have to decide what a tap near an end means, and would then disagree with dragging. The native control already puts the value where the finger landed |
+| Returns in `data/game.json` | **12 decimal places, not 10** | 10 was measured on two equal-weight portfolios and does not hold at 1e-9 for 400 random ones. 61 KB raw is the price of CLAUDE.md rule 3 |
+| Level 3's starting split | **Even, in whole $100 steps** | Your instruction. Five holdings divide exactly; three give 3,400/3,300/3,300, which is what a player would type |
+| How the money moves | **- and + buttons, $100 a tap, total pinned to $10,000** | No keyboard on a phone. The difference is taken from the largest other holding, and no holding is ever taken below $100 - a 5-holding portfolio with a zero in it is a 4-holding portfolio |
+| Which pool portfolio was drawn | **Kept on the round, and in the in-memory session** | Your instruction, so level 7 can exclude it later. Level 7 would otherwise be measuring a player's memory rather than their learning |
+| The draw itself | **Uniform over the 20, `Math.random` injected** | PREREG.md gives level 2 and level 7's first portfolio one pool "so on average they are equally hard", which holds only if the draw is uniform. Tests pin it |
+| Progress | **In memory, lost on reload** | As you specified. Browser storage is Milestone 2 step 7 |
+| The "Why?" card | **Not this session** | It is Milestone 2 step 3 - the rule-based templates. The reveal shows the level's own `explain` and `why` text from `levels.json`, which is step 2's "explain" |
+| The file is `js/gameView.js` | **Not `js/gameData.js`** | macOS filesystems are case-insensitive, so `tests/gameData.test.js` and the existing `tests/gamedata.test.js` would be one file. It cost the pipeline test once already |
+| What `js/game.js` exports | **The decisions, not the nodes** | No jsdom (CLAUDE.md rule 8), so the slider step, the stars explanation and the session are exported and tested in node; the screens are checked in a browser |
+
+### Checked in a browser, at 390px
+
+Driven end to end in headless Chrome inside a 390px frame, on the live
+`data/game.json`:
+
+- Level 1, VOO + VTI: **1.00**, clears 0.80, 3 stars on a guess of 0.95.
+- Level 1, VTI + VXUS, the near miss: **0.7996**, shown to 4 decimals, "misses
+  the 0.8000 needed", no stars. The screen cannot read as a pass.
+- Level 2 dealt p19 (INTC, GLD, XOM, VTI, COP): **2.87 bets**, 2 stars on a
+  guess of 2.0, and the id reached the session.
+- Level 3, JNJ + TLT + GOOGL + LQD + COP: even $2,000 each, two + taps moved JNJ
+  to $2,200 and took $100 each from TLT and GOOGL, total still $10,000;
+  **3.50 bets**, clears 3, 3 stars on a guess of 3.5.
+- Before any tap: a bare grey line with no thumb and no filled track, an em dash
+  where the number goes, and Reveal greyed out. A real tap 25% along the line,
+  dispatched through the DevTools protocol, set the guess to -0.50 and enabled
+  Reveal.
+- `document.documentElement.scrollWidth` equals `innerWidth` at 390px: no
+  sideways scrolling on a phone.
+
+### What to watch
+
+- **Level 3's picker is long.** All 38 names across 9 groups, so the money and
+  the Next button sit well below the fold on a phone. It is the level that needs
+  the whole list, but it is the first thing to watch in a playtest.
+- **Whether a blank line reads as a control.** The thumb is gone until the first
+  tap, which removes the anchor but also removes the usual hint that a slider is
+  a slider. The line is 44px tall and the sentence under it says to tap, but this
+  is the first thing to watch for a player who stalls on the guess screen.
+- **Level 1's "why" text is generic.** It talks about an S&P 500 fund and a
+  total-market fund whatever pair the player picked. That is the gap the "Why?"
+  cards fill in Milestone 2 step 3.
+- **The measures move with the prices.** `data/game.json` is rebuilt every
+  weekday evening, so the numbers above are Wednesday's, not constants. That is
+  why `tests/round.test.js` plays against a document built from the frozen
+  snapshot: the live file would make every assertion a moving target.
+
+Educational, not investment advice.

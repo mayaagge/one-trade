@@ -1,6 +1,7 @@
 // js/app.js - picks a view from the URL hash. Nothing else lives here.
 
 import { mountResearch, DISCLAIMER } from './research.js';
+import { mountLearn } from './game.js';
 
 const DEFAULT_MODE = 'research';
 const MODES = ['learn', 'sandbox', 'research'];
@@ -43,7 +44,7 @@ function render() {
     return;
   }
   if (mode === 'learn') {
-    stub(root, 'Learn', 'Levels 1 to 7 are being built. Session 2.2 writes the levels file; session 2.3 builds the build, guess and reveal round.');
+    mountLearn(root);
     return;
   }
   stub(root, 'Sandbox', 'Build any portfolio and see every measure. Not built yet.');
