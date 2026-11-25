@@ -1,0 +1,377 @@
+/* One Trade - one plain stylesheet. No framework, no build step.
+   Colours are the validated data-viz palette: categorical slot 1 (blue) for the
+   single chart series, with the palette's chart chrome and ink for everything
+   else. Dark mode is stepped for the dark surface, not an automatic flip. */
+
+:root {
+  color-scheme: light;
+  --surface-1: #ffffff;        /* chart surface, cards */
+  --plane: #f9f9f9;            /* page plane */
+  --text-primary: #191919;
+  --text-secondary: #666666;
+  --grid: #e7e7e7;
+  --axis: #c2c2c2;
+  --border: rgba(11, 11, 11, 0.10);
+  --series-1: #257de0;         /* the chart series */
+  --series-1-soft: #cce3fd;
+  --waiting: #fbb315;          /* status: waiting on data */
+  --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --surface-1: #191919;
+    --plane: #0b0b0b;
+    --text-primary: #efefef;
+    --text-secondary: #9c9c9c;
+    --grid: #303030;
+    --axis: #474747;
+    --border: rgba(255, 255, 255, 0.10);
+    --series-1: #338ced;
+    --series-1-soft: #1757ac;
+    --waiting: #fbb315;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--text-primary);
+  background: var(--plane);
+  -webkit-text-size-adjust: 100%;
+}
+
+h1, h2, h3 { line-height: 1.25; margin: 0 0 0.4em; }
+h1 { font-size: 1.7rem; }
+h2 { font-size: 1.25rem; }
+h3 { font-size: 1rem; }
+p { margin: 0 0 0.8em; }
+
+a { color: var(--series-1); }
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+}
+.skip-link:focus {
+  left: 8px; top: 8px; z-index: 10;
+  background: var(--surface-1);
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+
+/* ------------------------------------------------------------- chrome */
+
+.site-head {
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--border);
+}
+.site-head-inner {
+  max-width: 68rem;
+  margin: 0 auto;
+  padding: 12px 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.wordmark { margin: 0; font-size: 1.05rem; }
+.wordmark span {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+.modes {
+  display: flex;
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.modes a {
+  display: block;
+  padding: 6px 12px;
+  border-radius: 999px;
+  text-decoration: none;
+  color: var(--text-secondary);
+}
+.modes a:hover { background: var(--plane); }
+.modes a.current {
+  background: var(--series-1);
+  color: #ffffff;
+}
+
+main { outline: none; }
+
+.view {
+  max-width: 68rem;
+  margin: 0 auto;
+  padding: 20px 16px 48px;
+}
+
+.site-foot {
+  max-width: 68rem;
+  margin: 0 auto;
+  padding: 16px;
+  border-top: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+.disclaimer { margin: 0 0 4px; font-weight: 600; color: var(--text-primary); }
+.small { font-size: 0.85rem; margin: 0; }
+
+/* ------------------------------------------------------------- text */
+
+.lede { font-size: 1.02rem; max-width: 46rem; }
+.panel-sub, .card-sub, .chart-sub { color: var(--text-secondary); font-size: 0.9rem; }
+.note { color: var(--text-secondary); font-size: 0.88rem; max-width: 52rem; }
+.limit { font-size: 0.88rem; max-width: 52rem; }
+.claim { margin: 0; max-width: 46rem; }
+.error { color: var(--text-primary); }
+.loading { max-width: 68rem; margin: 24px auto; padding: 0 16px; color: var(--text-secondary); }
+
+.disclaimer-inline {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 1.4em;
+}
+
+.headline {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--series-1);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 24px;
+}
+.headline p { margin: 0; max-width: 54rem; }
+
+/* ------------------------------------------------------------- panels */
+
+.panel {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+.panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: start;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.verdict {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid var(--axis);
+  color: var(--text-primary);
+}
+/* "supported" and "not supported" are both results, not a pass and a fail, so
+   neither wears a success or an error colour. */
+.verdict-supported { background: var(--series-1-soft); border-color: var(--series-1); }
+.verdict-not-supported { background: var(--plane); }
+.verdict-waiting { background: var(--plane); border-color: var(--waiting); }
+
+/* ------------------------------------------------------------- cards */
+
+.card-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;
+  margin: 16px 0;
+}
+@media (min-width: 52rem) {
+  .card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  background: var(--surface-1);
+}
+.card-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.card-head h3 { margin: 0; }
+
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 14px 0;
+}
+.stat { min-width: 0; }
+.stat-label {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+.stat-value {
+  display: block;
+  font-size: 1.35rem;
+  font-weight: 600;
+  /* Proportional figures: these are standalone numbers, not a column. */
+}
+.stat-note {
+  display: block;
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+}
+
+.disagreement {
+  border: 1px solid var(--series-1);
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: var(--plane);
+}
+.disagreement h3 { margin-top: 0; }
+.disagreement p { margin: 0; max-width: 54rem; }
+
+/* ------------------------------------------------------------- key/value */
+
+.kv-list { margin: 12px 0 0; }
+.kv {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0 12px;
+  padding: 6px 0;
+  border-top: 1px solid var(--grid);
+}
+@media (min-width: 40rem) {
+  .kv { grid-template-columns: 14rem minmax(0, 1fr); }
+}
+.kv dt { color: var(--text-secondary); font-size: 0.88rem; }
+.kv dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.92rem;
+}
+
+/* ------------------------------------------------------------- tables */
+
+.table-view { margin-top: 12px; }
+.table-view summary {
+  cursor: pointer;
+  color: var(--series-1);
+  font-size: 0.9rem;
+}
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+  font-size: 0.86rem;
+  font-variant-numeric: tabular-nums;   /* a column of numbers, so align them */
+}
+.data-table caption {
+  caption-side: top;
+  text-align: left;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  padding-bottom: 6px;
+}
+.data-table th, .data-table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--grid);
+  white-space: nowrap;
+}
+.data-table th { color: var(--text-secondary); font-weight: 600; }
+.table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+.table-scroll:focus-visible { outline: 2px solid var(--series-1); outline-offset: 2px; }
+
+/* ------------------------------------------------------------- chart */
+
+.chart {
+  margin: 20px 0 0;
+}
+.chart-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.chart-plot { margin-top: 8px; }
+.chart-frame { position: relative; }
+.chart-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: var(--surface-1);
+  touch-action: pan-y;
+}
+.chart-svg:focus-visible { outline: 2px solid var(--series-1); outline-offset: 2px; }
+
+.chart-line {
+  stroke: var(--series-1);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.chart-grid { stroke: var(--grid); stroke-width: 1; }
+.chart-axis { stroke: var(--axis); stroke-width: 1; }
+.chart-tick { fill: var(--text-secondary); font-size: 11px; font-variant-numeric: tabular-nums; }
+.chart-tick-y { text-anchor: end; }
+.chart-tick-x { text-anchor: middle; }
+.chart-tick-x-start { text-anchor: start; }
+.chart-tick-x-end { text-anchor: end; }
+
+.chart-mark-rule { stroke: var(--text-secondary); stroke-width: 1; }
+.chart-mark-label { fill: var(--text-secondary); font-size: 11px; }
+.chart-mark-dot {
+  fill: var(--series-1);
+  stroke: var(--surface-1);
+  stroke-width: 2;               /* a surface ring, not a border */
+}
+
+.chart-crosshair { stroke: var(--axis); stroke-width: 1; }
+.chart-hover-dot { fill: var(--series-1); stroke: var(--surface-1); stroke-width: 2; }
+
+.chart-tooltip {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+.chart-tooltip strong {
+  display: block;
+  font-variant-numeric: tabular-nums;
+}
+.chart-tooltip span {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+.chart-readout {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  min-height: 1.4em;
+  margin: 6px 0 0;
+}

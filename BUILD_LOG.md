@@ -447,3 +447,79 @@ registered answer.
 | What the reruns keep in `data/results.json` | **Verdicts and medians, not the 500-value distributions** | PREREG.md asks for the full distributions of the baseline run, which are there in full, and of the reruns asks only whether a drop flips a verdict. Keeping all 13 distributions made the file 3.1 MB for nothing |
 
 Educational, not investment advice.
+
+## The Research page, 25 November 2026 (session 2.1)
+
+Milestone 2's first step: `index.html`, a stylesheet, and a Research page that
+renders every verdict from `data/results.json`. The page does no arithmetic. It
+reads the file `scripts/run_research.mjs` writes and prints what is in it, so it
+cannot show a number the reproducible script did not produce. The provenance
+strip at the bottom carries the snapshot's SHA-256, the freeze date and the
+commit the run came from, so a reader can match the page to the exact bytes.
+
+Also in this session: `actions/checkout` and `actions/setup-node` bumped to v5,
+CI green.
+
+**264 of 264 tests pass**, 34 of them new.
+
+### What the page shows
+
+| Section | What is on it |
+| --- | --- |
+| Headline | `results.headline`, generated from the verdicts, not written by hand |
+| Hypothesis 1 | Both tests side by side: the headline correlation-only R (beginner median 0.773, not supported) and the registered ratio (0.327, supported), each with its control median, its share below threshold, its separation note and its limit. Then the disagreement panel, printing `hypothesis1.statement` in full, and the 0.523 independence benchmark and 0.10 separation margin, both labelled reporting-only |
+| Hypothesis 2 | The registered pair (full-history basket vs RSP: 0.5274 to 0.4729, rise −0.0544, 90% interval [−0.2733, +0.0520], not supported), with the growing basket and both `^GSPC` results beside it, each carrying `benchmarkRole` and `benchmarkWhy` so the "supported" on the index never reads as the answer |
+| The chart | The rolling 126-day correlation for the registered pair, 2,388 points, 30 November 2022 marked at 0.8921 as a reference date only |
+| Hypothesis 3 | "collecting", with the no-control-group limit stated on the page as PREREG.md asks |
+| Leave-one-out | All 13 reruns in a table, with the statement that no single drop flips a verdict |
+
+### Decisions recorded
+
+| Decision | What was chosen | Why |
+| --- | --- | --- |
+| Where the numbers come from | **`data/results.json` only.** `js/research.js` imports no maths module | Two code paths to one number is one code path too many. The page is a view of the reproducible run, and the test asserts every field it reads is present, so a regenerated file that drops a field fails CI instead of printing an em dash |
+| The chart's library | **None.** Hand-written inline SVG in `js/chart.js`, geometry separated from drawing | The PRD asks for plain HTML, CSS and JavaScript. Splitting `niceScale`, `xOf`, `yOf`, `linePath` and `nearestIndex` out of the drawing means the geometry is testable under `node --test`, where there is no document |
+| How the chart is sized | **The SVG box is the container's real width**, measured after mounting, not a fixed box scaled by CSS | At 500px a 720-wide viewBox scaled 11px axis labels down to about 7px. Sizing the box to the element keeps label text the same number of pixels on a phone as on a laptop. Narrow charts also drop from 6 x-axis labels to 4 or 3, because six dates collide |
+| Which rolling series is drawn | **The registered pair only** (full-history basket vs RSP) | It is the only Hypothesis 2 combination carrying a verdict. The other three are in the file and their point estimates are on the page; four lines on one chart would imply four answers |
+| Verdict colours | **Neither verdict gets a success or an error colour** | "supported" and "not supported" are both results. Painting one green and one red would say the game wanted an answer. Only "collecting" is marked, as waiting on data |
+| The table view under the chart | **One row per calendar year, plus the first day, the marked date and the last day** | 2,388 rows is not a table anybody reads, and every value stays reachable by hover, by keyboard and in the file itself |
+| Wide tables | **Their own horizontal scroller**, keyboard-focusable | The 13-row leave-one-out table has 7 columns and would otherwise widen the page on a phone |
+| The default mode | **Research**, until Learn exists | Temporary. The PRD's main mode is Learn, and this flips as soon as session 2.3 lands |
+
+### docs/PRD.md line 220 says 11 distinct results; the data says 12
+
+The PRD's AI basket section says Hypothesis 2's "13 reruns contain only **11
+distinct results**". The committed results give **12**, and 12 is right:
+
+- 11 drops each remove a full-history member and give 11 different results.
+- Dropping VRT or dropping PLTR reproduces the baseline exactly
+  (difference −0.05444971283650357 in all three), which is a **12th** result,
+  shared by those two rows.
+
+11 is the number of drops that change the basket, not the number of distinct
+results; the slip is subtracting both collapsed rows instead of one. The page
+computes the count from the file rather than printing a literal, so it says 12
+and cannot drift, and `tests/research.test.js` locks both the count and the
+reason. **The PRD line is not edited** - it is the specification, and a
+correction to it is yours to make.
+
+### Checked by looking at it
+
+The geometry tests do not catch label collisions, so the page was rendered in a
+real browser and screenshotted at 1100px, 700px and 500px wide, in light and
+dark mode, with the table view open and with a hover simulated. Three things the
+tests had passed were wrong on screen and are fixed:
+
+1. The last x-axis label read "2026-1". `text-anchor="end"` was set as an SVG
+   presentation attribute, which the stylesheet's `.chart-tick-x` rule outranks.
+   It is a class now.
+2. Axis text was about 7px at 500px wide (the sizing fix above).
+3. "labelled by the the last day of each window" - a doubled article, because
+   `rolling.labelledBy` already begins with "the".
+
+Headless Chrome clamps its window to 500px minimum, so a screenshot asked for at
+390px is a 500px render cropped. The clipping that looked like a phone layout bug
+was that crop; a `scrollWidth` check at 500, 700 and 1100 confirms nothing
+overflows the viewport at any width.
+
+Educational, not investment advice.
