@@ -167,6 +167,28 @@ export function measureFor(level, game, { tickers, weights }, window) {
 }
 
 /**
+ * Which lead-in line opens the card, from the level's own pass rule.
+ *
+ * A level that checks the PORTFOLIO reports a verdict on the portfolio: level 3
+ * asks for at least 3 effective bets, and a round either cleared that or did
+ * not.
+ *
+ * A level whose pass rule IS THE GUESS has nothing to pass or miss. levels.json
+ * gives level 2 `pass.measure: "guess"` and `says: "make a guess"`, so every
+ * round passes, and "You passed" on a level nobody can fail says nothing. Its
+ * line reports on the guess instead.
+ *
+ * "Close" is the level's own TWO-STAR BAND and is read as `stars >= 2` rather
+ * than recomputed from a threshold of its own. levels.json words level 2's band
+ * as "within 1 bet", and the line sits directly beneath the stars it describes,
+ * so the two cannot be allowed to disagree - a second copy of that number could.
+ */
+function leadInKey(level, { passed, stars }) {
+  if (level.pass.measure === 'guess') return stars >= 2 ? 'closeGuess' : 'wideGuess';
+  return passed ? 'passed' : 'missed';
+}
+
+/**
  * The "Why?" card for a revealed portfolio: the rule that explains it, worded by
  * a template in why.json. js/why.js holds the rules and the wording; what is
  * decided here is only which of its two paths a level takes.
@@ -184,7 +206,7 @@ export function measureFor(level, game, { tickers, weights }, window) {
  * tests/why.test.js checks against numpy, and they are small - a few numbers per
  * holding, no matrix.
  */
-function buildWhyCard(level, { tickers, weights, matrix, groups, why, value, passed }) {
+function buildWhyCard(level, { tickers, weights, matrix, groups, why, value, passed, stars }) {
   if (!why) return { whyCard: null, whyFacts: null };
   const measure = level.pass.measure === 'guess' ? level.guess.measure : level.pass.measure;
   const onCorrelation = measure === 'correlation';
@@ -196,7 +218,7 @@ function buildWhyCard(level, { tickers, weights, matrix, groups, why, value, pas
       // Only the rule path takes a lead-in. A level 1 reveal already says
       // whether the pair cleared its threshold and which bucket the guess
       // named, so a third verdict line would be the same news a third time.
-      passed,
+      leadIn: leadInKey(level, { passed, stars }),
     }),
     whyFacts: facts,
   };
@@ -435,7 +457,7 @@ export function createRound({
         }
         : null,
       drawnId: round.drawnId,
-      ...buildWhyCard(level, { ...weighted, matrix, groups, why, value: measured.value, passed }),
+      ...buildWhyCard(level, { ...weighted, matrix, groups, why, value: measured.value, passed, stars }),
     };
     round.state = REVEAL;
     return round.result;

@@ -13,10 +13,10 @@
 // concatenates, reorders or appends prose, and fillTemplate() throws rather than
 // leave a {placeholder} on the screen or quietly drop a value nobody used.
 //
-// A card can carry TWO templates - a lead-in saying whether the round was
-// passed, and the card itself - and they are kept as two strings all the way to
-// the screen, which renders them as two lines. Joining them into one would be
-// this file writing a sentence, which is the one thing it does not do.
+// A card can carry TWO templates - a lead-in saying how the round went, and the
+// card itself - and they are kept as two strings all the way to the screen,
+// which renders them as two lines. Joining them into one would be this file
+// writing a sentence, which is the one thing it does not do.
 // tests/why.test.js checks this mechanically: the text that comes out must equal
 // the template that went in with its values substituted.
 //
@@ -62,6 +62,17 @@ export const PLACEHOLDERS = {
 
 /** The rule keys this file knows how to apply. why.json may not invent one. */
 export const RULE_KEYS = ['groupRisk', 'pair', 'riskGapOver', 'riskGapUnder'];
+
+/**
+ * The lead-in lines, one of which opens a card on the levels that take one.
+ *
+ * Two pairs, because two kinds of level ask for two different things. A level
+ * that checks the portfolio reports a verdict on the portfolio - passed or
+ * missed. A level whose pass rule IS the guess has no portfolio to pass or miss,
+ * so its line reports on the guess - close, or wide of it. js/round.js decides
+ * which pair applies from the level's own pass rule.
+ */
+export const LEAD_IN_KEYS = ['passed', 'missed', 'closeGuess', 'wideGuess'];
 
 // ------------------------------------------------------------------ loading
 
@@ -130,7 +141,7 @@ export function validateWhy(data) {
   if (!data.leadIn || typeof data.leadIn !== 'object') {
     throw new Error('why: leadIn is missing, so no card could say whether the round was passed');
   }
-  for (const key of ['passed', 'missed']) {
+  for (const key of LEAD_IN_KEYS) {
     const line = data.leadIn[key];
     if (typeof line !== 'string' || line.length === 0) {
       throw new Error(`why: leadIn.${key} is missing`);
@@ -352,17 +363,18 @@ export function ruleCandidate(facts, rule, { pairThreshold = null } = {}) {
  *                                      bucket card is used and no rule is applied
  * @param {number|null} options.pairThreshold the level's own pass threshold, when
  *                                      the level's measure is a correlation
- * @param {boolean|null} options.passed did the round pass? With a boolean, the
- *                                      card carries the matching lead-in line
+ * @param {string|null} options.leadIn which of LEAD_IN_KEYS opens the card, or
+ *                                      null on a level that takes no lead-in
  */
-export function pickWhy(facts, why, { bucket = null, pairThreshold = null, passed = null } = {}) {
+export function pickWhy(facts, why, { bucket = null, pairThreshold = null, leadIn = null } = {}) {
   // The lead-in is kept BESIDE the card text and never joined to it. Two
   // templates, each rendered as written, is still no generated prose; one string
   // built out of two would not be, and the test that holds the card text to its
   // own template would have nothing left to hold.
-  const leadIn = bucket === null && typeof passed === 'boolean'
-    ? (passed ? why.leadIn.passed : why.leadIn.missed)
-    : null;
+  if (leadIn !== null && !LEAD_IN_KEYS.includes(leadIn)) {
+    throw new Error(`pickWhy: "${leadIn}" is not a lead-in why.json carries (${LEAD_IN_KEYS.join(', ')})`);
+  }
+  const leadInLine = bucket === null && leadIn !== null ? why.leadIn[leadIn] : null;
 
   if (bucket !== null) {
     const card = why.bucketCards[bucket];
@@ -373,15 +385,15 @@ export function pickWhy(facts, why, { bucket = null, pairThreshold = null, passe
       b: facts.pair.b,
       r: formatCorrelation(facts.pair.r, pairThreshold),
     };
-    return asCard(bucket, card, values, leadIn);
+    return asCard(bucket, card, values, leadInLine);
   }
 
   for (const key of why.order) {
     const rule = why.rules.find((r) => r.key === key);
     const candidate = ruleCandidate(facts, rule, { pairThreshold });
-    if (candidate.fires) return asCard(rule.key, rule, candidate.values, leadIn);
+    if (candidate.fires) return asCard(rule.key, rule, candidate.values, leadInLine);
   }
-  return asCard(why.fallback.key ?? 'fallback', why.fallback, {}, leadIn);
+  return asCard(why.fallback.key ?? 'fallback', why.fallback, {}, leadInLine);
 }
 
 /** One card, with its text already filled in, so no screen has to word anything. */

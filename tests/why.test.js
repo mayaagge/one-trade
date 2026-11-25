@@ -32,9 +32,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { buildReturns } from '../js/returns.js';
-import { GAME_DAYS } from '../scripts/build_game_data.mjs';
 import { validateLevels, levelById, bucketOf } from '../js/levels.js';
+import {
+  LESSON_PORTFOLIOS,
+  cardFor,
+  checkLessonPortfolios,
+  frozenGameDoc,
+} from '../scripts/check_why_cards.mjs';
 import { createRound } from '../js/round.js';
 import {
   PLACEHOLDERS,
@@ -78,18 +82,10 @@ function factsFor(name, { groups = null } = {}) {
   };
 }
 
-// A game document at full precision, built from the frozen snapshot.
-const GAME = (() => {
-  const built = buildReturns(readJson('data/prices.json'));
-  const tickers = built.tickers.slice().sort();
-  const from = built.dates.length - GAME_DAYS;
-  const dates = built.dates.slice(from);
-  return {
-    meta: { liveThrough: dates[dates.length - 1], firstDate: dates[0], days: GAME_DAYS },
-    tickers,
-    rows: dates.map((date, i) => [date, ...tickers.map((t) => built.byTicker[t][from + i])]),
-  };
-})();
+// A game document at full precision, built from the frozen snapshot. The builder
+// is the one scripts/check_why_cards.mjs uses, so the tests and the check cannot
+// disagree about which prices they are talking about.
+const GAME = frozenGameDoc(readJson('data/prices.json'));
 
 /** Play a whole round on the frozen document, and hand back its result. */
 function play(levelId, picks, guess, { random = () => 0 } = {}) {
@@ -379,17 +375,69 @@ test('a level 3 build that misses gets the missed lead-in', () => {
   assert.equal(result.whyCard.leadIn, "Here's what held you back:");
 });
 
-test('level 2 always gets the passed lead-in, because its pass rule is the guess', () => {
-  // levels.json gives level 2 pass.measure "guess", so every level 2 round
-  // passes by design and the missed line cannot appear there. The stars panel
-  // already words it the same way: "1 star for make a guess".
+test('level 2 speaks to the guess, not to passing: a close guess', () => {
+  // levels.json gives level 2 pass.measure "guess", so every round passes and a
+  // verdict on the portfolio would say nothing. p01 makes 1.10 bets; a guess of
+  // 1.5 is within the level's two-star band of 1 bet.
   assert.equal(levelById(LEVELS, 2).pass.measure, 'guess');
+  const { result } = play(2, [], 1.5, { random: () => 0 });
+  assert.equal(result.drawnId, 'p01');
+  assert.equal(result.passed, true);
+  assert.equal(result.stars >= 2, true);
+  assert.equal(result.whyCard.leadIn, WHY.leadIn.closeGuess);
+  assert.equal(result.whyCard.leadIn, 'Close guess. One thing to notice:');
+});
+
+test('level 2 speaks to the guess, not to passing: a guess wide of it', () => {
+  // The same portfolio at 1.10 bets, guessed at 4: more than a bet out, so the
+  // line reports on the guess rather than congratulating a round nobody can fail.
+  const { result } = play(2, [], 4, { random: () => 0 });
+  assert.equal(result.passed, true);
+  assert.equal(result.stars, 1);
+  assert.equal(result.whyCard.leadIn, WHY.leadIn.wideGuess);
+  assert.equal(result.whyCard.leadIn, "Here's what made this one tricky:");
+  // The passed line never reaches a level whose pass rule is the guess.
+  assert.notEqual(result.whyCard.leadIn, WHY.leadIn.passed);
+});
+
+test('level 2 lead-in and the stars above it can never disagree', () => {
+  // "Close" is read as the level's own two-star band - stars >= 2 - and not
+  // recomputed from a threshold of its own, so the line and the stars it sits
+  // under always tell the same story. This walks the whole slider range over
+  // every pool portfolio, including the exact boundary, where the band's
+  // floating-point tolerance is what decides it.
   const portfolios = LEVELS.guessPool.portfolios;
+  const seen = new Set();
   for (let i = 0; i < portfolios.length; i += 1) {
-    const { result } = play(2, [], 2, { random: () => i / portfolios.length });
-    assert.equal(result.passed, true, `${result.drawnId} should pass`);
-    assert.equal(result.whyCard.leadIn, WHY.leadIn.passed, `${result.drawnId} lead-in`);
+    const random = () => i / portfolios.length;
+    const { result: first } = play(2, [], 1, { random });
+    const guesses = [1, 1.5, 2, 2.5, 3, 4, 5];
+    // The boundary itself: exactly one bet above the real answer, where a bare
+    // <= would reject 1.0000000000000002 and cost a star the player earned.
+    const edge = first.value + 1;
+    if (edge >= 1 && edge <= 5) guesses.push(edge);
+    for (const guess of guesses) {
+      const { result } = play(2, [], guess, { random });
+      const close = result.whyCard.leadIn === WHY.leadIn.closeGuess;
+      assert.equal(close, result.stars >= 2,
+        `${result.drawnId} at ${result.value.toFixed(3)} bets, guessed ${guess}: `
+        + `${result.stars} stars but the lead-in says ${close ? 'close' : 'wide'}`);
+      seen.add(close ? 'close' : 'wide');
+    }
   }
+  // Both lines really do occur over that sweep, so this is not vacuous.
+  assert.deepEqual([...seen].sort(), ['close', 'wide']);
+});
+
+test('level 3 reports on the portfolio, because that is what it checks', () => {
+  // The two pairs of lines are not interchangeable: a level with a real pass
+  // check never shows the guess lines, whatever the guess was.
+  const passing = play(3, ['JNJ', 'TLT', 'GOOGL', 'LQD', 'COP'], 1).result;
+  assert.equal(passing.passed, true);
+  assert.equal(passing.stars, 1, 'a wild guess on a passing build scores 1 star');
+  assert.equal(passing.whyCard.leadIn, WHY.leadIn.passed);
+  const missing = play(3, ['NVDA', 'AMD', 'AVGO', 'MU', 'ANET'], 1).result;
+  assert.equal(missing.whyCard.leadIn, WHY.leadIn.missed);
 });
 
 test('level 1 takes no lead-in at all', () => {
@@ -418,6 +466,65 @@ test('validateWhy rejects a lead-in that tries to carry a placeholder', () => {
   const gone = structuredClone(WHY);
   delete gone.leadIn.passed;
   assert.throws(() => validateWhy(gone), /leadIn\.passed/);
+});
+
+// --- 6. the lesson portfolios ---------------------------------------------
+
+test('every lesson portfolio gets the card written down beside it', () => {
+  // The hand-picked set in scripts/check_why_cards.mjs: each portfolio exists to
+  // teach one thing, with the card a player who builds it has to be shown. The
+  // script checks the same list and exits non-zero on a mismatch; this is the
+  // same check inside the test suite, so CI catches it on every push.
+  const results = checkLessonPortfolios(GAME, GROUPS, WHY);
+  assert.equal(results.length, LESSON_PORTFOLIOS.length);
+  for (const result of results) {
+    assert.equal(result.ok, true,
+      `${result.lesson.key} (${result.lesson.what}) wanted the ${result.lesson.expect.key} card `
+      + `and got ${result.card.key}. ${result.wrongValues.join('; ')}\n`
+      + `      fired: ${result.fired.join('+') || 'none'}\n      text: ${result.card.text}`);
+  }
+});
+
+test('five AI stocks are caught by the group rule and nothing else', () => {
+  // The portfolio the game is named after. The closest pair inside it correlates
+  // at only 0.63, under the 0.70 the pair rule asks for, so if the group rule
+  // ever stops firing on a single-group portfolio this reads "nothing stands
+  // out here" again - which is exactly what it used to do.
+  const { card, facts } = cardFor(GAME, GROUPS, WHY,
+    LESSON_PORTFOLIOS.find((l) => l.key === 'all-ai-stocks').dollars);
+  assert.equal(card.key, 'groupRisk');
+  assert.equal(facts.pair.r < 0.7, true, `the closest pair is ${facts.pair.r}, no longer under 0.70`);
+  assert.equal(facts.groups.length, 1);
+  assert.equal(card.text.includes('Nothing stands out'), false);
+});
+
+test('an index fund and a tech fund read the same way on level 1 and by the rules', () => {
+  // A player meets VOO + QQQ on level 1, which takes the bucket path, so this
+  // pair is checked both ways: the bucket card a player actually sees, and the
+  // pair rule it answers to when a level allocates money.
+  const lesson = LESSON_PORTFOLIOS.find((l) => l.key === 'index-plus-tech');
+  assert.equal(lesson.onLevel, 1);
+  const byRule = cardFor(GAME, GROUPS, WHY, lesson.dollars);
+  assert.equal(byRule.card.key, 'pair');
+
+  const { result } = play(1, ['VOO', 'QQQ'], 0.95);
+  assert.equal(result.whyCard.key, 'same', 'on level 1 it is the "same bet" bucket card');
+  // Both paths name the same number for the same pair.
+  assert.equal(result.whyCard.values.r, byRule.card.values.r);
+});
+
+test('the lesson set covers more than one rule, so it is not a single case', () => {
+  const keys = new Set(LESSON_PORTFOLIOS.map((l) => l.expect.key));
+  assert.equal(keys.has('groupRisk'), true);
+  assert.equal(keys.has('pair'), true);
+  assert.equal(keys.has('riskGapOver'), true);
+  // Every lesson portfolio allocates the game's full $10,000, so the percents in
+  // the cards are the ones a player would be looking at. cardFor() throws if not,
+  // which is what makes this assertion true rather than hopeful.
+  for (const lesson of LESSON_PORTFOLIOS) {
+    const total = Object.values(lesson.dollars).reduce((sum, d) => sum + d, 0);
+    assert.equal(total, 10000, `${lesson.key} allocates ${total}`);
+  }
 });
 
 // --- every level, every pool portfolio ------------------------------------

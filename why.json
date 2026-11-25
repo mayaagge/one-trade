@@ -22,9 +22,12 @@
   "leadIn": {
     "note": "One line before the card, on the levels that have a portfolio to pass or miss. It is a separate template from the card, rendered as its own line, and the two are never joined into one sentence: that is what keeps 'no generated prose' true with two templates on screen.",
     "levelsNote": "Levels 2 and 3 only. Level 1's bucket cards carry no lead-in: its own reveal panel already says whether the pair cleared 0.80, and the bucket line under it says which bucket the guess named, so a third verdict line would be the same news a third time.",
-    "levelTwoNote": "Level 2's pass rule in levels.json is 'make a guess', so every level 2 round passes and only the passed line can appear there. That is consistent with the stars panel, which already reads '1 star for make a guess'.",
+    "pathNote": "Which pair of lines a level uses depends on what its pass rule measures. A level that checks the PORTFOLIO - level 3's 'at least 3 effective bets' - gets passed or missed. A level whose pass rule IS the guess - level 2's 'make a guess', which every round satisfies - has no portfolio to pass or miss, so its line speaks to the guess instead: there is no verdict on the build to report, and 'You passed' on a level nobody can fail says nothing.",
+    "closeNote": "Close means the round earned the level's own two-star band, which levels.json words for level 2 as 'within 1 bet'. The band is read from levels.json rather than repeated here on purpose: the line sits directly under the stars it describes, and a second copy of the number could drift from the first and have the screen contradict itself.",
     "passed": "You passed. One thing to notice:",
-    "missed": "Here's what held you back:"
+    "missed": "Here's what held you back:",
+    "closeGuess": "Close guess. One thing to notice:",
+    "wideGuess": "Here's what made this one tricky:"
   },
   "order": [
     "groupRisk",
