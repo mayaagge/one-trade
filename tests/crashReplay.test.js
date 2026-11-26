@@ -102,3 +102,22 @@ test('fallSentence() handles neither line moving at all', () => {
     'Your portfolio ended exactly where it started. The S&P 500 (VOO, with dividends) ended exactly where it started.',
   );
 });
+
+test('fallSentence() can leave the comparison off, for a screen that already made it', () => {
+  // Level 6's reveal shows the ratio itself as its headline number, so the
+  // sentence under it states the two falls and stops: "0.14" followed by "that is
+  // 14% of the index's fall" is the same number twice on one screen.
+  const result = { change: -0.0481, indexChange: -0.3399, indexLabel: INDEX_LABEL };
+  assert.equal(
+    fallSentence(result, { compare: false }),
+    'Your portfolio fell 5%. The S&P 500 (VOO, with dividends) fell 34%.',
+  );
+  // The multiple comes off too, not only the percent.
+  const harder = { change: -0.609, indexChange: -0.2452, indexLabel: INDEX_LABEL };
+  assert.equal(
+    fallSentence(harder, { compare: false }),
+    'Your portfolio fell 61%. The S&P 500 (VOO, with dividends) fell 25%.',
+  );
+  // The default is unchanged, so Crash replay's own screen still compares.
+  assert.match(fallSentence(result), /That is 14% of the index's fall\.$/);
+});

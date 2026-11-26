@@ -23,6 +23,7 @@ import { validateLevels, levelById } from '../js/levels.js';
 import { createRound } from '../js/round.js';
 import {
   basketFrom,
+  buildHint,
   guessPlaces,
   guessSliderState,
   guessStep,
@@ -31,6 +32,7 @@ import {
   starText,
   starsExplanation,
 } from '../js/game.js';
+import { validateCrashes } from '../js/crash.js';
 // The picker, the allocator and the money they are written in now live in
 // js/build.js, shared with Crash replay.
 import { floorNotes, money } from '../js/build.js';
@@ -56,10 +58,19 @@ const GAME = (() => {
   };
 })();
 
+// Level 6's own prices, which are history and never move.
+const CRASHES = validateCrashes(readJson('data/crashes.json'));
+
 /** A fresh round on a level, with the draw pinned. */
 function round(levelId) {
   return createRound({
-    levels: LEVELS, levelId, game: GAME, universe: UNIVERSE, basket: BASKET, random: () => 0,
+    levels: LEVELS,
+    levelId,
+    game: GAME,
+    universe: UNIVERSE,
+    basket: BASKET,
+    crashes: CRASHES,
+    random: () => 0,
   });
 }
 
@@ -292,6 +303,65 @@ test('the floor under a holding is named in the level’s own numbers', () => {
   // A level with no floor says nothing about floors.
   assert.deepEqual(floorNotes(round(5)), []);
   assert.deepEqual(floorNotes(round(3)), []);
+});
+
+test('the floor on a kind is named with where the money actually is', () => {
+  // Unlike a floor on one holding, this one can be unmet while every row on the
+  // screen looks legal - four bond funds, $2,500 each, nothing below its $100 -
+  // so the line has to carry the running total.
+  const short = round(6);
+  for (const ticker of ['BND', 'TLT', 'LQD', 'GLD']) short.togglePick(ticker);
+  assert.deepEqual(floorNotes(short), [
+    '$6,000 of the $10,000 has to sit in stocks - the 60% this level asks for. '
+    + 'You have $0 in stocks.',
+  ]);
+
+  const met = round(6);
+  for (const ticker of ['WMT', 'PG', 'TLT', 'BND']) met.togglePick(ticker);
+  assert.deepEqual(floorNotes(met), [
+    '$6,000 of the $10,000 has to sit in stocks - the 60% this level asks for. '
+    + 'You have $6,000 in stocks.',
+  ]);
+
+  // Crash replay's own build has no level and no floor, and must not grow a line.
+  assert.deepEqual(floorNotes({ total: 10000, floorOf: () => 100 }), []);
+});
+
+test('the build hint names what is missing, not the last thing that was', () => {
+  // The line under a disabled Next button. Level 6 can have all four holdings and
+  // still not be ready, and "Pick 0 more holdings to carry on" was what the old
+  // line said about that.
+  const empty = round(6);
+  assert.equal(buildHint(empty), 'Pick 4 more holdings to carry on.');
+  empty.togglePick('WMT');
+  assert.equal(buildHint(empty), 'Pick 3 more holdings to carry on.');
+
+  const wrongPlace = round(6);
+  for (const ticker of ['BND', 'TLT', 'LQD', 'GLD']) wrongPlace.togglePick(ticker);
+  // The action, not the rule: the allocator's floor note states the rule and the
+  // running total a few lines above, and at 390px the two read as one sentence
+  // twice. Found by driving the level, not by a test.
+  assert.equal(
+    buildHint(wrongPlace),
+    'Move $6,000 into stocks with the + buttons, or swap a holding for one.',
+  );
+  assert.ok(!buildHint(wrongPlace).includes('has to sit in'),
+    'the hint must not repeat the floor note above it');
+
+  // A ready build says nothing, and neither does a dealt one.
+  const ready = round(6);
+  for (const ticker of ['WMT', 'PG', 'TLT', 'BND']) ready.togglePick(ticker);
+  assert.equal(buildHint(ready), null);
+  assert.equal(buildHint(round(2)), null, 'level 2 is dealt its portfolio');
+
+  // One stock can carry the whole 60%, and then there is nothing to say either.
+  const oneStock = round(6);
+  for (const ticker of ['WMT', 'BND', 'TLT', 'LQD']) oneStock.togglePick(ticker);
+  assert.equal(buildHint(oneStock), null);
+
+  // The levels that came before are unchanged.
+  assert.equal(buildHint(round(1)), 'Pick 2 more holdings to carry on.');
+  assert.equal(buildHint(round(4)), 'Pick 3 more holdings to carry on.');
 });
 
 test('every level names its own reveal panel, and none of them is the old ternary', () => {

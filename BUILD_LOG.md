@@ -2138,3 +2138,82 @@ about February 2020, not a rule.
   session C has to change it deliberately.
 
 Educational, not investment advice.
+
+## Level 6, the screens, 25 November 2026 (session 2.9b)
+
+Session B of three: level 6 in Learn, built, guessed and revealed with the two
+lines under it. No new screen - the Learn round's three screens already fit a
+replay - and no new chart code: the spec comes out of js/crashReplay.js, so the
+same history cannot be drawn two ways. Two defects were found by driving the
+level at a true 390px, neither of which a unit test would have noticed, because
+both are about what a player reads on one screen.
+
+### What Learn borrows from Crash replay, and why it borrows rather than copies
+
+| Borrowed | Why not a second copy |
+| --- | --- |
+| `chartSpecFor(result)` | The padding, the $K y-ticks and the tooltip wording were all found by looking at the rendered page in session 2.8. None of that should be done twice |
+| `pickReason(window, ticker)` | A player who meets PLTR in Learn and again in Crash replay should be told the same thing, not two things |
+| `fallSentence(result)` | The two falls in plain words under the same chart |
+
+js/app.js already imports all three modes statically, so nothing new is loaded
+for a player who never opens level 6.
+
+### Two things a player read twice
+
+**The 60%-in-stocks rule, stated twice in two sentences.** The allocator's floor
+note said "$6,000 of the $10,000 has to sit in stocks - the 60% this level asks
+for. You have $0 in stocks", and the hint under the disabled Next button said
+almost exactly the same thing again. The floor note now states the rule and the
+running total; the hint says only what to do - "Move $6,000 into stocks with the
++ buttons, or swap a holding for one" - and a test asserts it does not repeat the
+note above it.
+
+**The ratio, stated twice in two formats.** The reveal panel's headline is the
+answer, "0.14", and the sentence under it read "...That is 14% of the index's
+fall." `fallSentence()` now takes `{ compare: false }`, which leaves the last
+clause off for a screen that has already made the comparison. Crash replay, which
+has no headline number, still compares.
+
+### floorNotes() grew a second kind of line
+
+A floor on one holding needs no running total: QQQ at $3,000 is visible in QQQ's
+own row. A floor on a KIND can be unmet while every row looks legal - four bond
+funds, $2,500 each, nothing below its $100, 0% in stocks - so its line carries
+where the money actually is. Both modes share the allocator, and Crash replay's
+own build has no `kindFloor`, so it grows no line.
+
+`buildHint()` joins guessSliderState() and starsExplanation() as a pure function
+of the round, tested in node without a document. js/round.js's
+`whyIncomplete()` answers the same question for a caller, naming the rule and the
+dollars exactly; this is the version a player reads.
+
+### How it was checked
+
+Driven end to end in headless Chrome at a forced 390px viewport, as session 2.8
+was. No console errors on any screen, no horizontal overflow.
+
+| Round | What it showed |
+| --- | --- |
+| Level 6, four bond funds | Next disabled, the floor note at "$0 in stocks", the hint naming the $6,000 to move, PLTR's chip disabled and titled "PLTR had not listed yet - its first trading day was 2020-10-01" |
+| Level 6, WMT/PG/TLT/BND | Dealt $3,000 / $3,000 / $2,000 / $2,000, 60% in stocks, slider 0 to 2.00 in 0.05 steps |
+| Level 6 reveal, passing | Two lines, 24 points, legend, y-ticks $6K to $11K, x-ticks Feb 19 / Mar 6 / Mar 23. "0.14", "Your portfolio fell 5%. The S&P 500 (VOO, with dividends) fell 34%.", "0.14 clears the 0.50 needed", 3 stars |
+| Level 6 reveal, missing | JPM/XOM behind the same cushion: "0.72 misses the 0.50 needed", no stars, bucket "fell with the index" both ways |
+| Level 4 | Unchanged: no chart, its hiddenAi card intact, 2 stars |
+| Crash replay, 2022 | Unchanged, and now reads "about 1.1 times as much as the index fell" for 50/50 TLT and VOO - the level's own warning, in the mode it points at |
+
+652 tests pass; both check scripts are green.
+
+### What to watch
+
+- **A level 6 reveal still carries no "Why?" card**, which is session C. On a
+  passing round the screen reads a little bare between the stars and "The idea".
+- **The reveal's date line reads "Measured over 23 trading days, 2020-02-19 to
+  2020-03-23"**, in ISO dates, while the chart's axis says "Feb 19" and "Mar 23".
+  Every other level's line is about a rolling window where the ISO dates are the
+  honest form; here the two formats sit four lines apart on the same screen.
+- **The chart is drawn above the answer.** A player sees the two lines before the
+  ratio, which is the order the PRD's reveal implies - the picture, then the
+  number - but it is a guess about what reads best, not something that was tested.
+
+Educational, not investment advice.

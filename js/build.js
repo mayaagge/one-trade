@@ -141,17 +141,33 @@ export function allocator(build, { redraw }) {
 }
 
 /**
- * One line per holding the build puts a floor under: level 4's "at least 30% in
- * QQQ", as a share and as the money it works out to.
+ * One line per floor the build puts under the money: level 4's "at least 30% in
+ * QQQ", and level 6's "at least 60% in stocks", each as a share and as the
+ * dollars it works out to.
  *
  * A build with no floors - which is every other level, and Crash replay - gets no
  * lines rather than an empty heading.
+ *
+ * THE FLOOR ON A KIND REPORTS WHERE THE MONEY IS NOW, because unlike a floor on
+ * one holding it can be unmet while every row on the screen looks legal: four
+ * bond funds, $2,500 each, nothing below its $100, and 0% of it in stocks. The
+ * line that says so has to carry the running total, or the disabled Next button
+ * above it has no explanation on screen.
  */
 export function floorNotes(build) {
   const shares = build.level?.holdings?.minShare ?? {};
-  return Object.entries(shares).map(([ticker, share]) => {
+  const lines = Object.entries(shares).map(([ticker, share]) => {
     const floor = build.floorOf(ticker);
     return `${ticker} stays at ${money(floor)} or more: the ${Math.round(share * 100)}% `
       + `this level asks you to keep in it.`;
   });
+
+  const kind = build.kindFloor;
+  if (kind) {
+    const held = build.allocatedInKind();
+    lines.push(`${money(kind.dollars)} of the ${money(build.total)} has to sit in ${kind.kind} `
+      + `- the ${Math.round(kind.share * 100)}% this level asks for. `
+      + `You have ${money(held)} in ${kind.kind}.`);
+  }
+  return lines;
 }

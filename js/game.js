@@ -26,6 +26,12 @@ import { loadGameData, DISCLAIMER } from './gameView.js';
 import { validateLevels, displayFor, formatGuess, LEVELS_URL } from './levels.js';
 import { BUILD, GUESS, REVEAL, createRound } from './round.js';
 import { WHY_URL, groupIndex, validateWhy } from './why.js';
+import { CRASHES_URL, loadCrashes } from './crash.js';
+// Level 6 replays a crash window, so its reveal draws the two lines Crash
+// replay draws, from the same spec and with the same refusal wording for a
+// holding the window cannot replay. See the notes beside both exports.
+import { chartSpecFor, fallSentence, pickReason } from './crashReplay.js';
+import { renderLineChart, chartBox } from './chart.js';
 // The build screen, shared with Crash replay - and with Sandbox and My real
 // portfolio when they arrive. See the note at the top of js/build.js.
 import { h, button, money, tickerPicker, allocator, floorNotes } from './build.js';
@@ -139,6 +145,40 @@ function renderMenu(ctx) {
 
 // -------------------------------------------------------------- the build
 
+/**
+ * What is still missing from the build, in the player's own words, or null when
+ * nothing is.
+ *
+ * A pure function of the round, so it is tested in node without a document, the
+ * way guessSliderState() and starsExplanation() are. js/round.js's
+ * whyIncomplete() is the same question answered for a caller - it names the rule
+ * and the dollars exactly - and this is the version a player reads.
+ *
+ * TWO THINGS CAN BE MISSING NOW, which is why this is a function and not a
+ * ternary. Level 6 can have all four holdings and still not be ready, because
+ * the money is in the wrong place, and "Pick 0 more holdings to carry on" was
+ * what the old line said about that.
+ */
+export function buildHint(round) {
+  if (round.fixed || round.buildComplete()) return null;
+  if (round.wanted !== null && round.picks.length !== round.wanted) {
+    const left = round.wanted - round.picks.length;
+    if (left > 0) return `Pick ${left} more ${left === 1 ? 'holding' : 'holdings'} to carry on.`;
+    return `Drop ${-left} to get back to ${round.wanted}.`;
+  }
+  if (round.picks.length === 0) return 'Pick your holdings to carry on.';
+  const kind = round.kindFloor;
+  if (kind && round.allocatedInKind() < kind.dollars) {
+    // WHAT TO DO, not what the rule is. The allocator's own floor note states the
+    // rule and the running total a few lines above this, and on a 390px screen
+    // the two were reading as the same sentence twice - found by driving the
+    // level, not by a test.
+    return `Move ${money(round.shortOfKindFloor())} into ${kind.kind} with the + buttons, `
+      + `or swap a holding for one.`;
+  }
+  return 'Split the money between your holdings to carry on.';
+}
+
 function renderBuild(ctx, round) {
   const view = h('div', 'view view-round');
   view.append(roundHead(ctx, round, 'Build'));
@@ -160,7 +200,14 @@ function renderBuild(ctx, round) {
       ? `${round.picks.length} picked`
       : `${round.picks.length} of ${round.wanted} picked`;
     view.append(h('p', 'picker-count', count));
-    view.append(tickerPicker(round, { groups: ctx.tickers.groups, redraw: ctx.draw }));
+    view.append(tickerPicker(round, {
+      groups: ctx.tickers.groups,
+      redraw: ctx.draw,
+      // A holding this round's window cannot replay is shown disabled with its
+      // reason - PLTR had not listed in February 2020 - rather than left out. A
+      // level without a crash window has nothing to refuse.
+      reasonFor: (ticker) => (round.crashWindow ? pickReason(round.crashWindow, ticker) : null),
+    }));
     if (round.usesMoney && round.picks.length > 0) {
       view.append(allocator(round, { redraw: ctx.draw }));
     }
@@ -171,12 +218,8 @@ function renderBuild(ctx, round) {
     round.toGuess();
     ctx.draw();
   }, { disabled: !ready }));
-  if (!ready && !round.fixed) {
-    const left = round.wanted === null ? null : round.wanted - round.picks.length;
-    view.append(h('p', 'note', left === null
-      ? 'Pick your holdings to carry on.'
-      : `Pick ${left} more ${left === 1 ? 'holding' : 'holdings'} to carry on.`));
-  }
+  const hint = buildHint(round);
+  if (hint) view.append(h('p', 'note', hint));
   view.append(button('Back to the levels', 'btn btn-quiet btn-wide', () => ctx.toMenu()));
   view.append(footNotes(ctx.game));
   return view;
@@ -289,6 +332,24 @@ function renderReveal(ctx, round) {
   const view = h('div', 'view view-round');
   view.append(roundHead(ctx, round, 'Reveal'));
 
+  // THE REPLAY ITSELF, on a level that is one. Level 6's answer is a ratio of
+  // two falls, and the ratio alone is a number without a story: the two lines
+  // are where a player sees their portfolio come apart from the index, or not.
+  // Drawn from the same spec Crash replay uses, so the same history cannot be
+  // drawn two ways.
+  //
+  // NOT DRAWN HERE. `plot` is not attached to the document yet - this function
+  // only builds the view - so plot.clientWidth would read 0 and chartBox() would
+  // fall back to its 720px default. ctx.draw() calls ctx.redrawChart() once the
+  // view is live, exactly as js/crashReplay.js and js/research.js do.
+  if (result.crash) {
+    const plot = h('div', 'chart-plot');
+    view.append(plot);
+    ctx.redrawChart = () => renderLineChart(plot, {
+      ...chartSpecFor(result.crash), ...chartBox(plot.clientWidth),
+    });
+  }
+
   const panel = h('div', 'reveal-panel');
   // The level's own words for what the number is. It used to be a ternary on the
   // measure's name, which could only ever name two of the four measures.
@@ -298,6 +359,12 @@ function renderReveal(ctx, round) {
   // 5 shows "38%", and without this the player never learns whose 38% it was.
   if (result.aboutTicker) {
     panel.append(h('p', 'reveal-about', `That holding is ${result.aboutTicker}.`));
+  }
+  // On a replay, the two falls in plain words under the ratio. The ratio is the
+  // level's answer; "your portfolio fell 5%, the index fell 34%" is what it means,
+  // and the same sentence Crash replay prints under the same chart.
+  if (result.crash) {
+    panel.append(h('p', 'reveal-about', fallSentence(result.crash, { compare: false })));
   }
   panel.append(h('p', 'reveal-guess', `You guessed ${formatGuess(level, result.guess)}`));
   if (result.line) {
@@ -391,6 +458,7 @@ export async function mountLearn(root, { session = newSession() } = {}) {
   let why;
   let basket;
   let game;
+  let crashes;
   try {
     const [levelsResponse, tickersResponse, whyResponse, basketResponse] = await Promise.all([
       fetch(LEVELS_URL, { cache: 'no-cache' }),
@@ -407,11 +475,16 @@ export async function mountLearn(root, { session = newSession() } = {}) {
     why = validateWhy(await whyResponse.json());
     basket = basketFrom(await basketResponse.json());
     game = await loadGameData();
+    // Level 6's prices, which are a different file from the rest of the game's:
+    // a fixed stretch of 2020 that never moves. Loaded with everything else
+    // rather than when the level starts, so a missing file is one error on the
+    // way in instead of a dead end three screens deep.
+    crashes = await loadCrashes();
   } catch (error) {
     root.replaceChildren();
     const failed = h('div', 'view');
     failed.append(h('h1', null, 'Learn'));
-    failed.append(h('p', 'error', `The game could not load its data: ${error.message}. Serve the page from the project root with "python3 -m http.server 8000", and check that data/game.json is there.`));
+    failed.append(h('p', 'error', `The game could not load its data: ${error.message}. Serve the page from the project root with "python3 -m http.server 8000", and check that data/game.json and ${CRASHES_URL} are there.`));
     failed.append(h('p', 'disclaimer-inline', DISCLAIMER));
     root.append(failed);
     return null;
@@ -434,8 +507,13 @@ export async function mountLearn(root, { session = newSession() } = {}) {
       const at = ids.indexOf(id);
       return at >= 0 && at + 1 < ids.length ? ids[at + 1] : null;
     },
+    crashes,
+    /** Set by a reveal that draws a chart, and only once the view is attached. */
+    redrawChart: null,
     startRound(levelId) {
-      ctx.round = createRound({ levels, levelId, game, universe, groups, why, basket });
+      ctx.round = createRound({
+        levels, levelId, game, universe, groups, why, basket, crashes,
+      });
       ctx.draw();
     },
     toMenu() {
@@ -448,6 +526,9 @@ export async function mountLearn(root, { session = newSession() } = {}) {
     },
     draw() {
       const round = ctx.round;
+      // Cleared before every screen: only a reveal with a replay in it sets one,
+      // so a resize on any other screen has nothing to redraw.
+      ctx.redrawChart = null;
       let view;
       if (!round) view = renderMenu(ctx);
       else if (round.state === BUILD) view = renderBuild(ctx, round);
@@ -455,12 +536,25 @@ export async function mountLearn(root, { session = newSession() } = {}) {
       else if (round.state === REVEAL) view = renderReveal(ctx, round);
       else throw new Error(`unknown round state ${round.state}`);
       root.replaceChildren(view);
+      // The chart is drawn AFTER attachment, once the plot div has a real
+      // clientWidth to size itself against - see the note in renderReveal().
+      if (ctx.redrawChart) ctx.redrawChart();
       // A new screen starts at its heading, not wherever the last one was
       // scrolled to, which on a phone is halfway down a ticker list.
       root.focus({ preventScroll: true });
       window.scrollTo(0, 0);
     },
   };
+
+  // One resize listener for the mode's whole lifetime, as js/crashReplay.js and
+  // js/research.js have: a chart drawn at one width has to be redrawn at another,
+  // and only a level 6 reveal has one to redraw.
+  let lastWidth = window.innerWidth;
+  window.addEventListener('resize', () => {
+    if (window.innerWidth === lastWidth) return;
+    lastWidth = window.innerWidth;
+    if (ctx.redrawChart && root.isConnected) ctx.redrawChart();
+  });
 
   ctx.draw();
   return ctx;

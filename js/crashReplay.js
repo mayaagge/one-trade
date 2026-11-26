@@ -82,8 +82,15 @@ function crashHead(crashWindow, step) {
 
 // --------------------------------------------------------------- the build
 
-/** Why a ticker cannot be picked for this window, in the player's own words, or null if it can be. */
-function pickReason(crashWindow, ticker) {
+/**
+ * Why a ticker cannot be picked for this window, in the player's own words, or
+ * null if it can be.
+ *
+ * Exported because level 6 replays the same window and has to refuse the same
+ * holding for the same reason: a player who meets PLTR in Learn and again in
+ * Crash replay should be told the same thing, not two things.
+ */
+export function pickReason(crashWindow, ticker) {
   const missing = unavailableIn(crashWindow, ticker);
   if (!missing) return null;
   return missing.firstDate
@@ -138,7 +145,7 @@ function renderBuild(ctx) {
  * js/game.js's starsExplanation() is tested - on hand-built results, with no
  * document involved.
  */
-export function fallSentence(result) {
+export function fallSentence(result, { compare = true } = {}) {
   const pct = (fraction) => `${Math.round(Math.abs(fraction) * 100)}%`;
   const times = (share) => `${share.toFixed(1)}`;
   const line = (change, label) => (change < 0
@@ -151,17 +158,30 @@ export function fallSentence(result) {
   const index = line(result.indexChange, `The ${result.indexLabel}`);
 
   const against = fallAgainstIndex(result);
-  let compare = '';
-  if (against.indexFell && against.fell) {
-    compare = against.share > 1
+  let clause = '';
+  // `compare: false` leaves the last clause off, for a screen that has already
+  // stated the comparison as its headline number. Level 6's reveal panel shows
+  // the ratio itself directly above this sentence, and "0.14" followed by "that
+  // is 14% of the index's fall" is the same number twice.
+  if (compare && against.indexFell && against.fell) {
+    clause = against.share > 1
       ? ` That is about ${times(against.share)} times as much as the index fell.`
       : ` That is ${pct(against.share)} of the index's fall.`;
   }
-  return `${portfolio} ${index}${compare}`;
+  return `${portfolio} ${index}${clause}`;
 }
 
-/** The chart's spec, built once per reveal and redrawn at whatever width the plot actually has. */
-function chartSpecFor(result) {
+/**
+ * The chart's spec, built once per reveal and redrawn at whatever width the plot
+ * actually has.
+ *
+ * Exported for level 6's reveal, which draws the same two lines from the same
+ * replay() result. One spec, so the two screens cannot drift into drawing the
+ * same history two different ways - the padding, the $K ticks and the tooltip's
+ * wording were all found by looking at the rendered page (BUILD_LOG.md session
+ * 2.8), and none of that work should be done twice.
+ */
+export function chartSpecFor(result) {
   const low = Math.min(...result.path, ...result.indexPath);
   const high = Math.max(...result.path, ...result.indexPath);
   return {
