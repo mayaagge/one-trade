@@ -122,12 +122,25 @@ function renderBuild(ctx) {
  * The fall, in plain words: the portfolio's own change, the index's, and how
  * the first compares with the second when both fell.
  *
+ * TWO WAYS OF SAYING THE COMPARISON, and the split is at the index's own fall.
+ * A share AT OR UNDER 1 is a part of the index's fall and reads as a percent of
+ * it: "43% of the index's fall". A share ABOVE 1 is not a part of anything, and
+ * "248% of the index's fall" asks a reader to divide by 100 and then work out
+ * what more than all of something means. It reads as a multiple instead:
+ * "about 2.5 times as much as the index fell". So the percent in this sentence
+ * never passes 100%.
+ *
+ * The branch is on the UNROUNDED share, not on the percent it would print, so
+ * the two forms cannot both claim the same number. A share a hair over 1 is
+ * therefore "about 1.0 times as much", which is what it is.
+ *
  * A pure function of a replay() result, so it is tested the way
  * js/game.js's starsExplanation() is tested - on hand-built results, with no
  * document involved.
  */
 export function fallSentence(result) {
   const pct = (fraction) => `${Math.round(Math.abs(fraction) * 100)}%`;
+  const times = (share) => `${share.toFixed(1)}`;
   const line = (change, label) => (change < 0
     ? `${label} fell ${pct(change)}.`
     : change > 0
@@ -138,9 +151,12 @@ export function fallSentence(result) {
   const index = line(result.indexChange, `The ${result.indexLabel}`);
 
   const against = fallAgainstIndex(result);
-  const compare = against.indexFell && against.fell
-    ? ` That is ${pct(against.share)} of the index's fall.`
-    : '';
+  let compare = '';
+  if (against.indexFell && against.fell) {
+    compare = against.share > 1
+      ? ` That is about ${times(against.share)} times as much as the index fell.`
+      : ` That is ${pct(against.share)} of the index's fall.`;
+  }
   return `${portfolio} ${index}${compare}`;
 }
 
