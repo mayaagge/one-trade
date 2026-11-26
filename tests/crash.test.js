@@ -31,6 +31,7 @@ import {
   buyAndHoldPath,
   createBuild,
   deepestFall,
+  elsewhereFor,
   fallAgainstIndex,
   formatShortDate,
   readWindow,
@@ -70,6 +71,49 @@ test('data/crashes.json carries the three windows the PRD fixes, to the day', ()
   // And the script that wrote it asks for exactly those.
   assert.deepEqual(WINDOWS.map((w) => [w.from, w.to]),
     CRASHES.windows.map((w) => [w.from, w.to]));
+});
+
+test('every window has a heading name and an in-sentence name, and they are the same words', () => {
+  // A name that reads right as a heading reads wrong inside a sentence: level 6's
+  // card said "in The 2022 bear market" until the second form existed. The two
+  // are written out separately in build_crash_data.mjs, because lowercasing the
+  // first word would turn a window named "Black Monday" into "black Monday" - so
+  // what holds them together is this test, not a rule in the code.
+  for (const window of CRASHES.windows) {
+    assert.equal(typeof window.inSentence, 'string');
+    assert.ok(window.inSentence.length > 0, `${window.key} has no in-sentence name`);
+    // The same words, differing in case and in nothing else.
+    assert.equal(window.inSentence.toLowerCase(), window.title.toLowerCase(),
+      `${window.key}: the two names are not the same words`);
+    // The heading form is capitalised and the in-sentence form is not, which is
+    // the whole difference between them.
+    assert.match(window.title, /^[A-Z]/, `${window.key}'s title should open a heading`);
+    assert.match(window.inSentence, /^[a-z]/, `${window.key}'s in-sentence name should not`);
+    // Only the first word changes: "the January 2025 AI selloff" keeps January
+    // and AI, because they are a month and a thing rather than a sentence start.
+    assert.equal(window.inSentence.split(' ').slice(1).join(' '),
+      window.title.split(' ').slice(1).join(' '),
+      `${window.key}: only the leading word may differ in case`);
+  }
+  // The file and the script that writes it agree on both forms.
+  assert.deepEqual(WINDOWS.map((w) => [w.title, w.inSentence]),
+    CRASHES.windows.map((w) => [w.title, w.inSentence]));
+});
+
+test('a window without an in-sentence name is refused, not quietly headed instead', () => {
+  const doc = structuredClone(CRASHES);
+  delete doc.windows[1].inSentence;
+  assert.throws(() => validateCrashes(doc), /inSentence is missing/);
+});
+
+test('the card for a replay names the other window mid-sentence', () => {
+  // The end to end of it: the lesson portfolio's card, with the name as it
+  // actually reads inside the sentence.
+  const result = replay(CRASHES, 'crash2020', { WMT: 3000, PG: 3000, TLT: 2000, BND: 2000 });
+  assert.equal(result.window.inSentence, 'the 2020 crash');
+  const other = elsewhereFor(CRASHES, 'crash2020', 'TLT').find((w) => w.key === 'bear2022');
+  assert.equal(other.inSentence, 'the 2022 bear market');
+  assert.equal(other.title, 'The 2022 bear market', 'and the heading form is still there');
 });
 
 test('both lines include dividends, because the index line is a fund', () => {

@@ -553,7 +553,9 @@ export function ruleCandidate(facts, rule, { pairThreshold = null, limit = null 
       fires: true,
       values: {
         ...values,
-        otherWindow: failed.title,
+        // The in-sentence form, not the heading: this name lands in the middle of
+        // the card's second sentence, where "The 2022 bear market" reads wrong.
+        otherWindow: failed.inSentence,
         otherMove: signedPercent(failed.change),
         otherIndexMove: percent(Math.abs(failed.indexChange)),
       },

@@ -46,11 +46,24 @@ const readJson = (name) => JSON.parse(readFileSync(path(name), 'utf8'));
  * AI selloff's dates were set when Crash replay was planned: it starts on the
  * Friday before the selloff, so Nvidia's fall of about 17% on 27 January 2025 is
  * the first move the line draws, and runs a month past it.
+ *
+ * TWO NAMES FOR EACH WINDOW, because a name that reads right as a heading reads
+ * wrong inside a sentence. `title` heads a card and a chooser - "The 2022 bear
+ * market" - and `inSentence` is the same name where it is one clause of
+ * something longer: "in the 2022 bear market it moved -29%". A single name
+ * cannot do both: level 6's "Why?" card read "in The 2022 bear market" until
+ * this existed.
+ *
+ * WRITTEN OUT RATHER THAN DERIVED. Lowercasing the first word is right for
+ * "The 2020 crash" and wrong the moment a window is named after a day or a
+ * place - "Black Monday" would become "black Monday". A test holds the two forms
+ * to being the same words, so they can differ in case and in nothing else.
  */
 export const WINDOWS = [
   {
     key: 'crash2020',
     title: 'The 2020 crash',
+    inSentence: 'the 2020 crash',
     from: '2020-02-19',
     to: '2020-03-23',
     note: 'The fastest fall in the S&P 500\'s history: it took five weeks.',
@@ -58,6 +71,7 @@ export const WINDOWS = [
   {
     key: 'bear2022',
     title: 'The 2022 bear market',
+    inSentence: 'the 2022 bear market',
     from: '2022-01-03',
     to: '2022-10-12',
     note: 'A nine-month slide, with bonds falling alongside shares rather than cushioning them.',
@@ -65,6 +79,9 @@ export const WINDOWS = [
   {
     key: 'ai2025',
     title: 'The January 2025 AI selloff',
+    // January and AI keep their capitals: they are a month and a thing, not the
+    // start of a sentence.
+    inSentence: 'the January 2025 AI selloff',
     from: '2025-01-24',
     to: '2025-02-28',
     note: 'Nvidia fell about 17% in one day, on 27 January 2025.',
@@ -156,6 +173,8 @@ export function buildWindow(built, spec, tickers) {
   return {
     key: spec.key,
     title: spec.title,
+    // The same name as one clause of a longer sentence - see the note on WINDOWS.
+    inSentence: spec.inSentence,
     note: spec.note,
     from: spec.from,
     to: spec.to,

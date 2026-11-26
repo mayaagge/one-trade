@@ -290,7 +290,7 @@ export function measureFor(level, game, { tickers, weights }, window, {
       // 33.99% - but a share of a rise is not what this level asks about, and
       // 0.4 of a gain would read on screen as if it were.
       throw new Error(
-        `measureFor: the ${result.indexLabel} did not fall in ${result.window.title}, `
+        `measureFor: the ${result.indexLabel} did not fall in ${result.window.inSentence}, `
         + 'so there is no fall for a portfolio to take a share of',
       );
     }
@@ -623,8 +623,8 @@ export function createRound({
     if (!round.hasPick(ticker) && !canHold(ticker)) {
       const missing = crashWindow ? unavailableIn(crashWindow, ticker) : null;
       throw new Error(missing?.firstDate
-        ? `${ticker} cannot be held through ${crashWindow.title}: its first trading day was ${missing.firstDate}`
-        : `${ticker} has no prices in ${crashWindow?.title ?? "this round's window"}`);
+        ? `${ticker} cannot be held through ${crashWindow.inSentence}: its first trading day was ${missing.firstDate}`
+        : `${ticker} has no prices in ${crashWindow?.inSentence ?? "this round's window"}`);
     }
 
     if (round.hasPick(ticker)) {

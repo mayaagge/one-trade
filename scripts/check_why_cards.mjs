@@ -228,7 +228,7 @@ export const CRASH_LESSONS = [
       key: 'crashCushionElsewhere',
       values: {
         ticker: 'TLT', move: '+14%', indexMove: '34%', dollarPct: '20%',
-        otherWindow: 'The 2022 bear market', otherMove: '-29%', otherIndexMove: '25%',
+        otherWindow: 'the 2022 bear market', otherMove: '-29%', otherIndexMove: '25%',
       },
     },
     note: 'TLT rose 14% here and fell 29% against the index\'s 25% in 2022, both read from data/crashes.json',

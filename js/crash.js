@@ -124,7 +124,11 @@ export function validateCrashes(doc) {
   const keys = new Set();
   for (const window of doc.windows) {
     const where = `crashes.json window ${window.key ?? '(unnamed)'}`;
-    for (const field of ['key', 'title', 'from', 'to', 'startDate']) {
+    // `inSentence` is the title as one clause of a longer sentence - "in the 2022
+    // bear market it moved -29%" - and is required, not optional: a card that
+    // fell back to the heading form would read "in The 2022 bear market", which
+    // is the thing it exists to prevent.
+    for (const field of ['key', 'title', 'inSentence', 'from', 'to', 'startDate']) {
       if (typeof window[field] !== 'string' || window[field].length === 0) {
         throw new Error(`${where}: ${field} is missing`);
       }
@@ -201,7 +205,7 @@ export function readWindow(window, tickers) {
     const missing = unavailableIn(window, ticker);
     if (missing) {
       throw new Error(
-        `${ticker} has no prices in ${window.title}: the snapshot's first day for it is ${missing.firstDate}`,
+        `${ticker} has no prices in ${window.inSentence}: the snapshot's first day for it is ${missing.firstDate}`,
       );
     }
   }
@@ -210,7 +214,7 @@ export function readWindow(window, tickers) {
   const matrix = Array.from({ length: days }, (_, day) => tickers.map((ticker) => {
     const value = series[ticker][day];
     if (!Number.isFinite(value)) {
-      throw new Error(`${ticker} has no return on ${window.rows[day][0]}, inside ${window.title}`);
+      throw new Error(`${ticker} has no return on ${window.rows[day][0]}, inside ${window.inSentence}`);
     }
     return value;
   }));
@@ -265,7 +269,12 @@ export function replay(doc, key, dollars) {
 
   return {
     window: {
-      key: window.key, title: window.title, from: window.from, to: window.to, days: window.rows.length,
+      key: window.key,
+      title: window.title,
+      inSentence: window.inSentence,
+      from: window.from,
+      to: window.to,
+      days: window.rows.length,
     },
     dates,
     tickers,
@@ -307,6 +316,8 @@ export function elsewhereFor(doc, key, ticker, money = STARTING_DOLLARS) {
       return {
         key: window.key,
         title: window.title,
+        // What a card names it: this is always read mid-sentence.
+        inSentence: window.inSentence,
         change: held.change,
         indexChange: held.indexChange,
       };

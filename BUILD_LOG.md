@@ -2304,3 +2304,37 @@ Chrome, no console errors and no horizontal overflow:
   the chart's "Feb 19".
 
 Educational, not investment advice.
+
+## Two names for a crash window, 25 November 2026 (session 2.9d)
+
+Session 2.9c's "What to watch" said the card read "in The 2022 bear market",
+because data/crashes.json had one name per window and it was written to stand
+alone as a heading. Each window now carries two: `title` heads a card or a
+chooser, and `inSentence` is the same name where it is one clause of something
+longer.
+
+**Written out in scripts/build_crash_data.mjs, not derived.** Lowercasing the
+first word is right for "The 2020 crash" and wrong the moment a window is named
+after a day or a place - "Black Monday" would become "black Monday". What holds
+the two forms together is a test: the same words, differing in the leading word's
+case and in nothing else, and the file agreeing with the script that wrote it.
+"the January 2025 AI selloff" keeps January and AI, which is exactly the case a
+derived rule would have got wrong.
+
+`inSentence` is REQUIRED by validateCrashes(), not optional with a fallback to
+the title: a fallback would have reproduced the bug quietly on a window somebody
+added later.
+
+**Four error messages had the same bug**, found by grepping for the title rather
+than by looking: "PLTR cannot be held through The 2020 crash" now reads "through
+the 2020 crash", and so do the two in readWindow() and the one in measureFor().
+None of them was tested for its wording; they are what a player sees when a build
+is refused, so they are worth the same care as a card.
+
+Rebuilding data/crashes.json added the one field and changed nothing else -
+checked key by key, including the snapshot hash. 665 tests pass, both check
+scripts are green, and in the browser the Crash replay chooser still heads its
+three cards "The 2020 crash", "The 2022 bear market" and "The January 2025 AI
+selloff" while level 6's card reads "- in the 2022 bear market it moved -29%".
+
+Educational, not investment advice.

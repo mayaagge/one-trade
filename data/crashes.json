@@ -17,6 +17,7 @@
   {
    "key": "crash2020",
    "title": "The 2020 crash",
+   "inSentence": "the 2020 crash",
    "note": "The fastest fall in the S&P 500's history: it took five weeks.",
    "from": "2020-02-19",
    "to": "2020-03-23",
@@ -1092,6 +1093,7 @@
   {
    "key": "bear2022",
    "title": "The 2022 bear market",
+   "inSentence": "the 2022 bear market",
    "note": "A nine-month slide, with bonds falling alongside shares rather than cushioning them.",
    "from": "2022-01-03",
    "to": "2022-10-12",
@@ -9925,6 +9927,7 @@
   {
    "key": "ai2025",
    "title": "The January 2025 AI selloff",
+   "inSentence": "the January 2025 AI selloff",
    "note": "Nvidia fell about 17% in one day, on 27 January 2025.",
    "from": "2025-01-24",
    "to": "2025-02-28",

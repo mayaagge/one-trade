@@ -986,7 +986,7 @@ test('a cushion that rose here and fell harder elsewhere carries the warning', (
     move: '+14%',
     indexMove: '34%',
     dollarPct: '20%',
-    otherWindow: 'The 2022 bear market',
+    otherWindow: 'the 2022 bear market',
     otherMove: '-29%',
     otherIndexMove: '25%',
   });
