@@ -8,7 +8,17 @@ import { mountWeekly } from './weeklyView.js';
 import { mountSandbox } from './sandbox.js';
 import { mountMyPortfolio } from './myPortfolio.js';
 
-const DEFAULT_MODE = 'research';
+/**
+ * The mode a visitor lands on.
+ *
+ * LEARN, NOT RESEARCH. The hash is the only thing in the URL, so every link
+ * without one - the address typed from a poster, the shared score card, a
+ * bookmark - resolves to this. It used to be Research, which meant the first
+ * thing a first-year read was "Hypothesis 1 (hidden concentration): not
+ * supported on the headline correlation-only test". Research is still one tap
+ * away in the nav, and is still where a professor should be sent.
+ */
+const DEFAULT_MODE = 'learn';
 const MODES = ['learn', 'daily', 'weekly', 'crash', 'sandbox', 'mine', 'research'];
 
 /** The mode named by a hash such as "#research", or the default. */

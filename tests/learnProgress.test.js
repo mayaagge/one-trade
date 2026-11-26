@@ -15,9 +15,9 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { StubNode, textOf, withDocument } from './stubDom.js';
-import { renderMenu, newSession } from '../js/game.js';
+import { HINT_AFTER_TRIES, levelHint, renderMenu, newSession } from '../js/game.js';
 import {
-  PROGRESS_KEY, emptyProgress, recordLevel, loadProgress, saveProgress,
+  PROGRESS_KEY, emptyProgress, recordLevel, loadProgress, saveProgress, triesOf,
 } from '../js/progress.js';
 import { validateLevels } from '../js/levels.js';
 
@@ -88,13 +88,38 @@ test('saved stars are on the list when the browser comes back', () => {
   } finally { restore(); }
 });
 
-test('playing a level opens the next one on the very next render', () => {
+test('PASSING a level unlocks the next one on the very next render', () => {
   const { restore } = screen();
   try {
-    const progress = recordLevel(emptyProgress(), 1, { stars: 0, error: 2.0 });
-    const view = renderMenu(context(progress));
-    // Failed, and level 2 is open anyway: played, not passed.
-    assert.equal(playButton(cardFor(view, 2)).disabled, false);
+    const failed = recordLevel(emptyProgress(), 1, { stars: 0, error: 2.0 });
+    const locked = renderMenu(context(failed));
+    assert.equal(playButton(cardFor(locked, 2)).disabled, true,
+      'a failed level 1 unlocked level 2');
+    assert.match(cardFor(locked, 2).textContent, /Pass level 1 to unlock this one\./);
+
+    const passed = recordLevel(failed, 1, { stars: 1, error: 0.4 });
+    const open = renderMenu(context(passed));
+    assert.equal(playButton(cardFor(open, 2)).disabled, false,
+      'one star on level 1 did not unlock level 2');
+    assert.ok(!/to unlock this one/.test(cardFor(open, 2).textContent),
+      'an unlocked card still carries its lock note');
+  } finally { restore(); }
+});
+
+test('a locked card says "unlock", never "open"', () => {
+  const { restore } = screen();
+  try {
+    const view = renderMenu(context(emptyProgress()));
+    for (const id of [2, 3, 4, 5, 6, 7]) {
+      const card = cardFor(view, id);
+      assert.match(card.textContent, new RegExp(`Pass level ${id - 1} to unlock this one\\.`));
+      assert.match(
+        playButton(card).getAttribute('aria-label') ?? '',
+        new RegExp(`Level ${id} unlocks when level ${id - 1} is passed`),
+      );
+    }
+    // The word the brief retired, nowhere on the screen.
+    assert.ok(!/\bopens?\b/i.test(view.textContent), 'the menu still says "open" somewhere');
   } finally { restore(); }
 });
 
@@ -182,4 +207,64 @@ test('without storage the list still plays, and says progress is not kept', () =
     restoreDoc();
     if (had) globalThis.localStorage = previous;
   }
+});
+
+// ------------------------------------------------------------- the hint
+
+test('a level offers its hint on the fourth attempt, not before', () => {
+  const { restore } = screen();
+  try {
+    const level = LEVELS.levels.find((one) => one.id === 5);
+    let progress = emptyProgress();
+    const ctx = () => context(progress);
+
+    assert.equal(levelHint(ctx(), level), null, 'a hint before anything was tried');
+    for (const expected of [1, 2]) {
+      progress = recordLevel(progress, 5, { stars: 0, error: 0.9 });
+      assert.equal(triesOf(progress, 5), expected);
+      assert.equal(levelHint(ctx(), level), null, `a hint after only ${expected} tries`);
+    }
+    progress = recordLevel(progress, 5, { stars: 0, error: 0.8 });
+    assert.equal(triesOf(progress, 5), HINT_AFTER_TRIES);
+    assert.equal(levelHint(ctx(), level), level.hint, 'no hint after three failed tries');
+  } finally { restore(); }
+});
+
+test('every level carries a hint, and none of them names a winning portfolio', () => {
+  // A HINT THAT NAMES A PORTFOLIO IS AN ANSWER KEY. The rule is checkable: a
+  // hint may not contain a ticker this game carries, because a list of tickers
+  // is what a winning design IS. It may talk about groups, headings and what
+  // moves differently, which is the thinking the level is for.
+  //
+  // QQQ is the one exception, on level 4, and it is not a leak: the level's own
+  // challenge line already says "Keep at least 30% in QQQ" and the build screen
+  // deals it locked. Naming the holding the level forces gives nothing away
+  // about the other three, which are the whole puzzle.
+  const universe = readJson('tickers.json').groups
+    .flatMap((group) => group.tickers.map((t) => (typeof t === 'string' ? t : t.ticker)));
+  const allowed = { 4: ['QQQ'] };
+
+  for (const level of LEVELS.levels) {
+    assert.equal(typeof level.hint, 'string', `level ${level.id} has no hint`);
+    assert.ok(level.hint.length > 40, `level ${level.id}'s hint is too short to help`);
+    const named = universe.filter((ticker) => new RegExp(`\\b${ticker}\\b`).test(level.hint));
+    assert.deepEqual(
+      named, allowed[level.id] ?? [],
+      `level ${level.id}'s hint names ${named.join(', ')}, which is a portfolio rather than a direction`,
+    );
+  }
+});
+
+test('the hint reaches the build screen, and only once it is earned', () => {
+  const { restore } = screen();
+  try {
+    const level = LEVELS.levels.find((one) => one.id === 3);
+    const failedThrice = [1, 2, 3].reduce(
+      (record) => recordLevel(record, 3, { stars: 0, error: 0.9 }), emptyProgress(),
+    );
+    assert.equal(levelHint(context(failedThrice), level), level.hint);
+    // And a player who passed first time never sees it.
+    const passed = recordLevel(emptyProgress(), 3, { stars: 3, error: 0.05 });
+    assert.equal(levelHint(context(passed), level), null);
+  } finally { restore(); }
 });

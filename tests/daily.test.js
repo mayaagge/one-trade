@@ -173,7 +173,7 @@ test('the real share link points at the deployed site, not at a laptop', () => {
   );
   assert.match(
     shareText(['same'], ENTRY, shareUrl(ABOUT, { origin: 'http://localhost:8000', pathname: '/' })),
-    /^https:\/\/mayaagge\.github\.io\/one-trade\/\?src=daily$/m,
+    /^https:\/\/mayaagge\.github\.io\/one-trade\/\?src=daily#daily$/m,
   );
 });
 

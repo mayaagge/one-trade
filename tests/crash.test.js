@@ -403,31 +403,55 @@ test('createBuild() refuses a ticker its own isAvailable rule rejects - the buil
   assert.doesNotThrow(() => build.togglePick('VOO'));
 });
 
-test('createBuild() moves money in $100 steps and never empties a holding', () => {
+test('createBuild() moves one holding at a time, and never empties one', () => {
+  // THE SAME RULE AS js/round.js's. Sandbox and Crash replay draw the same build
+  // screen the levels do, so money has to move the same way on all of them: one
+  // slider moves one holding and the rest waits in moneyLeft().
   const window = windowByKey(CRASHES, 'ai2025');
   const build = createBuild(availableIn(window, UNIVERSE));
   build.togglePick('VOO');
   build.togglePick('BND');
   assert.equal(build.dollars.VOO, 5000);
+  assert.equal(build.moneyLeft(), 0, 'a fresh build opens fully allocated');
 
-  const moved = build.adjustDollars('VOO', 3);
-  assert.equal(moved, 3);
-  assert.equal(build.dollars.VOO, 5300);
+  // Nothing is left, so VOO cannot take a step.
+  assert.equal(build.canRaise('VOO'), false);
+  assert.equal(build.adjustDollars('VOO', 3), 0);
+
+  // Free some from BND and VOO can have it - and BND alone moved.
+  assert.equal(build.adjustDollars('BND', -3), 3);
   assert.equal(build.dollars.BND, 4700);
+  assert.equal(build.dollars.VOO, 5000, 'VOO moved when only BND was touched');
+  assert.equal(build.moneyLeft(), 300);
+  assert.equal(build.buildComplete(), false, 'money left over is not a finished build');
+
+  assert.equal(build.adjustDollars('VOO', 3), 3);
+  assert.equal(build.dollars.VOO, 5300);
+  assert.equal(build.moneyLeft(), 0);
+  assert.equal(build.buildComplete(), true);
   assert.equal(build.allocated(), STARTING_DOLLARS);
 
-  // Cannot take BND below its own $100.
-  const toZero = build.adjustDollars('VOO', 100);
-  assert.ok(build.dollars.BND >= 100, `BND went to ${build.dollars.BND}`);
-  assert.ok(toZero < 100, 'adjustDollars stopped short rather than emptying BND');
-  assert.equal(build.allocated(), STARTING_DOLLARS);
+  // A slider stops at its own $100 floor, so a holding is never emptied.
+  assert.equal(build.setDollars('BND', 0), 100);
+  assert.equal(build.canLower('BND'), false);
+  assert.ok(build.moneyLeft() > 0);
 
-  // A single holding cannot be adjusted - there is nowhere for the money to go.
+  // Even split puts it all back.
+  build.evenSplit();
+  assert.equal(build.dollars.VOO, 5000);
+  assert.equal(build.dollars.BND, 5000);
+  assert.equal(build.moneyLeft(), 0);
+
+  // A single holding opens holding everything, so there is nothing to raise and
+  // nothing it may give up: it is the whole portfolio.
   const alone = createBuild(availableIn(window, UNIVERSE));
   alone.togglePick('VOO');
-  assert.equal(alone.adjustDollars('VOO', 5), 0);
-  assert.equal(alone.canLower('VOO'), false);
-  assert.equal(alone.canRaise('VOO'), false);
+  assert.equal(alone.dollars.VOO, STARTING_DOLLARS);
+  assert.equal(alone.canRaise('VOO'), false, 'there is nothing left to give it');
+  assert.equal(alone.canLower('VOO'), true, 'it may be lowered, leaving money unspent');
+  assert.equal(alone.adjustDollars('VOO', -5), 5);
+  assert.equal(alone.moneyLeft(), 500);
+  assert.equal(alone.buildComplete(), false);
 });
 
 test('createBuild()’s canLower and canRaise match what adjustDollars will actually do', () => {

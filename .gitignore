@@ -19,3 +19,11 @@ data/test_*
 # committed - committing a megabyte of raw closes every evening would bloat the
 # history for nothing, and the frozen data/prices.json is the reference data.
 data/live_prices.json
+
+# Development-only screenshot tool (scripts/shots.mjs, scripts/dev_checks.mjs).
+# Playwright is a devDependency, never loaded by the site, and its browsers live
+# in Playwright's own cache outside the repo. Only these two folders appear here:
+# node_modules, and the pictures the tool writes. tests/devTooling.test.js holds
+# the rest of that promise.
+node_modules/
+screenshots/

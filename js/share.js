@@ -43,9 +43,14 @@ export function shareUrl(about, location) {
  * draw or the guess goes in a query string: a link that encoded the day's
  * portfolio would hand the answer to whoever opened it.
  */
-export function withSource(url, source) {
+export function withSource(url, source, mode = null) {
   if (!url) return '';
-  return `${url}${url.includes('?') ? '&' : '?'}src=${source}`;
+  const asked = `${url}${url.includes('?') ? '&' : '?'}src=${source}`;
+  // THE MODE GOES LAST, because a hash ends a URL: anything after it is part of
+  // the fragment, not of the query. Without one the link falls through to
+  // js/app.js's default, which is how every shared card used to land on the
+  // Research page - a methods report, handed to somebody who was sent a game.
+  return mode ? `${asked}#${mode}` : asked;
 }
 
 /** Copy to the clipboard, or fall back to something the player can select. */

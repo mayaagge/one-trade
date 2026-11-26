@@ -39,6 +39,9 @@ import {
 } from './measuresView.js';
 import { LEAST_HOLDINGS, MOST_HOLDINGS, createHoldings, parseDollars } from './holdings.js';
 import { groupIndex, percent } from './why.js';
+// Putting a view on the page without losing the scroll position or the focused
+// control - see the long note at the top of js/screen.js.
+import { createScreen } from './screen.js';
 
 export const TICKERS_URL = 'tickers.json';
 export const BASKET_URL = 'basket.json';
@@ -155,6 +158,23 @@ export function excludedLine(excluded) {
     + 'measure on this screen.';
 }
 
+/**
+ * The row shares as they are DISPLAYED, added up.
+ *
+ * Exported so tests/myPortfolio.test.js can hold the screen to it without
+ * re-deriving the rounding, and so there is one answer to "what does the total
+ * row say" rather than one in the renderer and one in the test.
+ *
+ * It rounds each share the way holdingRow() does - percent() from js/why.js -
+ * and sums those, which is exactly what a reader adding the column up gets.
+ */
+export function shownShareTotal(list) {
+  return list.rows.reduce(
+    (sum, row) => sum + Math.round(list.shareOf(row.ticker) * 100),
+    0,
+  );
+}
+
 /** One entered holding: what it is, what it is worth, its share, and a way out. */
 function holdingRow(ctx, row) {
   const node = h('div', 'holding-row');
@@ -195,9 +215,25 @@ function renderEnter(ctx) {
     const total = h('div', 'holding-row holding-total');
     total.append(h('span', 'holding-ticker', `${ctx.list.rows.length} holdings`));
     total.append(h('span', 'holding-dollars', money(ctx.list.total())));
-    total.append(h('span', 'holding-share', '100%'));
+    // THE SUM OF THE ROWS AS SHOWN, not a literal 100%.
+    //
+    // The shares are rounded to whole percents, and whole percents of arbitrary
+    // dollars do not have to add to a hundred: three holdings of a third each
+    // render 33% three times, and a row of 100% underneath them was the screen
+    // disagreeing with its own column. A reader who adds the column up is doing
+    // the right thing and must not be told they are wrong.
+    //
+    // Showing the real sum was chosen over explaining the rounding on every
+    // screen: the column now adds up by inspection, which needs no sentence, and
+    // the one-line reason appears only on the portfolios where it is not 100%.
+    total.append(h('span', 'holding-share', `${shownShareTotal(ctx.list)}%`));
     total.append(h('span', null, ''));
     list.append(total);
+    if (shownShareTotal(ctx.list) !== 100) {
+      list.append(h('p', 'note holding-rounding',
+        'Shares are rounded to whole percents, so they do not always add to '
+        + 'exactly 100%. Every measure uses the exact amounts.'));
+    }
     view.append(list);
   }
 
@@ -224,7 +260,10 @@ function renderEnter(ctx) {
   tickerBox.disabled = full;
   dollarBox.disabled = full;
   entry.append(tickerBox, dollarBox);
-  entry.append(button('Add', 'btn btn-quiet', () => ctx.addHolding(), { disabled: full }));
+  // An id, so the Add button keeps focus after the row it added is drawn in.
+  entry.append(button('Add', 'btn btn-quiet', () => ctx.addHolding(), {
+    disabled: full, id: 'add-holding',
+  }));
   view.append(entry);
   view.append(tickerDatalist(ctx.universe));
 
@@ -338,6 +377,9 @@ export async function mountMyPortfolio(root) {
   const groups = groupIndex(tickersDoc);
   const priced = new Set(game.tickers);
 
+  // One painter for this mode's whole lifetime - see js/screen.js.
+  const paint = createScreen(root);
+
   const ctx = {
     levels,
     basket,
@@ -438,12 +480,16 @@ export async function mountMyPortfolio(root) {
       ctx.draw();
     },
 
+    /** Which screen is on, for js/screen.js. See js/game.js's screenKey(). */
+    screenKey() {
+      if (ctx.state === MEASURES) return ctx.problem ? 'problem' : 'measures';
+      return 'enter';
+    },
     draw() {
       let view;
       if (ctx.state === MEASURES) view = ctx.problem ? renderProblem(ctx) : renderMeasures(ctx);
       else view = renderEnter(ctx);
-      root.replaceChildren(view);
-      root.focus({ preventScroll: true });
+      paint(view, ctx.screenKey());
     },
   };
 

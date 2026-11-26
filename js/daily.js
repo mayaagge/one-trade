@@ -148,7 +148,8 @@ export { shareUrl } from './share.js';
  * tracking anybody.
  */
 export function shareText(answers, entry, url) {
-  const link = withSource(url, 'daily');
+  // #daily, so a shared puzzle opens the puzzle rather than the default mode.
+  const link = withSource(url, 'daily', 'daily');
   const lines = [
     `One Trade: Same bet? ${entry.date}`,
     gridOf(answers, entry),

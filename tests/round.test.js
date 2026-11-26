@@ -249,29 +249,72 @@ test('changing the line-up splits the money evenly again', () => {
   assert.deepEqual(r.dollars, { VOO: 3400, BND: 3300, XOM: 3300 });
 });
 
-test('adjusting the money moves it in $100 steps and keeps the total at $10,000', () => {
+test('ONE SLIDER MOVES ONE HOLDING, and the rest of the money waits', () => {
+  // The rule that replaced the compensating split. Lowering a holding does not
+  // hand the money to anybody; it puts it back on the table.
   const r = round(3);
   for (const t of ['VOO', 'BND', 'GLD', 'XOM', 'JNJ']) r.togglePick(t);
-  assert.equal(r.adjustDollars('VOO', 5), 5);
-  assert.equal(r.dollars.VOO, 2500);
-  assert.equal(r.allocated(), 10000);
-  assert.equal(r.adjustDollars('VOO', -3), 3);
-  assert.equal(r.dollars.VOO, 2200);
-  assert.equal(r.allocated(), 10000);
+  assert.equal(r.moneyLeft(), 0, 'a fresh build opens fully allocated');
+  const others = { BND: r.dollars.BND, GLD: r.dollars.GLD, XOM: r.dollars.XOM, JNJ: r.dollars.JNJ };
+
+  assert.equal(r.adjustDollars('VOO', -5), 5);
+  assert.equal(r.dollars.VOO, 1500);
+  assert.equal(r.moneyLeft(), 500, 'the $500 went back to the money left, not to another holding');
+  for (const [t, was] of Object.entries(others)) {
+    assert.equal(r.dollars[t], was, `${t} moved when only VOO was touched`);
+  }
+  assert.equal(r.buildComplete(), false, 'a build with money left over is not ready');
+
+  // And spending it again closes the gap.
+  assert.equal(r.adjustDollars('BND', 5), 5);
+  assert.equal(r.moneyLeft(), 0);
+  assert.equal(r.dollars.BND, others.BND + 500);
+  assert.equal(r.buildComplete(), true);
 });
 
-test('no holding is ever taken below $100, so a 5-holding portfolio stays 5 holdings', () => {
+test('a slider stops at the money left, and at its own floor', () => {
   const r = round(3);
   for (const t of ['VOO', 'BND', 'GLD', 'XOM', 'JNJ']) r.togglePick(t);
-  // Ask for far more than the others can give.
+  // Nothing is left, so a raise cannot move at all.
+  assert.equal(r.canRaise('VOO'), false);
+  assert.equal(r.adjustDollars('VOO', 5), 0);
+  assert.equal(r.dollars.VOO, 2000);
+
+  // Free everything the others can spare, then ask VOO for more than exists.
+  for (const t of ['BND', 'GLD', 'XOM', 'JNJ']) r.setDollars(t, 100);
+  assert.equal(r.moneyLeft(), 10000 - 2000 - 400);
   r.adjustDollars('VOO', 500);
-  assert.equal(r.allocated(), 10000);
-  for (const t of r.picks) assert.ok(r.dollars[t] >= 100, `${t} is ${r.dollars[t]}`);
-  assert.equal(r.dollars.VOO, 10000 - 4 * 100);
-  // And the other way: VOO cannot be emptied either.
-  r.adjustDollars('VOO', -1000);
+  assert.equal(r.dollars.VOO, 10000 - 4 * 100, 'VOO took everything that was left, and no more');
+  assert.equal(r.moneyLeft(), 0);
+
+  // The floor is $100 and the slider will not cross it, so a 5-holding
+  // portfolio stays 5 holdings.
+  r.setDollars('VOO', 0);
   assert.equal(r.dollars.VOO, 100);
-  assert.equal(r.allocated(), 10000);
+  assert.equal(r.canLower('VOO'), false);
+  for (const t of r.picks) assert.ok(r.dollars[t] >= 100, `${t} is ${r.dollars[t]}`);
+});
+
+test('setDollars snaps to the $100 step, whatever it is handed', () => {
+  const r = round(3);
+  for (const t of ['VOO', 'BND', 'GLD', 'XOM', 'JNJ']) r.togglePick(t);
+  r.setDollars('VOO', 100);                       // free $1,900
+  assert.equal(r.setDollars('VOO', 1749), 1700, 'rounded down to the step');
+  assert.equal(r.setDollars('VOO', 1751), 1800, 'rounded up to the step');
+  assert.throws(() => r.setDollars('VOO', Number.NaN), /expected a number/);
+  assert.throws(() => r.setDollars('QQQ', 500), /not in this portfolio/);
+});
+
+test('Even split puts the money back the way the build opened', () => {
+  const r = round(3);
+  for (const t of ['VOO', 'BND', 'GLD', 'XOM', 'JNJ']) r.togglePick(t);
+  const opened = { ...r.dollars };
+  r.setDollars('VOO', 100);
+  r.setDollars('BND', 100);
+  assert.ok(r.moneyLeft() > 0);
+  r.evenSplit();
+  assert.deepEqual(r.dollars, opened, 'Even split did not restore the opening split');
+  assert.equal(r.moneyLeft(), 0);
 });
 
 test('adjustDollars refuses holdings and levels it does not apply to', () => {
@@ -413,7 +456,9 @@ test('the dollars a level does not use become equal weights, and are not invente
 test('the weights a reveal uses are the dollars the player allocated', () => {
   const r = round(3);
   for (const t of ['VOO', 'BND', 'GLD', 'XOM', 'JNJ']) r.togglePick(t);
-  r.adjustDollars('VOO', 10);                   // VOO to 3,000, taken from the others
+  // VOO to $3,000: $1,000 freed from the others, then spent on VOO.
+  r.setDollars('BND', r.dollars.BND - 1000);
+  r.adjustDollars('VOO', 10);
   r.toGuess();
   r.setGuess(3);
   const result = r.reveal();
@@ -613,22 +658,22 @@ test('the money buttons cannot take QQQ below 30%, from either side', () => {
 
   assert.equal(r.adjustDollars('QQQ', -1), 0, 'QQQ is already at its floor');
   assert.equal(r.dollars.QQQ, 3000);
+  assert.equal(r.canLower('QQQ'), false, 'the - button is offered at the floor');
 
-  // Nor by taking the money out of QQQ from the other side: a holding can only
-  // draw from someone who can spare a step.
-  const moved = r.adjustDollars('BND', 10);
-  assert.equal(r.dollars.QQQ, 3000, 'QQQ never gave up a step');
-  assert.equal(r.allocated(), 10000);
-  assert.ok(moved > 0 && moved <= 10);
+  // THE FLOOR IS THE SLIDER'S OWN MINIMUM, which is what makes it absolute now
+  // that one slider moves one holding: there is no path through another
+  // holding that could reach into QQQ.
+  assert.equal(r.setDollars('QQQ', 0), 3000, 'a slider dragged to zero stopped at the floor');
+  assert.equal(r.setDollars('QQQ', 2900), 3000);
   assert.equal(r.buildComplete(), true);
 
-  // Upwards is free: a player may hold more QQQ than the level demands, and
-  // level 4 is about finding out what that costs.
+  // Upwards is free, as far as there is money for: a player may hold more QQQ
+  // than the level demands, and level 4 is about finding out what that costs.
   const r2 = round(4);
   for (const ticker of ['BND', 'GLD', 'JNJ']) r2.togglePick(ticker);
+  r2.setDollars('BND', 100);                    // free some money first
   r2.adjustDollars('QQQ', 5);
   assert.equal(r2.dollars.QQQ, 3500);
-  assert.equal(r2.allocated(), 10000);
 });
 
 test('splitWithFloors() meets the floor out of the largest holdings and sums exactly', () => {
@@ -701,7 +746,10 @@ test('QQQ on its own is already more than half an AI bet, so level 4 can be fail
   // The lesson the level exists for: leaning on the fund does not get you out.
   const r = round(4);
   for (const ticker of ['BND', 'GLD', 'JNJ']) r.togglePick(ticker);
-  r.adjustDollars('QQQ', 67);                 // as far towards all-QQQ as the floors allow
+  // As far towards all-QQQ as the floors allow: empty the other three down to
+  // their $100 each, then put everything freed into QQQ.
+  for (const ticker of ['BND', 'GLD', 'JNJ']) r.setDollars(ticker, 100);
+  r.adjustDollars('QQQ', 100);
   r.toGuess();
   r.setGuess(0.5);
   const result = r.reveal();
@@ -831,38 +879,68 @@ test('whyIncomplete() names the rule that is missed, and nothing when none is', 
   assert.match(round(1).whyIncomplete(), /wants exactly 2 holdings; this has 0/);
 });
 
-test('the money buttons cannot take the stocks below 60%, from either side', () => {
-  // Level 4's test asked this of one holding. Here it is a set, and the step that
-  // breaks the rule can be a step on a holding the player is not looking at.
+test('the 60% in stocks is now a GATE rather than a locked button, and why', () => {
+  // THIS IS THE ONE RULE INDEPENDENT SLIDERS CHANGED, so it is written down
+  // rather than quietly relaxed. It used to be enforced move by move: a step out
+  // of a stock was handed to another stock, so the kind could never dip.
+  //
+  // One slider moving one holding makes that impossible to keep. Moving money
+  // from WMT to PG is now two actions - free it, then spend it - and the state
+  // in between necessarily holds less than 60% in stocks. Blocking the first
+  // action would make the pair unreachable and the level unplayable.
+  //
+  // So the rule moved to where the four-bond-funds case was always handled:
+  // buildComplete() refuses it and whyIncomplete() names it. A player can stand
+  // in an illegal state; they cannot leave the build screen from one.
   const r = crashRound(['WMT', 'PG', 'TLT', 'BND']);   // 3000/3000/2000/2000
-
-  // Raising a bond fund takes from the OTHER bond fund, never from a stock.
-  assert.equal(r.adjustDollars('TLT', 1), 1);
-  assert.deepEqual(r.dollars, { WMT: 3000, PG: 3000, TLT: 2100, BND: 1900 });
   assert.equal(inStocks(r), 6000);
+  assert.equal(r.buildComplete(), true);
 
-  // Lowering a stock gives the step to the other stock, so the kind keeps it.
-  assert.equal(r.adjustDollars('WMT', -1), 1);
-  assert.deepEqual(r.dollars, { WMT: 2900, PG: 3100, TLT: 2100, BND: 1900 });
+  // Free $1,000 from a stock. The stocks dip, and the build stops being ready.
+  assert.equal(r.adjustDollars('WMT', -10), 10);
+  assert.equal(r.dollars.WMT, 2000);
+  assert.equal(r.dollars.PG, 3000, 'PG was not touched');
+  assert.equal(inStocks(r), 5000);
+  assert.equal(r.moneyLeft(), 1000);
+  assert.equal(r.buildComplete(), false);
+  assert.match(r.whyIncomplete(), /this adds up to \$9000/);
+
+  // Spend it on the other stock and the rule is met again - the move the old
+  // button-level enforcement made impossible to express.
+  assert.equal(r.adjustDollars('PG', 10), 10);
   assert.equal(inStocks(r), 6000);
+  assert.equal(r.moneyLeft(), 0);
+  assert.equal(r.buildComplete(), true);
 
-  // With one stock holding the whole floor there is nowhere for a step to go:
-  // every other holding is outside the kind, so the - button cannot work and
-  // says so rather than offering a tap that does nothing.
-  const one = crashRound(['WMT', 'TLT', 'BND', 'GLD']);
-  assert.equal(one.canLower('WMT'), false);
-  assert.equal(one.adjustDollars('WMT', -1), 0, 'it refused the move as well as disabling it');
-  assert.equal(inStocks(one), 6000);
-  // Raising a bond fund there is still possible, out of the other bond funds.
-  assert.equal(one.canRaise('TLT'), true);
-  assert.equal(one.adjustDollars('TLT', 1), 1);
-  assert.equal(inStocks(one), 6000);
+  // And the illegal destination is still refused at the gate: all the money
+  // allocated, none of it in stocks.
+  const bonds = crashRound(['TLT', 'BND', 'LQD', 'GLD']);
+  assert.equal(inStocks(bonds), 0);
+  assert.equal(bonds.moneyLeft(), 0, 'the money adds up');
+  assert.equal(bonds.buildComplete(), false, 'and it is still not a build this level accepts');
+  assert.match(bonds.whyIncomplete(), /at least \$6000 of the \$10000 in stocks/);
+  assert.throws(() => bonds.toGuess(), /at least \$6000 of the \$10000 in stocks/);
 });
 
-test('no run of button presses can leave a level 6 build breaking its own rule', () => {
-  // The invariant, over a long run of moves rather than a hand-picked one: the
-  // stocks never drop below $6,000 and the money always adds to $10,000. A
-  // deterministic walk, so a failure is reproducible.
+test('a per-holding floor stays absolute, because it is the slider own minimum', () => {
+  // The contrast with the test above. A floor on ONE holding needs no gate: it
+  // is the bottom of that holding's range, and no other slider can reach in.
+  const r = round(4);
+  for (const ticker of ['BND', 'GLD', 'JNJ']) r.togglePick(ticker);
+  let seed = 11;
+  const next = (n) => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % n; };
+  for (let i = 0; i < 400; i += 1) {
+    r.setDollars(r.picks[next(r.picks.length)], next(120) * 100);
+    assert.ok(r.dollars.QQQ >= 3000, `QQQ fell to ${r.dollars.QQQ}`);
+  }
+});
+
+test('no run of button presses can invent or lose money, or pass the gate wrongly', () => {
+  // The invariant, over a long deterministic walk rather than a hand-picked
+  // move. What must hold at EVERY step: never more than $10,000 is allocated, no
+  // holding is below its floor, and what the buttons offer is exactly what a
+  // move does. What must hold only at the END: the 60% in stocks, which is now
+  // the gate's job - so buildComplete() and the stocks must agree every time.
   const r = crashRound(['WMT', 'PG', 'TLT', 'BND']);
   let seed = 7;
   const next = (n) => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % n; };
@@ -871,14 +949,19 @@ test('no run of button presses can leave a level 6 build breaking its own rule',
     const steps = next(2) === 0 ? 1 : -1;
     const expected = steps > 0 ? r.canRaise(ticker) : r.canLower(ticker);
     const moved = r.adjustDollars(ticker, steps);
-    // The buttons and the move are the same rule, so what a button offers is
-    // exactly what a move does.
     assert.equal(moved === 1, expected, `${ticker} ${steps} disagreed with its button`);
-    assert.equal(r.allocated(), 10000, 'the money stopped adding up');
-    assert.ok(inStocks(r) >= 6000, `the stocks fell to ${inStocks(r)}`);
+    assert.ok(r.allocated() <= 10000, `the money reached ${r.allocated()}`);
+    assert.equal(r.moneyLeft(), 10000 - r.allocated());
     assert.ok(r.picks.every((t) => r.dollars[t] >= 100), 'a holding went below its $100');
+    // THE GATE AND THE RULES NEVER DISAGREE. This is what replaced the move-by-
+    // move enforcement, so it is the thing worth asserting 400 times.
+    assert.equal(
+      r.buildComplete(),
+      r.allocated() === 10000 && inStocks(r) >= 6000,
+      `buildComplete() said ${r.buildComplete()} at $${r.allocated()} with $${inStocks(r)} in stocks`,
+    );
+    if (!r.buildComplete()) assert.ok(r.whyIncomplete(), 'an incomplete build with nothing to say');
   }
-  assert.ok(r.buildComplete(), 'and the build is still one the level asked for');
 });
 
 test('raiseToKindFloor() moves as far as it can and leaves the rest to the gate', () => {

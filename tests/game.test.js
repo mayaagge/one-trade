@@ -302,18 +302,32 @@ test('the money buttons are offered only when they would do something', () => {
   const r = round(4);
   for (const ticker of ['BND', 'GLD', 'JNJ']) r.togglePick(ticker);
 
-  // QQQ sits at its floor, so - is off and + is on.
-  assert.equal(r.canLower('QQQ'), false);
-  assert.equal(r.canRaise('QQQ'), true);
-  // The others can give and take.
-  assert.equal(r.canLower('BND'), true);
-  assert.equal(r.canRaise('BND'), true);
+  // A fresh build has every dollar allocated, so NOTHING can be raised: there is
+  // no money left to raise it with. This is the visible face of independent
+  // sliders - before, + always worked because it took from somebody else.
+  assert.equal(r.moneyLeft(), 0);
+  for (const ticker of r.picks) {
+    assert.equal(r.canRaise(ticker), false, `${ticker} could be raised with $0 left`);
+  }
 
-  // What the buttons say matches what the round will actually do.
+  // QQQ sits at its 30% floor, so - is off there and on everywhere else.
+  assert.equal(r.canLower('QQQ'), false);
+  assert.equal(r.canLower('BND'), true);
+
+  // Free a step and + comes back on - for every holding, including QQQ, which a
+  // player may hold more of than the level demands.
+  r.adjustDollars('BND', -1);
+  assert.equal(r.moneyLeft(), 100);
+  for (const ticker of r.picks) {
+    assert.equal(r.canRaise(ticker), true, `${ticker} could not be raised with $100 left`);
+  }
+
+  // What the buttons say matches what the round will actually do, both ways.
   for (const ticker of r.picks) {
     assert.equal(r.canLower(ticker), r.adjustDollars(ticker, -1) === 1,
       `${ticker}: the - button and adjustDollars disagree`);
-    if (r.canLower(ticker)) r.adjustDollars(ticker, 1);     // put it back
+    assert.equal(r.canRaise(ticker), r.adjustDollars(ticker, 1) === 1,
+      `${ticker}: the + button and adjustDollars disagree`);
   }
 });
 

@@ -114,7 +114,7 @@ Level 6 is why this is written down. A portfolio that fell 20% while the index f
 
 | Mode | What the player does | When |
 | --- | --- | --- |
-| **Learn** | Levels 1 to 7, in order; progress saved in the browser | Launch |
+| **Learn** | Levels 1 to 7 in order, each unlocked by passing the one before it — one star is a pass, and level 1 is always open. A level that has been failed three times offers a hint. Progress saved in the browser | Launch |
 | **Sandbox** | Build any portfolio from the full ticker list and see every measure | Launch |
 | **Crash replay** | Watch a pretend portfolio through the 2020 crash, the 2022 bear market or the January 2025 AI selloff, next to the S&P 500. The three windows are fixed below | Launch |
 | **Research** | Read the three pre-registered hypotheses and their verdicts, and see the rolling correlation chart continue past the freeze date on live data | Launch |

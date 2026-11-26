@@ -95,6 +95,13 @@ export class StubNode {
 
   setAttribute(name, value) { this.attributes[name] = String(value); }
 
+  /** What a real node answers: the string, or null when it was never set. */
+  getAttribute(name) {
+    return Object.prototype.hasOwnProperty.call(this.attributes, name)
+      ? this.attributes[name]
+      : null;
+  }
+
   addEventListener(name, fn) { (this.listeners[name] ??= []).push(fn); }
 
   click() {
@@ -103,17 +110,28 @@ export class StubNode {
   }
 
   /**
-   * Taking focus, which every mode's draw() does to the root so a screen change
-   * is announced to a screen reader. Nothing to do here but exist: the stub has
-   * no focus ring and no active element, and a view that called it would
-   * otherwise fail on a method a real <main tabindex="-1"> has.
+   * Taking focus, and RECORDING IT. It used to be an empty method, on the
+   * grounds that the stub has no focus ring - but js/screen.js now has to put
+   * focus back on the control a redraw happened under, and a test cannot check
+   * that against a method that does nothing. The focused node is kept on the
+   * document, where document.activeElement is in a browser.
    */
-  focus() {}
+  focus() {
+    const doc = globalThis.document;
+    if (doc) doc.activeElement = this;
+  }
 
   /** Every node in the tree, this one first. */
   all() { return [this, ...this.children.flatMap((child) => child.all())]; }
 
   matches(selector) {
+    // [attr="value"], for a test that looks for a control the way a screen
+    // reader finds it. Classes otherwise, which is most of what the views use.
+    const attribute = selector.match(/^\[([\w-]+)="(.*)"\]$/);
+    if (attribute) {
+      const [, name, value] = attribute;
+      return (name === 'id' ? (this.id ?? this.attributes.id) : this.attributes[name]) === value;
+    }
     return selector.split('.').filter(Boolean)
       .every((name) => this.className.split(/\s+/).includes(name));
   }

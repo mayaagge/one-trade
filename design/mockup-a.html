@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>One Trade — visual direction A — Notebook</title>
+<style>
+  :root {
+    color-scheme: light;
+    --plane: #f7f7f6;
+    --surface: #ffffff;
+    --ink: #16181d;
+    --quiet: #5c5f66;
+    --edge: #767b85;
+    --hair: #dcdee3;
+    --accent: #1a4fb0;
+    --onAccent: #ffffff;
+    --primary: #1a4fb0;
+    --onPrimary: #ffffff;
+    --clears: #0f5c4a;
+    --misses: #8a3a12;
+    --ghost: #e8eaee;
+    --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+    --radius: 6px;
+    --lift: none;
+    --number-font: var(--sans);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+    --plane: #0c0d0f;
+    --surface: #15171a;
+    --ink: #eef0f3;
+    --quiet: #a8adb6;
+    --edge: #6b7078;
+    --hair: #2a2d33;
+    --accent: #7fb3ff;
+    --onAccent: #0c0d0f;
+    --primary: #7fb3ff;
+    --onPrimary: #0c0d0f;
+    --clears: #5fd4b4;
+    --misses: #ffa94d;
+    --ghost: #23262b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: var(--sans); font-size: 1rem; line-height: 1.55;
+    color: var(--ink); background: var(--plane);
+  }
+  /* ---- the page that shows the mockups, not part of the direction ---- */
+  .sheet { max-width: 60rem; margin: 0 auto; padding: 24px 16px 64px; }
+  .sheet h1.title { font-size: 1.6rem; margin: 0 0 4px; }
+  .sheet .sub { color: var(--quiet); margin: 0 0 24px; }
+  .spec { border: 1px solid var(--hair); border-radius: var(--radius);
+    background: var(--surface); padding: 16px; margin: 0 0 24px; }
+  .spec dt { font-weight: 700; margin-top: 12px; }
+  .spec dt:first-child { margin-top: 0; }
+  .spec dd { margin: 2px 0 0; color: var(--quiet); }
+  .swatches { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
+  .swatches li { font-size: 0.75rem; color: var(--quiet); text-align: center; }
+  .swatch { display: block; width: 56px; height: 32px; border-radius: 4px;
+    border: 1px solid var(--hair); margin-bottom: 2px; }
+  .frames { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+  .frame-wrap { }
+  .frame-label { font-size: 0.8rem; color: var(--quiet); margin: 0 0 6px;
+    text-transform: uppercase; letter-spacing: 0.06em; }
+  .frame { width: 375px; border: 1px solid var(--edge); border-radius: 18px;
+    overflow: hidden; background: var(--plane); }
+  .replay { margin: 16px 0 0; }
+
+  /* ---- the direction itself ---- */
+  .view { padding: 20px 16px 24px; }
+  .round-head { margin-bottom: 12px; }
+  .round-step { margin: 0 0 2px; font-size: 0.8rem; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--quiet); }
+  h1 { font-size: 1.5rem; line-height: 1.2; margin: 0;
+    letter-spacing: 0; }
+  .lede { margin: 0 0 16px; }
+  .section-head { font-size: 0.95rem; margin: 24px 0 8px; }
+  .picker-count { color: var(--quiet); font-size: 0.9rem; margin: 0 0 8px; }
+  .picker-group { margin: 0 0 12px; }
+  .picker-group-label { font-size: 0.78rem; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--quiet); margin: 0 0 6px; }
+  .picker-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { min-height: 44px; min-width: 44px; padding: 10px 14px; font: inherit;
+    border: 1px solid var(--edge); border-radius: 999px; background: var(--surface);
+    color: var(--ink); cursor: pointer; }
+  .chip-on { background: var(--accent); border-color: var(--accent); color: var(--onAccent); font-weight: 700; }
+  .money-left { margin: 0 0 8px; color: var(--quiet); }
+  .money-left strong { color: var(--ink); }
+  .btn { min-height: 44px; font: inherit; border-radius: var(--radius); cursor: pointer;
+    border: 1px solid var(--edge); background: var(--surface); color: var(--ink); padding: 10px 16px; }
+  /* THE BUTTON FILL IS ITS OWN VARIABLE, not the accent. In direction C the
+     accent is a rust that also means "it missed", and a button in that colour
+     would make one colour mean both "do this" and "you got it wrong". */
+  .btn-primary { background: var(--primary); border-color: var(--primary);
+    color: var(--onPrimary); font-weight: 700; }
+  .btn-wide { display: block; width: 100%; margin-top: 12px; }
+  .btn-even { margin: 0 0 16px; }
+  .btn-step { min-width: 44px; padding: 10px; font-size: 1.1rem; }
+  .alloc-row { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px;
+    align-items: center; padding: 12px 0; border-top: 1px solid var(--hair); }
+  .alloc-label { font-weight: 700; }
+  .alloc-amount { text-align: right; }
+  .alloc-amount .alloc-share { color: var(--quiet); font-size: 0.85rem; margin-left: 6px; }
+  .alloc-slider { grid-column: 1 / -1; width: 100%; min-height: 44px; accent-color: var(--accent); }
+  .alloc-fine { grid-column: 1 / -1; display: flex; gap: 8px; }
+  .note { font-size: 0.85rem; color: var(--quiet); margin: 8px 0; }
+  .game-foot { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--hair); }
+  .live-chip, .disclaimer-inline { margin: 0; font-size: 0.8rem; color: var(--quiet); }
+  .disclaimer-inline { font-weight: 700; color: var(--ink); margin-top: 2px; }
+
+  /* ---- the reveal ---- */
+  .cell-label { margin: 0 0 4px; font-size: 0.85rem; color: var(--quiet); }
+  .cell-value { margin: 0; font-family: var(--number-font);
+    font-weight: 700; font-size: 3rem;
+    line-height: 1.05; letter-spacing: 0; }
+  .cell-guess { color: var(--quiet); font-size: 2rem; }
+  .verdict { font-weight: 700; margin: 12px 0 0; }
+  .verdict-miss { color: var(--misses); }
+  .verdict-pass { color: var(--clears); }
+  .stars { margin: 16px 0 4px; font-size: 1.6rem; letter-spacing: 6px; }
+  .star-off { color: var(--ghost); }
+  .star-on { color: var(--accent); }
+  .stars-note { font-size: 0.9rem; color: var(--quiet); margin: 0 0 16px; }
+  .why-card { border-left: 4px solid var(--accent); background: var(--surface);
+    padding: 12px 14px; border-radius: 0 var(--radius) var(--radius) 0; margin: 0 0 16px; }
+  .why-head { font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--quiet); margin: 0 0 6px; }
+  .why-lead { font-weight: 700; margin: 0 0 6px; }
+  .why-body { margin: 0; }
+  .holdings-line { word-spacing: 0.1em; }
+
+  .reveal-panel { background: var(--surface); border: 1px solid var(--hair);
+    border-radius: var(--radius); padding: 16px; }
+  .reveal-lift { box-shadow: var(--lift); }
+
+  /* A: two columns, the gap named between them */
+  .two-up { display: grid; grid-template-columns: 1fr; gap: 10px; }
+  .two-up-gap { display: flex; align-items: center; gap: 8px; }
+  .gap-bar { flex: 1; height: 2px; background: var(--accent); }
+  .gap-words { font-size: 0.8rem; color: var(--quiet); white-space: nowrap; }
+
+  /* B: the number line */
+  .numberline { position: relative; height: 84px; margin: 24px 0 0; }
+  .numberline-track { position: absolute; left: 0; right: 0; top: 30px; height: 3px;
+    background: var(--ghost); border-radius: 2px; }
+  .numberline-span { position: absolute; top: 30px; height: 3px; background: var(--misses);
+    left: 26.5%; width: 28.5%; }
+  .numberline-mark { position: absolute; top: 22px; transform: translateX(-50%); }
+  .numberline-mark span { position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+    font-size: 0.75rem; color: var(--quiet); white-space: nowrap; }
+  .mark-guess::before { content: ""; display: block; width: 18px; height: 18px;
+    border-radius: 50%; border: 3px solid var(--quiet); background: var(--surface); }
+  .mark-answer::before { content: ""; display: block; width: 18px; height: 18px;
+    border-radius: 50%; background: var(--accent); }
+  .mark-answer span { color: var(--accent); font-weight: 700; top: 22px; }
+  /* THE GUESS LABEL SITS TO THE RIGHT OF ITS DOT, not under it. The guess at 3.2
+     and the 3.00 the level needs are only 5% of the scale apart, so two centred
+     labels overlap - which is exactly the pair a player most needs to read. */
+  .mark-guess span { left: auto; right: -8px; transform: none; top: 24px; }
+  .numberline-need { position: absolute; top: 14px; transform: translateX(-50%); }
+  .numberline-need::before { content: ""; display: block; width: 2px; height: 34px;
+    background: var(--edge); margin: 0 auto; }
+  .numberline-need span { position: absolute; top: -18px; left: 50%; transform: translateX(-50%);
+    font-size: 0.72rem; color: var(--quiet); white-space: nowrap; }
+  .numberline-ends { display: flex; justify-content: space-between; margin: 8px 0 0;
+    font-size: 0.8rem; color: var(--quiet); }
+
+  /* C: the band */
+  .reveal-band { border-top: 2px solid var(--ink); border-bottom: 2px solid var(--ink);
+    padding: 20px 0; margin: 0 0 4px; }
+  .cell-under { margin: 6px 0 0; color: var(--quiet); }
+
+  /* ---- motion, off when the reader asks for it off ---- */
+  @media (prefers-reduced-motion: no-preference) {
+    .is-playing .js-pop { animation: pop 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+    .is-playing .js-slide { animation: slide 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+    .is-playing .js-span { animation: grow 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+    .is-playing .js-rise { animation: rise 320ms ease-out both; }
+    @keyframes pop { from { transform: scale(0.9); opacity: 0; } to { transform: none; opacity: 1; } }
+    @keyframes slide { from { left: 55%; } to { left: 26.5%; } }
+    @keyframes grow { from { width: 0; left: 55%; } to { width: 28.5%; left: 26.5%; } }
+    @keyframes rise { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+  }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <h1 class="title">One Trade — visual direction A — Notebook</h1>
+  <p class="sub">Level 3, the build step and the reveal, at 375px. Follows your
+    system light/dark setting. Every word and number is the one on the screen
+    today; only the design differs between the three files.</p>
+
+  <dl class="spec">
+    <dt>The idea</dt><dd>A lab notebook: hairlines, no shadows, one ink and one blue. Credible first, friendly second. The reveal shows the guess and the answer side by side, because the lesson is the gap between them.</dd>
+    <dt>Web font</dt><dd>None. system-ui everywhere, which is the font the reader already reads in and the only one that costs nothing to load.</dd>
+    <dt>Spacing and shape</dt><dd>8px scale (8/16/24/32). Hairline 1px borders, 6px radius, no shadow. Cards sit on the plane with a rule, not a lift.</dd>
+    <dt>What the reveal does</dt><dd>The guess and the answer stand in two labelled columns with the gap named between them. The answer counts from the guess to the true number over 450ms, so the eye travels the distance it got wrong.</dd>
+    <dt>Palette, light mode</dt>
+    <dd><ul class="swatches">
+            <li><span class="swatch" style="background: #f7f7f6"></span>plane<br><code>#f7f7f6</code></li>
+            <li><span class="swatch" style="background: #ffffff"></span>surface<br><code>#ffffff</code></li>
+            <li><span class="swatch" style="background: #16181d"></span>ink<br><code>#16181d</code></li>
+            <li><span class="swatch" style="background: #5c5f66"></span>quiet<br><code>#5c5f66</code></li>
+            <li><span class="swatch" style="background: #767b85"></span>edge<br><code>#767b85</code></li>
+            <li><span class="swatch" style="background: #dcdee3"></span>hair<br><code>#dcdee3</code></li>
+            <li><span class="swatch" style="background: #1a4fb0"></span>accent<br><code>#1a4fb0</code></li>
+            <li><span class="swatch" style="background: #ffffff"></span>onAccent<br><code>#ffffff</code></li>
+            <li><span class="swatch" style="background: #1a4fb0"></span>primary<br><code>#1a4fb0</code></li>
+            <li><span class="swatch" style="background: #ffffff"></span>onPrimary<br><code>#ffffff</code></li>
+            <li><span class="swatch" style="background: #0f5c4a"></span>clears<br><code>#0f5c4a</code></li>
+            <li><span class="swatch" style="background: #8a3a12"></span>misses<br><code>#8a3a12</code></li>
+            <li><span class="swatch" style="background: #e8eaee"></span>ghost<br><code>#e8eaee</code></li>
+    </ul></dd>
+  </dl>
+
+  <div class="spec">
+    <strong>Every colour pair, checked</strong>
+    <table style="width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.85rem;">
+      <thead><tr style="text-align: left;"><th>What</th><th>Pair</th><th>Needs</th><th>Has</th></tr></thead>
+      <tbody>
+          <tr><td>body text on the plane</td><td><code>#16181d</code> on <code>#f7f7f6</code></td><td>4.5:1</td><td><strong>16.57:1</strong> &#10003;</td></tr>
+          <tr><td>quiet text on the plane</td><td><code>#5c5f66</code> on <code>#f7f7f6</code></td><td>4.5:1</td><td><strong>5.97:1</strong> &#10003;</td></tr>
+          <tr><td>quiet text on a card</td><td><code>#5c5f66</code> on <code>#ffffff</code></td><td>4.5:1</td><td><strong>6.4:1</strong> &#10003;</td></tr>
+          <tr><td>the accent as text on a card</td><td><code>#1a4fb0</code> on <code>#ffffff</code></td><td>4.5:1</td><td><strong>7.53:1</strong> &#10003;</td></tr>
+          <tr><td>button words on the button fill</td><td><code>#ffffff</code> on <code>#1a4fb0</code></td><td>4.5:1</td><td><strong>7.53:1</strong> &#10003;</td></tr>
+          <tr><td>a control edge on the plane</td><td><code>#767b85</code> on <code>#f7f7f6</code></td><td>3:1</td><td><strong>3.96:1</strong> &#10003;</td></tr>
+          <tr><td>"clears" on a card</td><td><code>#0f5c4a</code> on <code>#ffffff</code></td><td>4.5:1</td><td><strong>7.92:1</strong> &#10003;</td></tr>
+          <tr><td>"misses" on a card</td><td><code>#8a3a12</code> on <code>#ffffff</code></td><td>4.5:1</td><td><strong>7.79:1</strong> &#10003;</td></tr>
+          <tr><td>dark: body text on the plane</td><td><code>#eef0f3</code> on <code>#0c0d0f</code></td><td>4.5:1</td><td><strong>17.03:1</strong> &#10003;</td></tr>
+          <tr><td>dark: quiet text on the plane</td><td><code>#a8adb6</code> on <code>#0c0d0f</code></td><td>4.5:1</td><td><strong>8.63:1</strong> &#10003;</td></tr>
+          <tr><td>dark: the accent as text on a card</td><td><code>#7fb3ff</code> on <code>#15171a</code></td><td>4.5:1</td><td><strong>8.38:1</strong> &#10003;</td></tr>
+          <tr><td>dark: button words on the button fill</td><td><code>#0c0d0f</code> on <code>#7fb3ff</code></td><td>4.5:1</td><td><strong>9.07:1</strong> &#10003;</td></tr>
+          <tr><td>dark: a control edge on the plane</td><td><code>#6b7078</code> on <code>#0c0d0f</code></td><td>3:1</td><td><strong>3.9:1</strong> &#10003;</td></tr>
+          <tr><td>dark: "clears" on a card</td><td><code>#5fd4b4</code> on <code>#15171a</code></td><td>4.5:1</td><td><strong>9.89:1</strong> &#10003;</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="frames">
+    <div class="frame-wrap">
+      <p class="frame-label">Build</p>
+      <div class="frame">
+    <div class="view view-round">
+      <header class="round-head">
+        <p class="round-step">Level 3 &middot; Build</p>
+        <h1>Three real bets</h1>
+      </header>
+      <p class="lede">Build a 5-holding portfolio that makes at least 3 separate bets.</p>
+      <p class="picker-count">5 of 5 picked</p>
+      <h2 class="section-head">Pick your holdings</h2>
+      
+        <section class="picker-group">
+          <h3 class="picker-group-label">AI stocks</h3>
+          <div class="picker-row">
+            <button type="button" class="chip chip-on" aria-pressed="true">NVDA</button>
+            <button type="button" class="chip" aria-pressed="false">AMD</button>
+            <button type="button" class="chip" aria-pressed="false">AVGO</button>
+            <button type="button" class="chip" aria-pressed="false">MRVL</button>
+            <button type="button" class="chip" aria-pressed="false">MU</button>
+          </div>
+        </section>
+        <section class="picker-group">
+          <h3 class="picker-group-label">Health care</h3>
+          <div class="picker-row">
+            <button type="button" class="chip chip-on" aria-pressed="true">JNJ</button>
+            <button type="button" class="chip" aria-pressed="false">UNH</button>
+            <button type="button" class="chip" aria-pressed="false">ABBV</button>
+          </div>
+        </section>
+        <section class="picker-group">
+          <h3 class="picker-group-label">Bonds and gold</h3>
+          <div class="picker-row">
+            <button type="button" class="chip chip-on" aria-pressed="true">BND</button>
+            <button type="button" class="chip chip-on" aria-pressed="true">GLD</button>
+            <button type="button" class="chip" aria-pressed="false">TLT</button>
+            <button type="button" class="chip" aria-pressed="false">LQD</button>
+          </div>
+        </section>
+        <section class="picker-group">
+          <h3 class="picker-group-label">Core US funds</h3>
+          <div class="picker-row">
+            <button type="button" class="chip chip-on" aria-pressed="true">VOO</button>
+            <button type="button" class="chip" aria-pressed="false">VTI</button>
+            <button type="button" class="chip" aria-pressed="false">QQQ</button>
+          </div>
+        </section>
+      <h2 class="section-head">Split your $10,000</h2>
+      <p class="money-left">Money left: <strong>$0</strong></p>
+      <button type="button" class="btn btn-quiet btn-even">Even split</button>
+      
+        <div class="alloc-row">
+          <label class="alloc-label" for="s0">NVDA</label>
+          <output class="alloc-amount" for="s0"><strong>$2,000</strong><span class="alloc-share">20%</span></output>
+          <input class="alloc-slider" id="s0" type="range" min="100" max="9600" step="100" value="2000">
+          <div class="alloc-fine">
+            <button type="button" class="btn btn-step" aria-label="Take $100 off NVDA">&minus;</button>
+            <button type="button" class="btn btn-step" aria-label="Add $100 to NVDA">+</button>
+          </div>
+        </div>
+        <div class="alloc-row">
+          <label class="alloc-label" for="s1">VOO</label>
+          <output class="alloc-amount" for="s1"><strong>$2,000</strong><span class="alloc-share">20%</span></output>
+          <input class="alloc-slider" id="s1" type="range" min="100" max="9600" step="100" value="2000">
+          <div class="alloc-fine">
+            <button type="button" class="btn btn-step" aria-label="Take $100 off VOO">&minus;</button>
+            <button type="button" class="btn btn-step" aria-label="Add $100 to VOO">+</button>
+          </div>
+        </div>
+        <div class="alloc-row">
+          <label class="alloc-label" for="s2">BND</label>
+          <output class="alloc-amount" for="s2"><strong>$2,000</strong><span class="alloc-share">20%</span></output>
+          <input class="alloc-slider" id="s2" type="range" min="100" max="9600" step="100" value="2000">
+          <div class="alloc-fine">
+            <button type="button" class="btn btn-step" aria-label="Take $100 off BND">&minus;</button>
+            <button type="button" class="btn btn-step" aria-label="Add $100 to BND">+</button>
+          </div>
+        </div>
+        <div class="alloc-row">
+          <label class="alloc-label" for="s3">GLD</label>
+          <output class="alloc-amount" for="s3"><strong>$2,000</strong><span class="alloc-share">20%</span></output>
+          <input class="alloc-slider" id="s3" type="range" min="100" max="9600" step="100" value="2000">
+          <div class="alloc-fine">
+            <button type="button" class="btn btn-step" aria-label="Take $100 off GLD">&minus;</button>
+            <button type="button" class="btn btn-step" aria-label="Add $100 to GLD">+</button>
+          </div>
+        </div>
+        <div class="alloc-row">
+          <label class="alloc-label" for="s4">JNJ</label>
+          <output class="alloc-amount" for="s4"><strong>$2,000</strong><span class="alloc-share">20%</span></output>
+          <input class="alloc-slider" id="s4" type="range" min="100" max="9600" step="100" value="2000">
+          <div class="alloc-fine">
+            <button type="button" class="btn btn-step" aria-label="Take $100 off JNJ">&minus;</button>
+            <button type="button" class="btn btn-step" aria-label="Add $100 to JNJ">+</button>
+          </div>
+        </div>
+      <p class="note">Moves in $100 steps, always adding up to $10,000. It starts split evenly.</p>
+      <button type="button" class="btn btn-primary btn-wide">Next: your guess</button>
+      <button type="button" class="btn btn-quiet btn-wide">Back to the levels</button>
+      <div class="game-foot">
+        <p class="live-chip">Live prices through 25 Nov 2026</p>
+        <p class="disclaimer-inline">Educational, not investment advice.</p>
+      </div>
+    </div></div>
+    </div>
+    <div class="frame-wrap">
+      <p class="frame-label">Reveal</p>
+      <div class="frame" id="reveal">
+    <div class="view view-round view-reveal">
+      <header class="round-head">
+        <p class="round-step">Level 3 &middot; Reveal</p>
+        <h1>Three real bets</h1>
+      </header>
+      <section class="reveal-panel" aria-live="polite">
+        <div class="two-up">
+          <div class="two-up-cell">
+            <p class="cell-label">You guessed</p>
+            <p class="cell-value cell-guess js-guess">3.2</p>
+          </div>
+          <div class="two-up-gap" aria-hidden="true">
+            <span class="gap-bar"></span>
+            <span class="gap-words">out by 1.14</span>
+          </div>
+          <div class="two-up-cell">
+            <p class="cell-label">Separate bets this portfolio really makes</p>
+            <p class="cell-value cell-answer js-count" data-from="3.2" data-to="2.06">2.06</p>
+          </div>
+        </div>
+        <p class="verdict verdict-miss">2.06 misses the 3.00 needed</p>
+      </section>
+      
+      <p class="stars" role="img" aria-label="No stars this time">
+        <span class="star star-off">&#9733;</span><span class="star star-off">&#9733;</span><span class="star star-off">&#9733;</span>
+      </p>
+      <p class="stars-note">No stars this time: at least 3 effective bets is what this
+        level needs. The guess still counts &mdash; look at the number above.</p>
+      <section class="why-card">
+        <h2 class="why-head">Why?</h2>
+        <p class="why-lead">Here's what held you back:</p>
+        <p class="why-body">NVDA is 20% of your money but 62% of your risk. Share of
+          risk is not share of dollars: a holding that swings harder than the rest
+          carries more of the risk than its size suggests.</p>
+      </section>
+      <p class="note holdings-line">NVDA $2,000 &middot; VOO $2,000 &middot; BND $2,000 &middot; GLD $2,000 &middot; JNJ $2,000</p>
+      <p class="note">Measured over 756 trading days, 21 Nov 2023 to 25 Nov 2026.</p>
+      <button type="button" class="btn btn-primary btn-wide">Next: level 4</button>
+      <button type="button" class="btn btn-quiet btn-wide">Play this level again</button>
+      <div class="game-foot">
+        <p class="live-chip">Live prices through 25 Nov 2026</p>
+        <p class="disclaimer-inline">Educational, not investment advice.</p>
+      </div>
+    </div></div>
+      <button type="button" class="btn replay" id="replay">Play the reveal again</button>
+    </div>
+  </div>
+</div>
+<script>
+  // The only script in this file, and it only replays the reveal so the motion
+  // can be seen more than once. Nothing here is proposed for the site.
+  const frame = document.getElementById('reveal');
+  const play = () => {
+    frame.classList.remove('is-playing');
+    void frame.offsetWidth;
+    frame.classList.add('is-playing');
+    const counter = frame.querySelector('.js-count');
+    if (!counter || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const from = Number(counter.dataset.from);
+    const to = Number(counter.dataset.to);
+    const started = performance.now();
+    const step = (now) => {
+      const at = Math.min(1, (now - started) / 450);
+      counter.textContent = (from + (to - from) * at).toFixed(2);
+      if (at < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  };
+  document.getElementById('replay').addEventListener('click', play);
+  play();
+</script>
+</body>
+</html>

@@ -33,8 +33,18 @@ import { read, remove, write } from './storage.js';
  */
 export const PROGRESS_KEY = 'oneTrade.learn';
 
-/** The shape this file writes. migrate() refuses every other number. */
-export const PROGRESS_VERSION = 1;
+/**
+ * The shape this file writes. migrate() brings version 1 forward and refuses
+ * every other number.
+ *
+ * VERSION 2 ADDED `tries`. The hint a level shows after three failed attempts
+ * has to survive the player closing the tab - somebody who fails twice on the
+ * bus and once at home has failed three times - so the count is in the record
+ * rather than in the session. That is the one reason the version moved; the
+ * pass-to-unlock rule itself needed no migration at all, because `stars` was
+ * already being stored and "played but not passed" is simply `stars: 0`.
+ */
+export const PROGRESS_VERSION = 2;
 
 /** The most stars a level can give, for checking a record over. */
 const MAX_STARS = 3;
@@ -42,6 +52,16 @@ const MAX_STARS = 3;
 /** A browser that has played nothing. */
 export function emptyProgress() {
   return { version: PROGRESS_VERSION, levels: {} };
+}
+
+/** How many times this level has been finished without earning a star. */
+export function triesOf(progress, levelId) {
+  return levelProgress(progress, levelId)?.tries ?? 0;
+}
+
+/** Has this level ever been passed? One star is the pass. */
+export function isPassed(progress, levelId) {
+  return starsOf(progress, levelId) >= 1;
 }
 
 /** One level's record, or null if it has not been played. */
@@ -82,13 +102,20 @@ export function playedLevels(progress) {
 export function recordLevel(progress, levelId, { stars = 0, error = null } = {}) {
   const key = String(levelId);
   const before = progress.levels[key] ?? null;
-  const bestStars = Math.max(before?.stars ?? 0, Number.isInteger(stars) ? stars : 0);
+  const earned = Number.isInteger(stars) ? stars : 0;
+  const bestStars = Math.max(before?.stars ?? 0, earned);
+  // A TRY IS A FINISHED ATTEMPT THAT EARNED NOTHING, and it is never forgotten:
+  // the count is what decides whether this level offers its hint, and a player
+  // who has failed three times has failed three times whether or not they later
+  // pass. It counts attempts rather than reveals, so level 7 - which is three
+  // portfolios and one verdict - adds one, not three.
+  const tries = (before?.tries ?? 0) + (earned === 0 ? 1 : 0);
   const bestError = [before?.error, Number.isFinite(error) ? error : null]
     .filter((value) => Number.isFinite(value))
     .reduce((best, value) => (best === null || value < best ? value : best), null);
   return {
     ...progress,
-    levels: { ...progress.levels, [key]: { played: true, stars: bestStars, error: bestError } },
+    levels: { ...progress.levels, [key]: { played: true, stars: bestStars, error: bestError, tries } },
   };
 }
 
@@ -113,29 +140,51 @@ export function guessError(result) {
 
 // ------------------------------------------------------------ the unlocking
 
+/** Which levels have been passed - at least one star - in order. */
+export function passedLevels(progress) {
+  return playedLevels(progress).filter((id) => isPassed(progress, id));
+}
+
 /**
  * The furthest level a player may start: the one after the furthest they have
- * played, and level 1 to begin with.
+ * PASSED, and level 1 to begin with.
  *
- * PLAYED, NOT PASSED. Level 4 asks for a beta under 0.50 and level 6 for half
- * the index's fall; a player who cannot manage those should still see the rest
- * of the game. Reaching a level's reveal is what opens the next one.
+ * PASSED, NOT PLAYED, and that is a decision with a cost. Until now reaching a
+ * level's reveal opened the next one, so a player could walk the whole ladder
+ * without ever meeting a pass condition. One star is now the toll.
+ *
+ * WHAT IT COSTS: PREREG.md's Hypothesis 3 pairs a player's level-2 error with
+ * their level-7 error and needs 60 players carrying both. Every player who
+ * would have stumbled past level 4's beta under 0.50, or level 6's half-the-
+ * index fall, now stops there instead. The 60-player minimum was not set
+ * against a gated ladder - see BUILD_LOG.md. The per-level hint after three
+ * failed tries is what stands between this rule and a wall, which is why it
+ * ships in the same change rather than after it.
+ *
+ * A level that has already been PLAYED stays open regardless - see isUnlocked().
  */
 export function unlockedThrough(progress, ids) {
   const first = ids[0];
-  const played = playedLevels(progress).filter((id) => ids.includes(id));
-  if (played.length === 0) return first;
-  const furthest = Math.max(...played);
+  const passed = passedLevels(progress).filter((id) => ids.includes(id));
+  if (passed.length === 0) return first;
+  const furthest = Math.max(...passed);
   const at = ids.indexOf(furthest);
   return at >= 0 && at + 1 < ids.length ? ids[at + 1] : ids[ids.length - 1];
 }
 
-/** May this level be started? */
+/**
+ * May this level be started?
+ *
+ * THE SECOND CLAUSE IS WHAT MAKES THE NEW RULE SAFE FOR OLD SAVES. A level with
+ * any record stays open whatever the rule says, so a player who reached level 4
+ * under the old "played is enough" rule keeps level 4 when they come back; only
+ * their next step has to be earned. Nobody is sent backwards by a rule that
+ * changed while they were away, and no migration code is needed to achieve it.
+ * It also covers a hand-edited save and a level played out of order.
+ */
 export function isUnlocked(progress, levelId, ids) {
   const at = ids.indexOf(levelId);
   const open = ids.indexOf(unlockedThrough(progress, ids));
-  // A level recorded as played stays open, whatever order it was played in: an
-  // old save, or a hand-edited one, should not take a level away from somebody.
   return at >= 0 && (at <= open || levelProgress(progress, levelId) !== null);
 }
 
@@ -145,10 +194,11 @@ export function isUnlocked(progress, levelId, ids) {
 function usableEntry(entry) {
   if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
   const keys = Object.keys(entry).sort();
-  if (keys.join(',') !== 'error,played,stars') return false;
+  if (keys.join(',') !== 'error,played,stars,tries') return false;
   if (entry.played !== true) return false;
   if (!Number.isInteger(entry.stars) || entry.stars < 0 || entry.stars > MAX_STARS) return false;
   if (entry.error !== null && (!Number.isFinite(entry.error) || entry.error < 0)) return false;
+  if (!Number.isInteger(entry.tries) || entry.tries < 0) return false;
   return true;
 }
 
@@ -171,14 +221,28 @@ function usableEntry(entry) {
 export function migrate(record, ids = null) {
   if (!record || typeof record !== 'object' || Array.isArray(record)) return null;
   if (Object.keys(record).sort().join(',') !== 'levels,version') return null;
-  // A LATER FORMAT COMES THROUGH HERE. Version 2 would be brought forward to
-  // the current shape at this line; until there is one, anything that is not
-  // version 1 reads as a fresh start.
-  if (record.version !== PROGRESS_VERSION) return null;
+  if (record.version !== PROGRESS_VERSION && record.version !== 1) return null;
   const levels = record.levels;
   if (!levels || typeof levels !== 'object' || Array.isArray(levels)) return null;
 
-  for (const [key, entry] of Object.entries(levels)) {
+  // VERSION 1 IS BROUGHT FORWARD, not refused. Its entries carry played, stars
+  // and error and no `tries`, which is exactly a player who has never had a hint
+  // shown: tries starts at 0 and counts from their next failure. Their stars are
+  // the thing worth keeping and they are already in the right shape.
+  //
+  // It is done BEFORE the per-entry check, so the check only ever runs against
+  // the current shape and there is one definition of a usable entry rather than
+  // one per version.
+  const brought = record.version === 1
+    ? Object.fromEntries(Object.entries(levels).map(([key, entry]) => [
+      key,
+      (entry && typeof entry === 'object' && !Array.isArray(entry) && entry.tries === undefined)
+        ? { ...entry, tries: 0 }
+        : entry,
+    ]))
+    : levels;
+
+  for (const [key, entry] of Object.entries(brought)) {
     if (!/^\d+$/.test(key)) return null;
     if (!usableEntry(entry)) return null;
   }
@@ -186,7 +250,10 @@ export function migrate(record, ids = null) {
   // the record rather than throwing it away, because the file may be edited
   // between two visits and the player's stars are not the file's business.
   void ids;
-  return { version: record.version, levels: { ...record.levels } };
+  // Always stamped with the CURRENT version: a record that came in as version 1
+  // has just been brought forward, and writing it back as version 1 would mean
+  // migrating it again on every single load.
+  return { version: PROGRESS_VERSION, levels: { ...brought } };
 }
 
 /** Read progress out of the browser. An empty record if there is nothing usable. */

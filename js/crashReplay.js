@@ -24,6 +24,9 @@
 
 import { h, button, money, tickerPicker, allocator } from './build.js';
 import { renderLineChart, chartBox, niceStep, DEFAULT_PADDING } from './chart.js';
+// Putting a view on the page without losing the scroll position or the focused
+// control - see the long note at the top of js/screen.js.
+import { createScreen } from './screen.js';
 import {
   DISCLAIMER,
   createBuild,
@@ -273,6 +276,9 @@ export async function mountCrash(root) {
 
   const universe = tickersDoc.groups.flatMap((g) => g.tickers.map((t) => (typeof t === 'string' ? t : t.ticker)));
 
+  // One painter for this mode's whole lifetime - see js/screen.js.
+  const paint = createScreen(root);
+
   const ctx = {
     crashes,
     tickers: tickersDoc,
@@ -314,18 +320,22 @@ export async function mountCrash(root) {
       ctx.state = REVEAL;
       ctx.draw();
     },
+    /** Which screen is on, for js/screen.js. See js/game.js's screenKey(). */
+    screenKey() {
+      if (!ctx.crashWindow) return 'chooser';
+      return `${ctx.state}:${ctx.crashWindow.key}`;
+    },
     draw() {
       ctx.redrawChart = null;
       let view;
       if (!ctx.crashWindow) view = renderChooser(ctx);
       else if (ctx.state === REVEAL) view = renderReveal(ctx);
       else view = renderBuild(ctx);
-      root.replaceChildren(view);
-      // The chart is drawn AFTER attachment, once the plot div has a real
-      // clientWidth to size itself against - see the note in renderReveal().
-      if (ctx.redrawChart) ctx.redrawChart();
-      root.focus({ preventScroll: true });
-      window.scrollTo(0, 0);
+      paint(view, ctx.screenKey(), () => {
+        // The chart is drawn AFTER attachment, once the plot div has a real
+        // clientWidth to size itself against - see the note in renderReveal().
+        if (ctx.redrawChart) ctx.redrawChart();
+      });
     },
   };
 

@@ -23,6 +23,7 @@
 //
 // Educational, not investment advice.
 
+import { createScreen } from './screen.js';
 import { h, button } from './build.js';
 import { ABOUT } from './config.js';
 import { copyOut, shareOut } from './share.js';
@@ -160,7 +161,7 @@ function summary(state, onPlayToday) {
  * is the only thing that decides what is on screen, so there is no partial
  * redraw to get out of step with it.
  */
-function render(root, state, words, { onPick, onPlayToday }) {
+function render(root, state, words, { onPick, onPlayToday, paint }) {
   const view = h('div', 'view daily');
   view.append(header(state.status === 'notReady' ? null : state.date));
 
@@ -172,7 +173,7 @@ function render(root, state, words, { onPick, onPlayToday }) {
       + 'who plays on the same date gets the same puzzle.'));
     view.append(waiting);
     view.append(h('p', 'disclaimer-inline', DISCLAIMER));
-    root.replaceChildren(view);
+    paint(view, 'notReady');
     return;
   }
 
@@ -207,7 +208,15 @@ function render(root, state, words, { onPick, onPlayToday }) {
   }
 
   view.append(h('p', 'disclaimer-inline', DISCLAIMER));
-  root.replaceChildren(view);
+  // THE WHOLE PUZZLE IS ONE SCREEN, not one screen per pair.
+  //
+  // It was keyed by the pair at first, which made answering one a screen change
+  // and sent the player to the top - measured at 484 to 0, a jump the daily
+  // never had before. That is wrong here because the puzzle GROWS: the reveal of
+  // the pair just answered is inserted above the next card, so the next question
+  // is a few lines down from the one just tapped, not a new page. Keeping the
+  // position leaves the reveal where the player's eye already is.
+  paint(view, state.status === 'playing' ? 'playing' : state.status);
 }
 
 /**
@@ -238,7 +247,13 @@ export async function mountDaily(root, { now = null, storageKey = STORAGE_KEY } 
   const today = now ?? todayInNewYork();
   let state = puzzleState(doc, read(storageKey, null), today);
 
+  // One painter for this mode's whole lifetime - see js/screen.js. The daily
+  // never called scrollTo, so it had no jump; what it did do was leave focus on
+  // <body> after every answer, so a keyboard player lost the page entirely.
+  const paint = createScreen(root);
+
   const draw = () => render(root, state, words, {
+    paint,
     onPick(index, answer) {
       const next = lock(state, index, answer);
       if (next === state) return;          // already answered, or not this pair

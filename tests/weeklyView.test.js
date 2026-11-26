@@ -173,7 +173,10 @@ test('the weekly card carries the stars and the band, and never the answer', asy
 
     // What it does carry.
     assert.match(text, /Weekly challenge/);
-    assert.match(card.link, /\?src=weekly$/);
+    // #weekly, so a shared week opens the week rather than the default mode. The
+    // mode is the only thing in the fragment: levels.json sets `mode` on the
+    // weekly and on nothing else.
+    assert.match(card.link, /\?src=weekly#weekly$/);
     assert.match(text, /Educational, not investment advice\./);
     assert.ok(card.stars.count >= 1 && card.stars.count <= 3);
   } finally { b.restore(); }

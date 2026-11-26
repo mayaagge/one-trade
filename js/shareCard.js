@@ -35,6 +35,9 @@ import { withSource } from './share.js';
 /** The source code this card's link carries. */
 export const SHARE_SOURCE = 'share';
 
+/** The mode a score card opens in, for the levels. The weekly names its own. */
+export const SHARE_MODE = 'learn';
+
 /** 1080 x 1080, the size docs/PRD.md asks for and every feed accepts. */
 export const CARD_SIZE = 1080;
 
@@ -123,7 +126,10 @@ export function shareCardContent({
     headline,
     // The source code docs/PRD.md asks every shared link to carry. The level
     // cards say ?src=share; the weekly says ?src=weekly, from its own block.
-    link: withSource(url, level.share?.source ?? SHARE_SOURCE),
+    // The mode the card should open in. `level.mode` is set on the weekly
+    // challenge and on nothing else - see levels.json's modeNote - so the seven
+    // levels fall to Learn, which is where their card came from.
+    link: withSource(url, level.share?.source ?? SHARE_SOURCE, level.mode ?? SHARE_MODE),
     disclaimer: DISCLAIMER,
     fileName: `one-trade-${Number.isInteger(level.id) ? `level-${level.id}` : level.id}.png`,
     // What the card says, for a screen reader and for the share sheet's own

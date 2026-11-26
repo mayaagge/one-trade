@@ -802,12 +802,9 @@ export function createRound({
     // nudge in $100 steps - then raised to meet any floor this level puts on a
     // kind of holding, so level 6 opens AT its 60% in stocks rather than at an
     // even split that breaks the rule before the player has touched anything.
-    round.dollars = round.usesMoney && round.picks.length > 0
-      ? splitWithFloors(round.picks, total, floors)
-      : {};
-    if (kindRule && round.usesMoney && round.picks.length > 0) {
-      raiseToKindFloor(round.dollars, round.picks, inKind, kindFloorDollars, DOLLAR_STEP, floors);
-    }
+    // It also means a changed line-up always opens with $0 left to spend.
+    if (!round.usesMoney || round.picks.length === 0) round.dollars = {};
+    else round.evenSplit();
     return round;
   };
 
@@ -849,109 +846,109 @@ export function createRound({
   round.floorOf = (ticker) => floors[ticker] ?? DOLLAR_STEP;
 
   /**
+   * ONE SLIDER MOVES ONE HOLDING. Nothing else changes.
+   *
+   * It did not used to work this way. Raising a holding took the step out of the
+   * largest other one, so the money always summed to exactly $10,000 and the
+   * player was really moving a split rather than an amount. That made a sentence
+   * like "Money left: $400" impossible - the answer was always $0 - and it meant
+   * every tap moved two numbers while the player was looking at one of them.
+   *
+   * So the money is now allocated rather than divided: each holding runs from its
+   * own floor up to whatever is left plus what it already holds, and the
+   * remainder sits in moneyLeft() until it is spent. buildComplete() already
+   * required the full total, so the check button is gated by the same condition
+   * it always was - it just has something to wait for now.
+   *
+   * WHAT THE CONTROLS STILL HOLD UP, and what they no longer do. A floor on one
+   * holding is still absolute: level 4's QQQ cannot go below $3,000 because that
+   * is the slider's own minimum, so a build satisfying "at least 30% in QQQ"
+   * cannot be nudged out of satisfying it. A floor on a KIND is different now.
+   * It used to be enforced move by move, which with independent sliders would
+   * make level 6 unplayable: freeing money from one stock to put into another
+   * has to pass through a state with too little in stocks. It is checked by
+   * buildComplete() and named by whyIncomplete() instead - which is where the
+   * four-bond-funds case was always handled, because that one could never be
+   * prevented by a button.
+   */
+
+  /** What has not been allocated yet, in whole dollars. Zero when the build adds up. */
+  round.moneyLeft = () => total - round.allocated();
+
+  /** The most this holding could take: what it holds now plus what is unspent. */
+  round.ceilingFor = (ticker) => (round.dollars[ticker] ?? 0) + round.moneyLeft();
+
+  /**
+   * Put a holding at an amount, snapped to the step and held inside its range.
+   *
+   * Returns what it actually became, which is what the screen should show: a
+   * slider dragged past the money left stops at the money left, and a caller
+   * that asked for more should not be told it got more.
+   */
+  round.setDollars = (ticker, dollars, step = DOLLAR_STEP) => {
+    if (!round.usesMoney) throw new Error(`level ${level.id} allocates no money`);
+    if (round.fixed) throw new Error(`level ${level.id}: the portfolio is fixed and cannot be changed`);
+    if (round.state === REVEAL) throw new Error('the round is over; the money cannot change');
+    if (!round.hasPick(ticker)) throw new Error(`${ticker} is not in this portfolio`);
+    if (!Number.isFinite(dollars)) throw new Error('setDollars: expected a number of dollars');
+
+    const snapped = Math.round(dollars / step) * step;
+    const next = Math.min(Math.max(snapped, round.floorOf(ticker)), round.ceilingFor(ticker));
+    round.dollars[ticker] = next;
+    return next;
+  };
+
+  /**
    * Can this holding give up a step, or take one?
    *
-   * These mirror adjustDollars()'s own conditions exactly, and exist so the
-   * screen can disable a button rather than offer one that does nothing. A - on
-   * QQQ at its 30% floor is a button that cannot work, and a player who taps it
-   * twice learns nothing from either tap.
+   * These mirror setDollars()'s own range exactly, and exist so the screen can
+   * disable a button rather than offer one that does nothing. A - on QQQ at its
+   * 30% floor is a button that cannot work, and a player who taps it twice
+   * learns nothing from either tap.
    */
-  /**
-   * Would moving one step from `from` to `to` drop the kind below its floor?
-   *
-   * Only a step leaving the kind can: a step between two stocks, or into a stock,
-   * leaves the total in stocks the same or larger.
-   */
-  const breaksKindFloor = (from, to, step) => kindRule !== null
-    && inKind(from) && !inKind(to)
-    && round.allocatedInKind() - step < kindFloorDollars;
-
-  /**
-   * The holdings that could give `ticker` a step, largest first - and the
-   * holdings that could take one from it, smallest first.
-   *
-   * Both the buttons and adjustDollars() go through these, so a disabled button
-   * and a refused move are the same rule rather than two copies of it. That
-   * matters more now than it did: a - on a stock in level 6 can be illegal
-   * because of what the OTHER stocks hold, which is not something a player can
-   * read off the one row they are looking at.
-   */
-  const donorsFor = (ticker, step) => round.picks
-    .filter((other) => other !== ticker)
-    .filter((other) => round.dollars[other] - step >= round.floorOf(other))
-    .filter((other) => !breaksKindFloor(other, ticker, step))
-    .sort((a, b) => round.dollars[b] - round.dollars[a]);
-
-  const receiversFor = (ticker, step) => round.picks
-    .filter((other) => other !== ticker)
-    .filter((other) => !breaksKindFloor(ticker, other, step))
-    .sort((a, b) => round.dollars[a] - round.dollars[b]);
-
   round.canLower = (ticker, step = DOLLAR_STEP) => round.usesMoney
     && round.hasPick(ticker)
-    && round.picks.length > 1
-    && (round.dollars[ticker] ?? 0) - step >= round.floorOf(ticker)
-    && receiversFor(ticker, step).length > 0;
+    && (round.dollars[ticker] ?? 0) - step >= round.floorOf(ticker);
 
   round.canRaise = (ticker, step = DOLLAR_STEP) => round.usesMoney
     && round.hasPick(ticker)
-    && donorsFor(ticker, step).length > 0;
+    && round.moneyLeft() >= step;
 
   /** What the player has allocated so far, in whole dollars. */
   round.allocated = () => round.picks.reduce((sum, t) => sum + (round.dollars[t] ?? 0), 0);
 
   /**
-   * Move one holding's dollars by whole $100 steps, taking the difference from
-   * the other holdings so the total stays at exactly $10,000.
+   * Move one holding by whole $100 steps, within its own range.
    *
-   * A holding never goes to zero: a 5-holding portfolio with a zero in it is a
-   * 4-holding portfolio, and the level asked for 5. Returns how many steps it
-   * could actually move, which is fewer than asked for when the others have
-   * nothing left to give.
-   *
-   * A LEVEL'S OWN FLOOR IS PART OF THAT. On level 4 the buttons will not take QQQ
-   * below $3,000, and will not take it there from another holding either, so a
-   * build that satisfies "at least 30% in QQQ" cannot be nudged out of satisfying
-   * it. The gate is not the only thing holding the rule up; the controls are.
-   *
-   * SO IS A FLOOR ON A KIND. On level 6 the last $6,000 cannot leave stocks: a
-   * step out of a stock goes to another stock, and a step into a bond fund comes
-   * from another bond fund. A build that satisfies "at least 60% in stocks"
-   * cannot be nudged out of satisfying it either.
+   * Returns how many steps it could actually move, which is fewer than asked for
+   * when the money runs out or the floor is reached. The + and - buttons and a
+   * dragged slider are the same arithmetic through setDollars().
    */
   round.adjustDollars = (ticker, steps, step = DOLLAR_STEP) => {
+    if (!Number.isInteger(steps)) throw new Error('adjustDollars: steps must be a whole number');
+    const before = round.dollars[ticker] ?? 0;
+    // setDollars does the validating, so an unpickable ticker still throws here.
+    const after = round.setDollars(ticker, before + steps * step, step);
+    return Math.abs(after - before) / step;
+  };
+
+  /**
+   * Split the money as evenly as the floors allow - the state every build opens
+   * in, and the way back when the sliders have been pushed somewhere unhelpful.
+   *
+   * It is the same two calls togglePick() makes, named once so the button and
+   * the opening state cannot drift apart.
+   */
+  round.evenSplit = () => {
     if (!round.usesMoney) throw new Error(`level ${level.id} allocates no money`);
     if (round.fixed) throw new Error(`level ${level.id}: the portfolio is fixed and cannot be changed`);
     if (round.state === REVEAL) throw new Error('the round is over; the money cannot change');
-    if (!round.hasPick(ticker)) throw new Error(`${ticker} is not in this portfolio`);
-    if (!Number.isInteger(steps)) throw new Error('adjustDollars: steps must be a whole number');
-
-    if (round.picks.length < 2) return 0;     // nothing to take from or give to
-    const floorOf = (name) => floors[name] ?? step;
-
-    let moved = 0;
-    const direction = Math.sign(steps);
-    for (let i = 0; i < Math.abs(steps); i += 1) {
-      if (direction > 0) {
-        // Take a step from the largest other holding that can spare one without
-        // dropping through its own floor, or through the floor on the kind.
-        const from = donorsFor(ticker, step)[0];
-        if (from === undefined) break;
-        round.dollars[from] -= step;
-        round.dollars[ticker] += step;
-      } else {
-        if (round.dollars[ticker] - step < floorOf(ticker)) break;
-        // Give it to the smallest other holding that can take it without the kind
-        // losing the step: on level 6, money leaving a stock has to go to another
-        // stock once the 60% is all that is left.
-        const to = receiversFor(ticker, step)[0];
-        if (to === undefined) break;
-        round.dollars[ticker] -= step;
-        round.dollars[to] += step;
-      }
-      moved += 1;
+    if (round.picks.length === 0) return round;
+    round.dollars = splitWithFloors(round.picks, total, floors);
+    if (kindRule) {
+      raiseToKindFloor(round.dollars, round.picks, inKind, kindFloorDollars, DOLLAR_STEP, floors);
     }
-    return moved;
+    return round;
   };
 
   /**

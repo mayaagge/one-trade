@@ -32,12 +32,25 @@ export function h(tag, className, text) {
   return node;
 }
 
-/** A button that cannot submit anything, with an optional spoken label. */
-export function button(label, className, onClick, { disabled = false, aria = null } = {}) {
+/**
+ * A button that cannot submit anything, with an optional spoken label and an
+ * optional id.
+ *
+ * THE ID IS FOR KEEPING FOCUS ACROSS A REDRAW. js/screen.js finds a control
+ * again by its id or by its aria-label, and a label is only good enough when it
+ * does not change: a ticker chip announces itself as "Add GLD" and then as
+ * "Remove GLD" the moment it is tapped, so the chip a player just pressed could
+ * never be found again and focus fell back to the view. An id naming the ticker
+ * is the same before and after.
+ */
+export function button(label, className, onClick, {
+  disabled = false, aria = null, id = null,
+} = {}) {
   const node = h('button', className, label);
   node.type = 'button';
   node.disabled = disabled;
   if (aria) node.setAttribute('aria-label', aria);
+  if (id) node.id = id;
   node.addEventListener('click', onClick);
   return node;
 }
@@ -86,6 +99,9 @@ export function tickerPicker(build, { groups, redraw, reasonFor = () => null }) 
         build.togglePick(ticker);
         redraw();
       }, {
+        // Named for its ticker, so the chip keeps focus when tapping it changes
+        // what it is announced as - see button()'s note.
+        id: `chip-${ticker}`,
         // A full pool stays tappable for the names already held, so a player can
         // always swap one out; the rest go flat rather than vanishing.
         disabled: locked || Boolean(unavailable) || (!held && !build.canAddPick()),
@@ -105,22 +121,92 @@ export function tickerPicker(build, { groups, redraw, reasonFor = () => null }) 
 
 // ----------------------------------------------------------- the allocator
 
-/** The money, split across the holdings, moved in $100 steps. */
+/**
+ * A number of dollars as a slider position, for the aria value a reader hears.
+ *
+ * The slider's own value is a number of dollars, and "3000" read out on its own
+ * is not money. aria-valuetext says what it is.
+ */
+function dollarsSpoken(dollars) {
+  return money(dollars);
+}
+
+/**
+ * The money, one slider per holding, moved in $100 steps.
+ *
+ * ONE SLIDER MOVES ONE HOLDING. The amounts no longer compensate each other, so
+ * what is not allocated sits in "Money left" until it is spent, and the button
+ * out of this screen stays disabled until that reaches $0. js/round.js's
+ * setDollars() carries the reason; this file only draws it.
+ *
+ * WHAT EACH ROW CARRIES, and why each part is there:
+ *   - a real <label> for the slider, which is the holding's own ticker, so the
+ *     control a screen reader lands on says what it adjusts;
+ *   - an <output> showing the dollars and the share, updated live;
+ *   - the slider, from the holding's floor to the most it could take;
+ *   - the + and - buttons, for a step a thumb can hit exactly.
+ *
+ * The slider is the coarse control and the buttons are the fine one, which is
+ * the pairing a phone wants: dragging to roughly the right place is easy and
+ * landing on exactly $2,400 is not.
+ */
 export function allocator(build, { redraw }) {
   const wrap = h('div', 'allocator');
   wrap.append(h('h3', 'allocator-head', `Split your ${money(build.total)}`));
+
+  // MONEY LEFT, ABOVE THE SLIDERS. It is the number that decides whether the
+  // player can leave this screen, so it goes where they are looking before they
+  // start moving things, not under a list they have scrolled past.
+  const left = build.moneyLeft();
+  const leftLine = h('p', left === 0 ? 'money-left money-left-done' : 'money-left');
+  leftLine.append(h('span', null, 'Money left: '));
+  leftLine.append(h('strong', null, money(left)));
+  // Announced, because it changes as a consequence of moving something else.
+  leftLine.setAttribute('role', 'status');
+  wrap.append(leftLine);
+
+  wrap.append(button('Even split', 'btn btn-quiet btn-even', () => {
+    build.evenSplit();
+    redraw();
+  }, { aria: `Split the ${money(build.total)} evenly between your holdings` }));
+
   for (const ticker of build.picks) {
     const dollars = build.dollars[ticker] ?? 0;
     const row = h('div', 'alloc-row');
-    row.append(h('span', 'alloc-ticker', ticker));
-    const amount = h('span', 'alloc-amount');
+
+    // A REAL LABEL, tied to the slider by id. The id is per holding and the
+    // screen is redrawn whole, so it cannot collide with another row's.
+    const id = `alloc-${ticker}`;
+    const label = h('label', 'alloc-ticker', ticker);
+    label.setAttribute('for', id);
+    row.append(label);
+
+    const amount = h('output', 'alloc-amount');
+    amount.setAttribute('for', id);
     amount.append(h('strong', null, money(dollars)));
     amount.append(h('span', 'alloc-share', `${Math.round((dollars / build.total) * 100)}%`));
     row.append(amount);
+
+    const slider = h('input', 'alloc-slider');
+    slider.type = 'range';
+    slider.id = id;
+    slider.min = String(build.floorOf(ticker));
+    // THE TOP OF THE RANGE IS WHAT THIS HOLDING COULD TAKE, not the whole total:
+    // a slider that ran to $10,000 while only $400 was unspent would stop dead
+    // part-way along and feel broken. It moves as far as there is money for.
+    slider.max = String(build.ceilingFor(ticker));
+    slider.step = String(DOLLAR_STEP);
+    slider.value = String(dollars);
+    slider.setAttribute('aria-valuetext', dollarsSpoken(dollars));
+    slider.addEventListener('input', () => {
+      build.setDollars(ticker, Number(slider.value));
+      redraw();
+    });
+    row.append(slider);
+
     const buttons = h('div', 'alloc-buttons');
-    // A step that cannot be taken is not offered. On level 4 that is QQQ at its
-    // $3,000 floor, and on every build it is the last $100 of any holding: the
-    // build asked for this many holdings, and a holding of nothing is one fewer.
+    // A step that cannot be taken is not offered: the minus at a holding's floor,
+    // and the plus when there is nothing left to spend.
     buttons.append(button('−', 'btn btn-step', () => {
       build.adjustDollars(ticker, -1);
       redraw();
@@ -130,8 +216,10 @@ export function allocator(build, { redraw }) {
       redraw();
     }, { aria: `Add ${money(DOLLAR_STEP)} to ${ticker}`, disabled: !build.canRaise(ticker) }));
     row.append(buttons);
+
     wrap.append(row);
   }
+
   wrap.append(h('p', 'note', `Moves in ${money(DOLLAR_STEP)} steps, always adding up to ${money(build.total)}. It starts split evenly.`));
   // The floors a build puts under a holding, named with the share asked for and
   // the dollars it comes to, so the locked minus button has a reason beside it

@@ -4083,3 +4083,208 @@ its own header row now and read until the table ends.
 1,078 tests pass.
 
 Educational, not investment advice.
+
+## The design review, and the fixes it asked for first, 26 November 2026 (session 2.24)
+
+A design review of all 63 screens and states at 375px in both colour schemes,
+then the first half of its list. New dev tooling: `scripts/shots.mjs`,
+`scripts/dev_a11y.mjs`, `scripts/dev_checks.mjs`, `scripts/dev_browser.mjs`,
+`scripts/dev_scenes.mjs`, `scripts/make_mockups.mjs`, `tests/devTooling.test.js`.
+New in the game: `js/screen.js`, `tests/screen.test.js`. The review itself is
+`docs/DESIGN_REVIEW.md`.
+
+Playwright went in as the project's first package, dev-only: never loaded by the
+site, its screenshots gitignored, and `tests/devTooling.test.js` holding all of
+that true - one `<script>` in index.html, no bare package imports under `js/`, no
+runtime dependencies at all.
+
+### What a browser found that 1,078 tests could not
+
+**The nav overflowed every screen in the game.** `.modes` is a flex row of seven
+pills coming to 602px, with no `flex-wrap`, so at 375px it ran 227px past the
+right edge: Sandbox, My real portfolio and Research were off-screen with nothing
+saying they existed, and the whole document scrolled sideways everywhere.
+
+**It had always been like that, and the log says otherwise twice.** Sessions 2.4
+and 2.13 both record `documentElement.scrollWidth` equalling `innerWidth` at
+390px. What the suite actually contains is `globalThis.window = { innerWidth: 390
+}` - a number in a stub with no layout engine behind it. The claim was never
+false on purpose and was never measured; a stub DOM cannot answer a question
+about layout, and reading `scrollWidth` off one returns whatever the stub was
+told to say. **That is the shape of the whole finding: the things a design review
+asks about are the things a node test cannot see.**
+
+**The site opened on Research**, and so did every shared link. `?src=share`
+carries no hash, `modeFromHash('')` falls through to `DEFAULT_MODE`, and the
+first sentence a first-year met was "Hypothesis 1 (hidden concentration): not
+supported on the headline correlation-only test". The share card is the growth
+mechanism and it pointed at the methods page. `DEFAULT_MODE` is `learn` now, and
+`withSource()` takes a mode: the score cards carry `#learn`, the puzzle `#daily`,
+the weekly `#weekly`. `shareCard.js` reads `level.mode ?? SHARE_MODE`, and since
+`mode` is set on the weekly and on nothing else, the seven levels fall to Learn
+without a branch.
+
+The fragment used to have to be empty, and a test said so - "the link carries a
+fragment, which could encode a draw". That reason is still right, so the test did
+not go: it now asserts the fragment is a mode name and nothing else, which rules
+out the same leak and is checkable rather than merely absent.
+
+### The scroll jump was two bugs wearing one coat
+
+`window.scrollTo(0, 0)` at the end of `draw()` in `js/game.js` and
+`js/crashReplay.js` was the obvious half: a line written for "a new screen starts
+at its heading" that also ran on every `+` tap, because `draw()` is the only
+redraw there is. Learn's build screen went from scrollY 1259 to 0.
+
+**Sandbox was the control group and it was not clean either.** It never called
+`scrollTo`, and a `+` there held position exactly - but a *chip* tap added an
+allocator row, the page grew, and the position still slipped from 1054 to 438.
+So not scrolling is not the same as keeping the place, and the fix had to be
+positive rather than the removal of a line.
+
+`js/screen.js` is that fix, shared by all five modes. The caller supplies a key
+saying WHICH SCREEN this is; two draws with the same key are the same screen
+redrawn and the player is put back exactly where they were, a different key is a
+new screen and starts at the top. Three things had to be right for it to work:
+
+* **The layout has to be flushed before the scroll is restored.**
+  `replaceChildren()` empties the element first, and a `scrollTo(0, 1251)`
+  against a document that is momentarily one screenful tall is clamped to the
+  bottom of that document. Reading `root.scrollHeight` forces the reflow.
+* **And restored again on the next frame, unconditionally.** Reading
+  `window.scrollY` straight after `scrollTo` reports the new value, so a
+  "did it work?" check always passed and always skipped the retry - while the
+  position still came out at 792 instead of 1251. What moves it is the browser's
+  own scroll anchoring settling after a layout it had nothing left to anchor to.
+* **A control is found again by id or by aria-label**, and a chip's label is not
+  stable: tapping "Add GLD" produces "Remove GLD", so the chip a player had just
+  pressed could never be found and focus fell back to the view. Chips carry
+  `id="chip-GLD"` now.
+
+**Focus mattered more than the scroll and was not on the list.** Every one of
+those redraws also left focus on `main#view`, so pressing `+` with a keyboard
+returned the player to the top of the content and cost a full Tab journey back:
+moving $2,000 to $2,500 was five round trips. Same root cause, same fix.
+
+**The daily puzzle got worse before it got better.** Keyed by the pair, answering
+one became a screen change and sent the player to the top - 484 to 0, a jump it
+never had before. The puzzle GROWS rather than replacing itself, so the whole
+thing is one screen: `playing` is the key, not `pair:3`.
+
+### A measurement that looked exactly like the bug
+
+After the fix, `scripts/dev_checks.mjs` still reported the chip cases slipping
+1251 to 792. They were not. **Playwright scrolls an element into view before
+clicking it**, and the chips sit near the top while the player is at the bottom,
+so the "before" reading was taken from a position the click was about to leave.
+A frame-by-frame probe in the page showed 1251 held at every frame.
+
+The tool scrolls the target into view before reading the baseline now, which is
+also the honest question: a player can only tap what they can see, so the
+position a control is tapped FROM is the one that must survive. Worth recording
+because the wrong number was indistinguishable from the real defect, and
+believing it would have meant "fixing" code that was already correct.
+
+### The 100% issue was not in the build step
+
+Checked every level's build allocator, Sandbox and Crash replay: **all clean, and
+clean by arithmetic.** $100 steps out of $10,000 make every share a whole
+percent, so the column always sums to exactly 100%. A property test of 400 random
+chip and slider actions per level found no sequence where the dollars fail to sum
+to the total or the shares fail to sum to 100.
+
+It was My real portfolio, whose dollars are whatever somebody types. Three
+holdings of a third each render `33% 33% 33%` under a total row that printed a
+literal `100%` - the screen disagreeing with its own column, and telling a reader
+who added it up that they were wrong. Seven holdings of $1,000 came to 98%.
+
+The total now shows the sum of the rows as displayed, and a one-line note appears
+only on the portfolios where that is not 100%. Showing the real sum was chosen
+over explaining the rounding everywhere: a column that adds up by inspection
+needs no sentence.
+
+### Pass to unlock, and what it costs
+
+Level N+1 now unlocks only once level N has at least one star. Level 1 is always
+open, locked cards read "Pass level N to unlock this one", and `unlock` replaced
+`open` everywhere including the aria-labels.
+
+**`migrate()` needed nothing for the rule itself.** `stars` was already stored,
+so "played but not passed" was already representable - it is `stars: 0`. And the
+second clause of `isUnlocked()`, written in session 2.19 for hand-edited saves,
+turned out to be exactly the grandfather clause this change needed: a level with
+any record stays open whatever the rule says, so somebody who reached level 4
+under the old rule keeps level 4 and only their next step has to be earned. A
+rule that changed while a player was away does not send them backwards, and it
+cost no code to be true. There is a test saying so now, because that is the kind
+of clause a later tidy-up deletes.
+
+**What did need a migration was the hint counter.** A hint after three failed
+tries has to survive the tab closing - somebody who fails twice on the bus and
+once at home has failed three times - so `tries` is in the record and the version
+moved to 2. Version 1 saves are brought forward with `tries: 0`, before the
+per-entry check rather than after it, so there is one definition of a usable
+entry rather than one per version, and the record comes back stamped with the
+current version so it is not migrated again on every load.
+
+A try is a finished attempt that earned no star, counted per ATTEMPT rather than
+per reveal, so level 7 - three portfolios and one verdict - adds one and not
+three, and nobody is shown a hint halfway through a series.
+
+**The hints are in `levels.json` for editing**, and a test holds them to the line
+that matters: a hint may not name a ticker this game carries, because a list of
+tickers is what a winning design IS. The one exception is QQQ on level 4, whose
+own challenge line already says "Keep at least 30% in QQQ" - naming the holding
+the level forces away gives nothing about the other three, which are the puzzle.
+Level 2's hint can never appear, because its pass condition is "make a guess" and
+it cannot be failed; it is written down anyway with a note saying so, rather than
+leaving a reader to wonder which level is missing one.
+
+**Hypothesis 3 is harder to reach, and this is the entry that says so.**
+PREREG.md pairs each player's level-2 error with their level-7 error and needs 60
+players carrying both. Until today a player reached level 7 by PLAYING six levels;
+now they must PASS six, including level 4's beta under 0.50 and level 6's
+half-the-index fall. Every player who would have stumbled through stops instead.
+**The 60-player minimum was set against a ladder that could be walked.** Nothing
+about the registered analysis changes - the test is the same test on the same two
+levels - but the number of pairs it will have to work with is smaller by an
+amount nobody can estimate before the playtest. The per-level hint is the thing
+standing between this rule and a wall, which is why it shipped in the same change
+rather than after it. **Watch the drop-off per level in the playtest; that is the
+measurement that tells us whether 60 is still reachable.**
+
+`scripts/check_levels.mjs` says what zero winning designs means now: not "this
+level is hard" but "this BLOCKS EVERY PLAYER at level N, nobody reaches any level
+after it, and Hypothesis 3 gets no level-7 guesses from anybody".
+
+### One slider moves one holding
+
+The money is allocated now rather than divided. It used to compensate - raising
+one holding took the step out of the largest other one - which made "Money left"
+impossible to write, because the answer was always $0, and meant every tap moved
+two numbers while the player watched one of them.
+
+**What the controls still hold up, and what they no longer do.** A floor on one
+holding is still absolute: level 4's QQQ cannot go below $3,000 because that is
+the slider's own minimum, and no other slider can reach into it. A floor on a
+KIND is different. Level 6's 60% in stocks used to be enforced move by move, and
+with independent sliders that makes the level unplayable: moving money from WMT
+to PG is two actions now, and the state in between necessarily holds too little
+in stocks. So it moved to where the four-bond-funds case was always handled -
+`buildComplete()` refuses it and `whyIncomplete()` names it. A player can stand
+in an illegal state; they cannot leave the build screen from one.
+
+That is a weakening of a property session 2.5 was pleased about, and it is
+recorded as one rather than as a detail. The 400-move walk that used to assert
+"the stocks never drop below $6,000" now asserts that the gate and the rules
+never disagree, which is the invariant that replaced it.
+
+The build screen gained a real `<label>` per slider, "Money left: $X" above the
+rows as a `role="status"`, and an "Even split" button - which is load-bearing
+rather than a convenience, since a player can now strand themselves at "Money
+left: $100" with every slider at a floor.
+
+1,107 tests pass. `node scripts/check_levels.mjs` still finds 8, 17, 634, 126 and
+50 winning designs across levels 1 and 3 to 6.
+
+Educational, not investment advice.

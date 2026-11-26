@@ -38,7 +38,7 @@ import { h, button, money, tickerPicker, allocator, floorNotes } from './build.j
 // Saved progress: the stars a player keeps, and which levels are open.
 import {
   clearProgress, guessError, isUnlocked, loadProgress, playedLevels, recordLevel,
-  saveProgress, starsOf,
+  saveProgress, starsOf, triesOf,
 } from './progress.js';
 // The anonymous per-browser ID the records carry. Its own storage key, and
 // Reset progress does not clear it - see the note at the top of the file.
@@ -50,6 +50,9 @@ import {
 } from './shareCard.js';
 import { canvasToFile, copyOut, downloadFile, shareOut, shareUrl } from './share.js';
 import { ABOUT } from './config.js';
+// Putting a view on the page without throwing away the scroll position or the
+// focused control. See the long note at the top of js/screen.js.
+import { createScreen } from './screen.js';
 
 export const TICKERS_URL = 'tickers.json';
 
@@ -76,6 +79,15 @@ export const BASKET_URL = 'basket.json';
  * sent by createSeries(), which deals its three portfolios.
  */
 export const RECORDING_LEVELS = [2, 7];
+
+/**
+ * How many failed tries a level takes before it offers its hint.
+ *
+ * Three, from your brief. It is a constant rather than a literal because the
+ * number is a judgement about how long somebody should be left to work it out,
+ * and a reviewer should be able to find it without reading renderBuild().
+ */
+export const HINT_AFTER_TRIES = 3;
 
 /**
  * How fine the guess slider is, from levels.json.
@@ -226,22 +238,21 @@ function levelCard(ctx, level) {
   card.append(h('p', 'level-concept', level.concept));
   card.append(h('p', 'level-challenge', level.challenge));
 
-  // IN ORDER, as docs/PRD.md's Learn row says: a level opens once the one
-  // before it has been PLAYED, pass or fail. Level 4 asks for a beta under 0.50
-  // and level 6 for half the index's fall; a player who cannot manage those
-  // should still get to see the rest of the game.
+  // IN ORDER, and now by PASSING: level N+1 unlocks once level N has at least
+  // one star. Level 1 is always open. js/progress.js carries the rule and the
+  // reason it costs something - see unlockedThrough().
   const ids = ctx.levels.levels.map((l) => l.id);
-  const open = isUnlocked(ctx.progress, level.id, ids);
+  const unlocked = isUnlocked(ctx.progress, level.id, ids);
   const before = ids[ids.indexOf(level.id) - 1];
-  if (!open) {
+  if (!unlocked) {
     card.classList.add('level-locked');
-    card.append(h('p', 'level-lock-note', `Play level ${before} to open this one.`));
+    card.append(h('p', 'level-lock-note', `Pass level ${before} to unlock this one.`));
   }
   // The gate is HERE and not only on the button: a disabled button stops a
   // click, never a caller. js/round.js refuses the same kinds of thing.
   card.append(button(stars ? 'Play again' : 'Play', 'btn btn-primary btn-wide',
     () => { if (isUnlocked(ctx.progress, level.id, ids)) ctx.startRound(level.id); },
-    { disabled: !open, aria: open ? null : `Level ${level.id} opens when level ${before} has been played` }));
+    { disabled: !unlocked, aria: unlocked ? null : `Level ${level.id} unlocks when level ${before} is passed` }));
   return card;
 }
 
@@ -340,10 +351,39 @@ export function buildHint(round) {
   return 'Split the money between your holdings to carry on.';
 }
 
+/**
+ * The level's own hint, once it has been failed enough times, or null.
+ *
+ * TRIES, NOT REVEALS. js/progress.js counts a try as a finished attempt that
+ * earned no star, so level 7 - three portfolios and one verdict - adds one
+ * rather than three, and a player cannot be shown a hint halfway through a
+ * series it has not finished.
+ *
+ * It is a separate question from buildHint(), which says what is still missing
+ * from THIS build. This one says what to think about on this level.
+ */
+export function levelHint(ctx, level, { after = HINT_AFTER_TRIES } = {}) {
+  const hint = level.hint;
+  if (typeof hint !== 'string' || hint.length === 0) return null;
+  return triesOf(ctx.progress, level.id) >= after ? hint : null;
+}
+
 function renderBuild(ctx, round) {
   const view = h('div', 'view view-round');
   view.append(roundHead(ctx, round, 'Build'));
   view.append(h('p', 'lede', round.level.challenge));
+
+  // THE HINT, after three finished attempts that earned nothing. It points at
+  // what to think about and never at a portfolio: levels.json carries the words
+  // so they can be edited without touching code, and scripts/check_levels.mjs
+  // still has to find at least 3 winning designs that the hint does not name.
+  const levelsHint = levelHint(ctx, round.level);
+  if (levelsHint) {
+    const box = h('aside', 'level-hint');
+    box.append(h('p', 'level-hint-head', 'A hint'));
+    box.append(h('p', 'level-hint-body', levelsHint));
+    view.append(box);
+  }
 
   if (round.fixed) {
     // "Your starter portfolio" is level 2's phrase and is wrong on a capstone:
@@ -928,6 +968,11 @@ export async function mountLearn(root, { session = null, progress = null } = {})
   const saved = progress ?? loadProgress();
   const live = session ?? newSession(saved);
 
+  // One painter for this mode's whole lifetime: it is what remembers which
+  // screen was on last, and that is the only state needed to tell a new screen
+  // from a redraw.
+  const paint = createScreen(root);
+
   const ctx = {
     progress: saved,
     // Whether this browser saves at all, settled once by writing back the
@@ -1080,6 +1125,25 @@ export async function mountLearn(root, { session = null, progress = null } = {})
       }
       ctx.draw();
     },
+    /**
+     * WHICH SCREEN IS ON, as a string js/screen.js can compare.
+     *
+     * It is what tells a new screen from a redraw of the one already there. A
+     * tapped chip, a + on a slider and an asked-for reset all leave this the
+     * same, so the player keeps their place; moving from build to guess, or
+     * from one level to the next, changes it and starts at the heading.
+     *
+     * The level id is in it because "build" on level 3 and "build" on level 4
+     * are different screens, and the series part is in it because portfolio 2
+     * of 3 is a new question even though the state is the same.
+     */
+    screenKey() {
+      if (ctx.series && ctx.showSummary) return `summary:${ctx.series.levelId}`;
+      const round = ctx.round;
+      if (!round) return 'menu';
+      const part = ctx.series ? `:${ctx.series.at}` : '';
+      return `${round.state}:${round.levelId}${part}`;
+    },
     draw() {
       // A SERIES RENDERS ITS LIVE QUESTION through the same three screens every
       // other level uses; only the summary is its own. ctx.round is kept in step
@@ -1097,14 +1161,11 @@ export async function mountLearn(root, { session = null, progress = null } = {})
       else if (round.state === GUESS) view = renderGuess(ctx, round);
       else if (round.state === REVEAL) view = renderReveal(ctx, round);
       else throw new Error(`unknown round state ${round.state}`);
-      root.replaceChildren(view);
-      // The chart is drawn AFTER attachment, once the plot div has a real
-      // clientWidth to size itself against - see the note in renderReveal().
-      if (ctx.redrawChart) ctx.redrawChart();
-      // A new screen starts at its heading, not wherever the last one was
-      // scrolled to, which on a phone is halfway down a ticker list.
-      root.focus({ preventScroll: true });
-      window.scrollTo(0, 0);
+      paint(view, ctx.screenKey(), () => {
+        // The chart is drawn AFTER attachment, once the plot div has a real
+        // clientWidth to size itself against - see the note in renderReveal().
+        if (ctx.redrawChart) ctx.redrawChart();
+      });
     },
   };
 

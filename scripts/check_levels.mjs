@@ -431,11 +431,38 @@ export function checkLevel7(built, level, guessPool, finalPool) {
   };
 }
 
-function report(title, { considered, winners }, show, formatter) {
+/**
+ * What it means for a level to have no winning design, now that a level must be
+ * PASSED to unlock the next one.
+ *
+ * It used to mean "this level is too hard", which is a judgement about one
+ * screen. Under pass-to-unlock it means the ladder ENDS there: nobody earns a
+ * star, so nobody reaches any level after it, and PREREG.md's Hypothesis 3 - a
+ * player's level-2 error paired with their level-7 error - becomes
+ * uncomputable for every player. That is a different size of problem from
+ * "fewer than 3", and the message says so rather than leaving a reader to work
+ * it out from a count.
+ */
+function solvabilityVerdict(level, winners) {
+  if (winners === 0) {
+    return `FAIL - NO WINNING DESIGN AT ALL. Under pass-to-unlock this BLOCKS `
+      + `EVERY PLAYER at level ${level}: nobody earns a star, so nobody reaches `
+      + `any level after it, and Hypothesis 3 gets no level-7 guesses from anybody.`;
+  }
+  if (winners < REQUIRED_DESIGNS) {
+    return `FAIL - only ${winners} winning design${winners === 1 ? '' : 's'}, `
+      + `fewer than the ${REQUIRED_DESIGNS} this level needs. Passable, but on so `
+      + `few designs that most players will be stopped here - and a level that `
+      + `stops a player now stops them for good.`;
+  }
+  return 'OK';
+}
+
+function report(title, { considered, winners }, show, formatter, level = null) {
   const enough = winners.length >= REQUIRED_DESIGNS;
   console.log(`\n${title}`);
   console.log(`  ${winners.length} winning designs out of ${considered} considered` +
-    `  ${enough ? 'OK' : `FAIL - fewer than ${REQUIRED_DESIGNS}`}`);
+    `  ${solvabilityVerdict(level ?? title, winners.length)}`);
   for (const winner of winners.slice(0, show)) console.log(`    ${formatter(winner)}`);
   if (winners.length > show) console.log(`    ... and ${winners.length - show} more`);
   return enough;
@@ -467,6 +494,7 @@ function main(argv = []) {
   console.log(`Levels 1 to 5 and 7 against ${pricesPath}, ${WINDOW_DAYS}-day windows.`);
   console.log('Level 6 against data/crashes.json, which is history and does not move.');
   console.log(`Each level needs at least ${REQUIRED_DESIGNS} different winning designs.`);
+  console.log('A level with NONE blocks every player: passing a level is what unlocks the next.');
 
   const level1 = levelById(levels, 1);
   const one = checkLevel1(built, level1);

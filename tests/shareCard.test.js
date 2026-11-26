@@ -35,6 +35,7 @@ import {
   drawShareCard,
   fontsReady,
   wrapLines,
+  SHARE_MODE,
   SHARE_SOURCE,
   CARD_SIZE,
 } from '../js/shareCard.js';
@@ -52,7 +53,7 @@ const KNOWN_TICKERS = TICKERS.groups.flatMap(
 );
 
 const URL_FOR_TEST = 'https://example.org/one-trade/';
-const LINK = `${URL_FOR_TEST}?src=${SHARE_SOURCE}`;
+const LINK = `${URL_FOR_TEST}?src=${SHARE_SOURCE}#${SHARE_MODE}`;
 
 /** A deep copy, so a test that breaks the file on purpose breaks only its copy. */
 const copy = () => JSON.parse(JSON.stringify(LEVELS));
@@ -261,23 +262,33 @@ test('no card names a dollar amount or a weight', () => {
 
 // ------------------------------------------------------------------ the link
 
-test('the link is the game, with the share source and nothing else', () => {
+test('the link is the game, with the share source and a mode, and nothing else', () => {
+  // THE FRAGMENT USED TO HAVE TO BE EMPTY, because a fragment is somewhere a
+  // draw could be encoded and handed to whoever opens the link. It now carries
+  // the MODE, which is the one thing js/app.js ever puts in the URL, so the test
+  // changed from "there is no fragment" to "the fragment is a mode name and
+  // nothing else" - which rules out the same leak and is checkable rather than
+  // merely absent.
+  const modes = ['learn', 'daily', 'weekly', 'crash', 'sandbox', 'mine', 'research'];
   for (const card of everyCard()) {
     assert.equal(card.link, LINK);
     const url = new globalThis.URL(card.link);
     assert.deepEqual([...url.searchParams.keys()], ['src'], 'the link carries more than the source code');
     assert.equal(url.searchParams.get('src'), 'share');
-    assert.equal(url.hash, '', 'the link carries a fragment, which could encode a draw');
+    assert.equal(url.hash, `#${SHARE_MODE}`);
+    assert.ok(modes.includes(url.hash.slice(1)), `the fragment "${url.hash}" is not a mode`);
+    // A score card opens the levels, which is where it was earned.
+    assert.equal(SHARE_MODE, 'learn');
   }
 });
 
 test('the real link is ABOUT.url, and it survives one that already has a query', () => {
   const card = cardFromResult(levelById(LEVELS, 3), resultFor(3, { value: 3.07, stars: 2 }), ABOUT.url);
-  assert.equal(card.link, 'https://mayaagge.github.io/one-trade/?src=share');
+  assert.equal(card.link, 'https://mayaagge.github.io/one-trade/?src=share#learn');
   const withQuery = cardFromResult(
     levelById(LEVELS, 3), resultFor(3, { value: 3.07, stars: 2 }), 'https://example.org/?a=1',
   );
-  assert.equal(withQuery.link, 'https://example.org/?a=1&src=share');
+  assert.equal(withQuery.link, 'https://example.org/?a=1&src=share#learn');
 });
 
 // ----------------------------------------------------------- the rest of it

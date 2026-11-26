@@ -76,6 +76,7 @@
       "title": "Two of a kind",
       "concept": "Correlation",
       "challenge": "Pick two holdings with different names that move together.",
+      "hint": "Two funds that hold almost the same companies move almost as one, whatever their names are. Look for a pair from the same heading rather than two names you recognise.",
       "holdings": {
         "exactly": 2
       },
@@ -155,6 +156,8 @@
       "title": "How many bets?",
       "concept": "Effective bets",
       "challenge": "Here is a starter portfolio. Guess how many separate bets it really makes, then see the answer.",
+      "hint": "This level cannot be failed - its pass condition is \"make a guess\" - so the hint has no way of appearing. It is written down so that every level has one and a reader is not left wondering which is missing.",
+      "hintNote": "Unreachable by design - see hint. Every other level's hint is shown on the build screen once that level has been finished three times without earning a star.",
       "holdings": {
         "fixed": true,
         "from": "guessPool"
@@ -210,6 +213,7 @@
       "title": "Three real bets",
       "concept": "Diversifying across groups",
       "challenge": "Build a 5-holding portfolio that makes at least 3 separate bets.",
+      "hint": "Five names from under one heading is still close to one bet. Count the HEADINGS you have picked from, not the holdings, and try spreading the five across more of them.",
       "holdings": {
         "exactly": 5
       },
@@ -256,6 +260,7 @@
       "title": "Hidden AI",
       "concept": "Index concentration",
       "challenge": "Keep at least 30% in QQQ, and still move less than half as much as the AI basket.",
+      "hint": "QQQ already carries a good deal of the AI basket, so the other three holdings have to pull the other way. Ask what moves for reasons that have nothing to do with AI.",
       "holdings": {
         "exactly": 4,
         "required": [
@@ -332,6 +337,7 @@
       "title": "Where's the risk?",
       "concept": "Risk share vs dollar share",
       "challenge": "Build any 4-holding portfolio where no holding carries more than 35% of the risk.",
+      "hint": "An equal split of the money is not an equal split of the risk: the holding that swings hardest takes more than its quarter. Four holdings that swing by similar amounts share the risk more evenly than one big swinger and three quiet ones.",
       "holdings": {
         "exactly": 4
       },
@@ -395,6 +401,7 @@
       "title": "Crash test",
       "concept": "Behaviour under stress",
       "challenge": "Build a 4-holding portfolio with at least 60% in stocks, then hold it through the February to March 2020 crash. Fall less than half as much as the S&P 500.",
+      "hint": "Sixty percent has to sit in stocks, so the question is WHICH stocks. Through February and March 2020 the companies people kept paying for fell far less than the ones they stopped paying for.",
       "holdings": {
         "exactly": 4,
         "minShareIn": {
@@ -471,6 +478,7 @@
       "title": "One trade",
       "concept": "Everything",
       "challenge": "Three mystery portfolios, one after another. Guess how many separate bets each one makes. Every guess has to land within 1.",
+      "hint": "Count the headings, not the holdings. Levels 2 and 3 showed you that holdings from one group collapse into roughly one bet, so five names from three groups usually sits nearer 3 than 5.",
       "holdings": {
         "fixed": true,
         "from": "series"

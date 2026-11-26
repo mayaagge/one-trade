@@ -32,7 +32,9 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { StubNode, textOf, withDocument } from './stubDom.js';
-import { BANNED_PHRASES, PRIVACY_LINE, mountMyPortfolio } from '../js/myPortfolio.js';
+import {
+  BANNED_PHRASES, PRIVACY_LINE, mountMyPortfolio, shownShareTotal,
+} from '../js/myPortfolio.js';
 import { MOST_HOLDINGS } from '../js/holdings.js';
 import { validateLevels } from '../js/levels.js';
 
@@ -695,5 +697,92 @@ test('a portfolio that cannot be measured says so and keeps the holdings', async
 
     assert.match(textOf(b.root), /could not be measured/);
     assert.equal(ctx.list.rows.length, 2, 'the holdings were thrown away');
+  } finally { b.restore(); }
+});
+
+// --------------------------------------------- the total row's percentage
+
+/** The share cells, rows then total, as the screen renders them. */
+const shareCells = (view) => view.all()
+  .filter((node) => String(node.className ?? '').includes('holding-share'))
+  .map((node) => node.textContent);
+
+test('the total row shows what the column actually adds up to', async () => {
+  // THE 100% BUG. The row shares are rounded to whole percents, and three
+  // holdings of a third each render 33% three times; the total used to print a
+  // literal "100%" above them, so the screen disagreed with its own column. A
+  // reader adding the column up is doing the right thing and must not be told
+  // they are wrong.
+  const b = browser();
+  try {
+    await mountMyPortfolio(b.root);
+    enter(b.root, 'VOO', '3333');
+    enter(b.root, 'BND', '3333');
+    enter(b.root, 'GLD', '3334');
+
+    assert.deepEqual(shareCells(b.root), ['Share', '33%', '33%', '33%', '99%'],
+      '33 + 33 + 33 is 99, and the total row has to say so');
+    const text = textOf(b.root);
+    assert.match(text, /Shares are rounded to whole percents/);
+    assert.match(text, /Every measure uses the exact amounts\./);
+    // The dollars are untouched: only the percentage was ever wrong.
+    assert.match(text, /\$10,000/);
+  } finally { b.restore(); }
+});
+
+test('a portfolio whose shares do add to 100% says nothing about rounding', async () => {
+  const b = browser();
+  try {
+    await mountMyPortfolio(b.root);
+    enter(b.root, 'VOO', '5000');
+    enter(b.root, 'BND', '5000');
+
+    assert.deepEqual(shareCells(b.root), ['Share', '50%', '50%', '100%']);
+    assert.ok(!/rounded to whole percents/.test(textOf(b.root)),
+      'the rounding note appeared on a portfolio that does add up');
+  } finally { b.restore(); }
+});
+
+test('seven equal holdings come to 98%, and the screen agrees', async () => {
+  const b = browser();
+  try {
+    await mountMyPortfolio(b.root);
+    for (const ticker of ['VOO', 'QQQ', 'BND', 'GLD', 'TLT', 'NVDA', 'JNJ']) {
+      enter(b.root, ticker, '1000');
+    }
+    assert.deepEqual(
+      shareCells(b.root),
+      ['Share', '14%', '14%', '14%', '14%', '14%', '14%', '14%', '98%'],
+      'seven fourteens is 98',
+    );
+  } finally { b.restore(); }
+});
+
+test('shownShareTotal() is the same arithmetic the rows are drawn with', async () => {
+  // The helper and the screen cannot drift: whatever the rows say, added up, is
+  // what the total says. Checked across awkward splits rather than one.
+  const b = browser();
+  try {
+    for (const amounts of [
+      ['3333', '3333', '3334'],
+      ['1000', '1000', '1000', '1000', '1000', '1000', '1000'],
+      ['4212', '1850', '900', '1100'],
+      ['9999', '1'],
+      ['1', '1', '1'],
+    ]) {
+      const fresh = browser();
+      try {
+        await mountMyPortfolio(fresh.root);
+        const names = ['VOO', 'BND', 'GLD', 'TLT', 'QQQ', 'NVDA', 'JNJ'];
+        for (const [i, dollars] of amounts.entries()) enter(fresh.root, names[i], dollars);
+        const cells = shareCells(fresh.root).slice(1);          // drop the heading
+        const rows = cells.slice(0, -1).map((cell) => Number(cell.replace('%', '')));
+        const shown = Number(cells[cells.length - 1].replace('%', ''));
+        assert.equal(
+          shown, rows.reduce((sum, value) => sum + value, 0),
+          `the total ${shown}% is not the sum of ${rows.join(' + ')}`,
+        );
+      } finally { fresh.restore(); }
+    }
   } finally { b.restore(); }
 });

@@ -44,6 +44,9 @@ import {
   betsPanel, correlationPanel, riskTable, stressPanel, windowNote,
 } from './measuresView.js';
 import { groupIndex } from './why.js';
+// Putting a view on the page without losing the scroll position or the focused
+// control - see the long note at the top of js/screen.js.
+import { createScreen } from './screen.js';
 
 export const TICKERS_URL = 'tickers.json';
 export const BASKET_URL = 'basket.json';
@@ -176,6 +179,9 @@ export async function mountSandbox(root) {
   const groups = groupIndex(tickersDoc);
   const priced = new Set(game.tickers);
 
+  // One painter for this mode's whole lifetime - see js/screen.js.
+  const paint = createScreen(root);
+
   const ctx = {
     tickers: tickersDoc,
     levels,
@@ -232,12 +238,23 @@ export async function mountSandbox(root) {
       }
       ctx.draw();
     },
+    /**
+     * Which screen is on, for js/screen.js.
+     *
+     * Sandbox never called window.scrollTo, so it had no jump to the top - but a
+     * picked chip adds an allocator row, the page gets taller, and the browser
+     * clamped the scroll anyway: 1054 to 438, measured. The key fixes that too,
+     * because the position is now restored rather than left to the browser.
+     */
+    screenKey() {
+      if (ctx.state === MEASURES) return ctx.problem ? 'problem' : 'measures';
+      return 'build';
+    },
     draw() {
       let view;
       if (ctx.state === MEASURES) view = ctx.problem ? renderProblem(ctx) : renderMeasures(ctx);
       else view = renderBuild(ctx);
-      root.replaceChildren(view);
-      root.focus({ preventScroll: true });
+      paint(view, ctx.screenKey());
     },
   };
 

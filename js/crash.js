@@ -391,7 +391,8 @@ export function createBuild(pool, {
     build.picks = build.hasPick(ticker)
       ? build.picks.filter((t) => t !== ticker)
       : [...build.picks, ticker];
-    build.dollars = build.picks.length > 0 ? evenSplit(build.picks, total, step) : {};
+    if (build.picks.length === 0) build.dollars = {};
+    else build.evenSplit();
     return build;
   };
 
@@ -404,44 +405,56 @@ export function createBuild(pool, {
   /** Every holding's floor is the plain $100 step - there are no required holdings to carry one of their own. */
   build.floorOf = () => step;
 
+  /**
+   * ONE SLIDER MOVES ONE HOLDING, exactly as js/round.js does it.
+   *
+   * The two allocators have to behave identically, because js/build.js draws one
+   * screen for both and a player moving money in Sandbox should not find it
+   * behaves differently from the same screen in a level. See the long note on
+   * js/round.js's setDollars() for why the money is allocated rather than
+   * divided, and what that did to the floor on a kind.
+   *
+   * There are no floors here beyond the plain step and no kind to protect, so
+   * this is the same rule with the level-specific parts left out.
+   */
+
+  /** What has not been allocated yet. Zero when the build adds up. */
+  build.moneyLeft = () => total - build.allocated();
+
+  /** The most this holding could take: what it holds now plus what is unspent. */
+  build.ceilingFor = (ticker) => (build.dollars[ticker] ?? 0) + build.moneyLeft();
+
+  build.setDollars = (ticker, dollars, s = step) => {
+    if (!build.hasPick(ticker)) throw new Error(`${ticker} is not in this portfolio`);
+    if (!Number.isFinite(dollars)) throw new Error('setDollars: expected a number of dollars');
+    const snapped = Math.round(dollars / s) * s;
+    const next = Math.min(Math.max(snapped, build.floorOf(ticker)), build.ceilingFor(ticker));
+    build.dollars[ticker] = next;
+    return next;
+  };
+
   build.canLower = (ticker, s = step) => build.hasPick(ticker)
-    && build.picks.length > 1
-    && (build.dollars[ticker] ?? 0) - s >= step;
+    && (build.dollars[ticker] ?? 0) - s >= build.floorOf(ticker);
 
   build.canRaise = (ticker, s = step) => build.hasPick(ticker)
-    && build.picks.some((other) => other !== ticker && build.dollars[other] - s >= step);
+    && build.moneyLeft() >= s;
 
   /**
-   * Move one holding's dollars by whole steps, taking the difference from the
-   * other holdings so the total stays at exactly `total`. Mirrors
-   * js/round.js's adjustDollars() exactly, with every holding's floor the plain
-   * step rather than a level's own.
+   * Move one holding by whole steps, within its own range. Returns how many
+   * steps it actually moved, which is fewer than asked for when the money runs
+   * out or the floor is reached.
    */
   build.adjustDollars = (ticker, steps, s = step) => {
-    if (!build.hasPick(ticker)) throw new Error(`${ticker} is not in this portfolio`);
     if (!Number.isInteger(steps)) throw new Error('adjustDollars: steps must be a whole number');
-    const others = build.picks.filter((t) => t !== ticker);
-    if (others.length === 0) return 0;
+    const before = build.dollars[ticker] ?? 0;
+    const after = build.setDollars(ticker, before + steps * s, s);
+    return Math.abs(after - before) / s;
+  };
 
-    let moved = 0;
-    const direction = Math.sign(steps);
-    for (let i = 0; i < Math.abs(steps); i += 1) {
-      if (direction > 0) {
-        const from = others
-          .filter((t) => build.dollars[t] - s >= s)
-          .sort((a, b) => build.dollars[b] - build.dollars[a])[0];
-        if (from === undefined) break;
-        build.dollars[from] -= s;
-        build.dollars[ticker] += s;
-      } else {
-        if (build.dollars[ticker] - s < s) break;
-        const to = others.sort((a, b) => build.dollars[a] - build.dollars[b])[0];
-        build.dollars[ticker] -= s;
-        build.dollars[to] += s;
-      }
-      moved += 1;
-    }
-    return moved;
+  /** The split the build opens in, and the way back from an unhelpful one. */
+  build.evenSplit = () => {
+    if (build.picks.length > 0) build.dollars = evenSplit(build.picks, total, step);
+    return build;
   };
 
   return build;

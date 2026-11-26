@@ -94,8 +94,16 @@ a { color: var(--series-1); }
   font-size: 0.8rem;
   color: var(--text-secondary);
 }
+/* WRAPS, and that is the whole of the sideways-scrolling bug.
+   Seven pills in a row come to 602px, so at 375px the nav ran 227px past the
+   right edge: Sandbox, My real portfolio and Research were off-screen with
+   nothing saying they existed, and the whole document scrolled sideways on
+   every screen in the game. Measured on all 63 states - scripts/dev_a11y.mjs
+   reports it - and never caught by a test, because the suite's `innerWidth:
+   390` is a number in a stub with no layout engine behind it. */
 .modes {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   list-style: none;
   margin: 0;
