@@ -15,6 +15,12 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 import {
+  buyAndHoldPath,
+  deepestFall,
+  totalChange,
+  valuePath,
+} from '../js/crash.js';
+import {
   SHARE_CUTOFF,
   jacobiEigen,
   covariance,
@@ -199,3 +205,66 @@ for (const c of fixtures.cases) {
     assertClose(maxRiskShare(c.weights, cov), c.expected.max_risk_share, 'maxRiskShare');
   });
 }
+
+// --- what a replay draws, and the falls under it ---------------------------
+//
+// Crash replay holds a portfolio through a window: each holding's dollars grow
+// on their own and the portfolio is their sum. The path has one more point than
+// there are returns, because a replay starts at a CLOSE and applies the returns
+// after it. tests/make_fixtures.py computes all of it with numpy, and three of
+// the four cases are hand-derivable.
+
+for (const c of fixtures.replay_cases) {
+  const label = `${c.name} (${c.dollars.length} holdings, ${c.returns.length} days)`;
+
+  test(`${label}: the held path matches numpy`, () => {
+    assertVectorClose(buyAndHoldPath(c.dollars, c.returns), c.expected.path, 'buyAndHoldPath');
+  });
+
+  test(`${label}: the fall and the lowest point match numpy`, () => {
+    const path = buyAndHoldPath(c.dollars, c.returns);
+    assertClose(totalChange(path), c.expected.total_change, 'totalChange');
+    assertClose(deepestFall(path), c.expected.deepest_fall, 'deepestFall');
+  });
+
+  test(`${label}: one holding on its own is the same path`, () => {
+    // The S&P 500 line is one series, drawn by the same code as a portfolio of
+    // one holding - so the two must agree, or the chart would draw its two lines
+    // through different arithmetic.
+    const alone = valuePath(c.dollars[0], c.returns.map((day) => day[0]));
+    assertVectorClose(alone, c.expected.first_holding_path, 'valuePath');
+    assertVectorClose(buyAndHoldPath([c.dollars[0]], c.returns.map((day) => [day[0]])),
+      c.expected.first_holding_path, 'buyAndHoldPath of one holding');
+  });
+
+  test(`${label}: the path has one more point than there are returns`, () => {
+    assert.equal(buyAndHoldPath(c.dollars, c.returns).length, c.returns.length + 1);
+  });
+
+  if (c.expected_exact) {
+    test(`${label}: the hand-worked answer, exactly`, () => {
+      const path = buyAndHoldPath(c.dollars, c.returns);
+      c.expected_exact.path.forEach((value, i) => assertClose(path[i], value, `point ${i}`));
+      assertClose(totalChange(path), c.expected_exact.total_change, 'total change by hand');
+      assertClose(deepestFall(path), c.expected_exact.deepest_fall, 'deepest fall by hand');
+    });
+  }
+}
+
+test('holding a portfolio is not rebalancing it, and the fixtures carry both', () => {
+  // The case that shows the two apart: one holding doubles twice while the other
+  // halves twice. Held ends at $21,250; rebalanced daily, at $15,625.
+  const c = fixtures.replay_cases.find((x) => x.name === 'replay_hold_or_rebalance');
+  assertVectorClose(buyAndHoldPath(c.dollars, c.returns), c.expected.path, 'held');
+  assert.notDeepEqual(c.expected.path, c.expected.rebalanced_path);
+  assertClose(c.expected.path[c.expected.path.length - 1], 21250, 'held, by hand');
+  assertClose(c.expected.rebalanced_path[c.expected.rebalanced_path.length - 1], 15625,
+    'rebalanced, by hand');
+});
+
+test('the lowest point is not always the last day', () => {
+  const c = fixtures.replay_cases.find((x) => x.name === 'replay_dips_and_recovers');
+  const path = buyAndHoldPath(c.dollars, c.returns);
+  assertClose(deepestFall(path), -0.30, 'it fell 30% at the bottom');
+  assertClose(totalChange(path), -0.076, 'and ended 7.6% down');
+});

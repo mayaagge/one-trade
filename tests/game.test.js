@@ -23,16 +23,17 @@ import { validateLevels, levelById } from '../js/levels.js';
 import { createRound } from '../js/round.js';
 import {
   basketFrom,
-  floorNotes,
   guessPlaces,
   guessSliderState,
   guessStep,
-  money,
   newSession,
   recordResult,
   starText,
   starsExplanation,
 } from '../js/game.js';
+// The picker, the allocator and the money they are written in now live in
+// js/build.js, shared with Crash replay.
+import { floorNotes, money } from '../js/build.js';
 
 const root = new URL('..', import.meta.url);
 const readJson = (name) => JSON.parse(readFileSync(fileURLToPath(new URL(name, root)), 'utf8'));

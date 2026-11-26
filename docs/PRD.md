@@ -106,13 +106,50 @@ Levels 2, 3 and 7 answer with a number of bets and keep the bands of 1 and 0.5 a
 | --- | --- | --- |
 | **Learn** | Levels 1 to 7, in order; progress saved in the browser | Launch |
 | **Sandbox** | Build any portfolio from the full ticker list and see every measure | Launch |
-| **Crash replay** | Watch a pretend portfolio through the 2020 crash (19 Feb to 23 Mar), the 2022 bear market (3 Jan to 12 Oct) or the January 2025 AI selloff, next to the S&P 500 | Launch |
+| **Crash replay** | Watch a pretend portfolio through the 2020 crash, the 2022 bear market or the January 2025 AI selloff, next to the S&P 500. The three windows are fixed below | Launch |
 | **Research** | Read the three pre-registered hypotheses and their verdicts, and see the rolling correlation chart continue past the freeze date on live data | Launch |
 | **Classroom link** | An instructor picks levels and shares one link; a one-page lesson plan goes with it | Launch |
 | **Feedback** | Three-question form after level 3 | Launch |
 | **My real portfolio** | Enter real holdings in dollars; nothing is stored or sent | Launch, secondary |
 | **Explore the market** | Correlation heatmaps for calm, all and worst-10% days | Launch, secondary |
 | **See inside funds** | Named holdings inside each fund, from SEC filings | Later, optional |
+
+**Crash replay: the three windows, and what the lines are.** Every value a replay
+turns on is fixed here, because a window chosen after seeing a result is a window
+chosen to flatter it.
+
+| Window | From | To | Trading days | The S&P 500's fall |
+| --- | --- | --- | --- | --- |
+| The 2020 crash | 19 February 2020 | 23 March 2020 | 24 | −33.99% |
+| The 2022 bear market | 3 January 2022 | 12 October 2022 | 196 | −24.52% |
+| The January 2025 AI selloff | 24 January 2025 | 28 February 2025 | 25 | −2.27% |
+
+The AI selloff's dates are set here for the first time: it starts on the Friday
+before the selloff, so Nvidia's fall of about 17% on 27 January is the first move
+the line draws, and runs a month past it, which shows whether the fall was taken
+back. It was not.
+
+- **A replay starts at a close, not at a return.** The research windows in the
+  hypotheses below are windows of *returns*; a replay is a line that starts at the
+  first date's closing price and applies the returns after it. Counting the first
+  day's own move as well would make the 2020 crash read −33.6% against the −33.9%
+  that is the published peak-to-trough figure.
+
+- **A portfolio is bought and held, never rebalanced.** Each holding's dollars
+  grow on their own and the portfolio is their sum, because that is what holding a
+  portfolio through a crash does. Rebalancing daily to the starting weights is a
+  different thing and a different answer: in the 2022 window it turns a spread
+  portfolio's +2.03% into −0.24%.
+
+- **The S&P 500 line is VOO's adjusted closes, labelled "S&P 500 (VOO, with
+  dividends)".** Both lines then include dividends, so the comparison is like for
+  like. Against the index itself this moves the fall by −0.07 points in 2020,
+  +0.90 in the 2022 window and +0.14 in the AI selloff; the 2022 window is the
+  only one long enough to span several distributions.
+
+- **A holding with no prices in a window is not offered in it.** PLTR listed in
+  September 2020, so it cannot be held through the 2020 crash, and the screen says
+  so rather than drawing a flat line.
 
 **Research mode and live data.** The verdicts, and every number behind them, come from the committed price snapshot and never move: the registered windows all end on the freeze date, 24 November 2026. One chart is the exception, and only in what it draws. The rolling 126-day correlation of the AI basket with the equal-weight S&P 500 — already reported-only, entering no verdict — continues past the freeze date on live prices. Everything after 24 November 2026 is shaded and labelled **"after the freeze date; enters no verdict"**, so a reader can see whether the measured rise held up without that view ever reaching the registered test. The frozen part of the line is read from the published results file, and the live part is computed from the same basket, benchmark and 126-day window, so the two halves are the same measure.
 

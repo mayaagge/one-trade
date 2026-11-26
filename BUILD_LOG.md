@@ -1694,3 +1694,136 @@ both check scripts are green, and the card was read off a real missed level 5 in
 headless Chrome.
 
 Educational, not investment advice.
+
+## Crash replay, the data and the math, 26 November 2026 (session 2.7)
+
+Session A of two: where the prices come from, what a replay actually computes,
+and the shared build screen. The mode's own screens are session B.
+
+### The 2020 crash is outside the file the game plays on
+
+`data/game.json` is the most recent 756 trading days - back to 21 November 2023 -
+so the game's own price file cannot reach February 2020. The committed research
+snapshot can, and **`scripts/build_crash_data.mjs` reads it and writes somewhere
+else**: `data/crashes.json`, the three windows only, in `data/game.json`'s own
+row-per-day layout so `js/gameView.js` reads both with one set of functions.
+
+`data/prices.json`'s role is untouched by that. docs/PRD.md calls it "the exact
+bytes every published verdict was computed from, written once and then left
+alone", and nothing here writes to it; `scripts/run_research.mjs` already reads it
+the same way. The snapshot's SHA-256 goes into the derived file, as it does into
+`data/results.json`, so a replay can be matched to the bytes it came from. The
+file is **built once and committed, not refreshed**: February 2020 will not be
+different tomorrow.
+
+What that cost: **223 KB**, against `game.json`'s 500 KB.
+
+The alternatives, and why not:
+
+| | |
+| --- | --- |
+| Fetch the windows live | A second fetch path, and Yahoo's adjusted closes move between fetches, so February 2020 would wobble every evening for no gain |
+| Extend `game.json` to ten years | It is the 756-day covariance window, rebuilt every weekday and committed on change; ten years would bloat every nightly diff and the download |
+| Read `prices.json` in the browser | 2.6 MB on a phone, and it makes the research bytes a runtime dependency of the game |
+
+### Two conventions, each worth a different answer
+
+**A replay starts at a close, not at a return.** The research windows are windows
+of returns; a replay is a line that starts at the first date's closing price and
+applies the returns after it. So each window's rows are the returns AFTER its
+first date, and a path has one more point than it has rows. This is what makes
+the 2020 crash read **−33.99%**, the published peak-to-trough figure, instead of
+−33.6%.
+
+**A portfolio is bought and held, never rebalanced.** Each holding's dollars grow
+on their own and the portfolio is their sum. `portfolioReturns()` in `js/math.js`
+silently rebalances to the starting weights every close, which is right for the
+research basket and wrong for a replay of *holding* something. It is not a
+rounding difference:
+
+| Portfolio | Window | Held | Rebalanced daily |
+| --- | --- | --- | --- |
+| 60% VOO / 40% TLT | 2020 | −14.70% | −16.38% |
+| VOO BND GLD XOM JNJ | 2022 | **+2.03%** | **−0.24%** |
+
+The 2022 case changes sign. The fixtures carry a hand-worked pair - one holding
+doubling twice while another halves twice, ending at $21,250 held and $15,625
+rebalanced - so the difference is recorded rather than described.
+
+### The S&P 500 line is VOO, so both lines include dividends
+
+Measured against the index itself, over the same windows and the same
+convention:
+
+| Window | ^GSPC | VOO | Difference |
+| --- | --- | --- | --- |
+| 2020 crash | −33.92% | −33.99% | −0.07 points |
+| 2022 bear market | −25.43% | −24.52% | +0.90 points |
+| January 2025 AI selloff | −2.41% | −2.27% | +0.14 points |
+
+Only the 2022 window is long enough to span several quarterly distributions, and
+it is the one that moves. The other two are five weeks each, where what shows is
+the fund against the index rather than dividends - in 2020 it runs the other way.
+**That reading is inferred, not measured:** the snapshot carries adjusted closes
+only, with no dividend column, so nothing in the committed data can say which
+ex-dividend dates fall inside a window.
+
+### PLTR cannot be held through February 2020
+
+It listed on 1 October 2020. `data/crashes.json` records it as unavailable in that
+window with its own first date, `readWindow()` refuses it rather than drawing a
+flat line or counting a zero return, and `availableIn()` is what the picker will
+ask. The other two windows carry all 40 names. This is the same rule
+`js/returns.js` applies to a gap, which is why a late listing is named by its
+first date rather than treated as missing data.
+
+### The build screen moved out of Learn
+
+`tickerPicker` and `allocator` were private to `js/game.js`, where only Learn
+could reach them. They are now `js/build.js`, which knows about a **build** -
+anything with the round's picks, dollars, floors and methods - and not about
+levels, scoring or what happens next. Crash replay has no level and no stars, and
+it is the same screen. Sandbox and My real portfolio are the next two callers.
+
+It gained one thing on the way: `reasonFor(ticker)`, which Crash replay will use
+for a holding that had not listed yet in the window being replayed. Learn passes
+none.
+
+**Levels 1 to 5 were replayed in headless Chrome after the move** and are
+unchanged: level 1's two holdings and no allocator, level 2's dealt portfolio,
+level 3's five at $2,000, level 4's locked QQQ at its $3,000 floor with the floor
+note under it, level 5's percent slider and "That holding is GLD." No console
+errors on any of the five.
+
+### How it was checked
+
+- **The arithmetic against numpy**, 1e-9, over four replay cases, three of them
+  hand-derivable: a path anyone can follow (+10%, −50%, flat), the held-versus-
+  rebalanced pair, and a window that dips 30% and ends 7.6% down, which is why
+  the lowest point is reported separately from the fall.
+- **The file against the snapshot**: every return in it rebuilt by `js/returns.js`
+  and compared to the stored precision, for four tickers across all three windows.
+- **The file against `data/game.json`**: the 2025 selloff sits inside the game's
+  756 days, so those returns exist in both files, built from two different
+  fetches. They agree on **96 shared days with a worst gap of 4.6e-7**, which is
+  the refetch scale docs/PRD.md documents and three orders of magnitude inside
+  the 1e-4 the chart would refuse.
+- Every ticker each window says it carries produces a finite line, so no window is
+  quietly unplayable for one name.
+- 581 tests pass. `check_levels`, `check_why_cards` and `run_research` are green,
+  and the research verdicts are unchanged by the session.
+
+### What to watch
+
+- **`fallAgainstIndex()` is level 6's measure, sitting here unused.** It returns
+  null for a share when the index did not fall, so a share of a rise cannot read
+  as a share of a fall. Level 6 looks passable: 60% VOO / 40% TLT falls 14.7%
+  against the index's 33.99%, well inside half.
+- **`js/chart.js` still draws one series.** Crash replay needs two lines and a
+  legend, which is session B's first job; the Research chart passes no second
+  series and stays as it is.
+- **The AI selloff window is five weeks and the 2022 one is nine months.** The
+  same chart has to read well at 24 points and at 195, which is worth looking at
+  on a phone before the mode is called done.
+
+Educational, not investment advice.

@@ -327,6 +327,161 @@ def build_series_cases():
     return cases
 
 
+# --- the replay measures, for Crash replay -----------------------------------
+
+def value_path(start, returns):
+    """What one holding is worth after each day, starting from `start`.
+
+    The path has one more point than there are returns: a replay starts at a
+    CLOSE and applies the returns after it, so the first point is the money as it
+    went in. docs/PRD.md, "Crash replay: the three windows".
+    """
+    path = [float(start)]
+    for r in returns:
+        path.append(path[-1] * (1.0 + r))
+    return path
+
+
+def buy_and_hold_path(dollars, returns):
+    """A portfolio held through a window, never rebalanced.
+
+    Each holding's dollars grow on their own and the portfolio is their sum,
+    which is what holding a portfolio through a crash does. `returns` is one row
+    per day and one column per holding, in the order of `dollars`.
+    """
+    r = np.asarray(returns, dtype=float)
+    held = np.asarray(dollars, dtype=float).copy()
+    path = [float(held.sum())]
+    for day in range(r.shape[0]):
+        held = held * (1.0 + r[day])
+        path.append(float(held.sum()))
+    return path
+
+
+def rebalanced_path(dollars, returns):
+    """The same portfolio with its weights put back every close.
+
+    Not what Crash replay draws. It is here so the fixtures carry the number the
+    two conventions differ by, rather than the difference being described.
+    """
+    r = np.asarray(returns, dtype=float)
+    total = float(np.sum(dollars))
+    weights = np.asarray(dollars, dtype=float) / total
+    path = [total]
+    for day in range(r.shape[0]):
+        path.append(path[-1] * (1.0 + float(r[day] @ weights)))
+    return path
+
+
+def total_change(path):
+    """End over start, as a fraction: -0.339 is a fall of 33.9%."""
+    return path[-1] / path[0] - 1.0
+
+
+def deepest_fall(path):
+    """The lowest point the path reached, against where it started.
+
+    Not a peak-to-trough drawdown: a replay window starts at the peak by
+    construction - 19 February 2020 is the S&P 500's own high - so the question a
+    player asks is how far below their starting money it ever went.
+    """
+    return min(path) / path[0] - 1.0
+
+
+def build_replay_cases():
+    """Known answers for what a replay draws and the falls under it.
+
+    A fresh generator at the same registered seed, so nothing here moves a number
+    in any case above.
+    """
+    rng = np.random.default_rng(SEED)
+    cases = []
+
+    # 1. Three days anyone can check in their head: +10%, -50%, flat.
+    cases.append({
+        "name": "replay_hand_derivable",
+        "description": "One holding over three days: +10%, -50%, flat. $10,000 ends at $5,500.",
+        "hand_derivable": True,
+        "dollars": [10000.0],
+        "returns": [[0.10], [-0.50], [0.0]],
+        "expected_exact": {
+            "path": [10000.0, 11000.0, 5500.0, 5500.0],
+            "total_change": -0.45,
+            "deepest_fall": -0.45,
+        },
+    })
+
+    # 2. Two holdings where buy and hold and daily rebalancing disagree, by hand:
+    #    A doubles twice and B halves twice. Held: 5,000 -> 20,000 and 5,000 ->
+    #    1,250, so 21,250. Rebalanced: +25% a day on 10,000, so 15,625.
+    cases.append({
+        "name": "replay_hold_or_rebalance",
+        "description": (
+            "Two holdings, one doubling and one halving twice. Hand-derivable: held is "
+            "$21,250 and rebalanced daily is $15,625."
+        ),
+        "hand_derivable": True,
+        "dollars": [5000.0, 5000.0],
+        "returns": [[1.0, -0.5], [1.0, -0.5]],
+        "expected_exact": {
+            "path": [10000.0, 12500.0, 21250.0],
+            "rebalanced_path": [10000.0, 12500.0, 15625.0],
+            "total_change": 1.125,
+            "deepest_fall": 0.0,
+        },
+    })
+
+    # 3. A dip and a recovery, so the deepest fall is not the last day. The
+    #    distinction matters: a window can end above where it bottomed.
+    cases.append({
+        "name": "replay_dips_and_recovers",
+        "description": "One holding that falls 30% and comes most of the way back: the low is mid-window.",
+        "hand_derivable": True,
+        "dollars": [10000.0],
+        "returns": [[-0.20], [-0.125], [0.20], [0.10]],
+        "expected_exact": {
+            "path": [10000.0, 8000.0, 7000.0, 8400.0, 9240.0],
+            "total_change": -0.076,
+            "deepest_fall": -0.30,
+        },
+    })
+
+    # 4. Five holdings over 60 sampled days, which checks the arithmetic rather
+    #    than the shape.
+    sampled = rng.normal(-0.002, 0.02, (60, 5))
+    cases.append({
+        "name": "replay_five_holdings_60_days",
+        "description": "Five holdings over 60 sampled days, unevenly split.",
+        "hand_derivable": False,
+        "dollars": [3500.0, 2500.0, 2000.0, 1500.0, 500.0],
+        "returns": sampled.tolist(),
+        "expected_exact": None,
+    })
+
+    out = []
+    for case in cases:
+        dollars = case["dollars"]
+        returns = case["returns"]
+        path = buy_and_hold_path(dollars, returns)
+        out.append({
+            "name": case["name"],
+            "description": case["description"],
+            "hand_derivable": case["hand_derivable"],
+            "dollars": dollars,
+            "returns": returns,
+            "expected": {
+                "path": path,
+                "rebalanced_path": rebalanced_path(dollars, returns),
+                "total_change": total_change(path),
+                "deepest_fall": deepest_fall(path),
+                # One holding on its own, which is what the S&P 500 line is.
+                "first_holding_path": value_path(dollars[0], [row[0] for row in returns]),
+            },
+            "expected_exact": case["expected_exact"],
+        })
+    return out
+
+
 # --- the beta cases, for level 4's measure -----------------------------------
 
 def build_beta_cases():
@@ -433,6 +588,7 @@ def main():
     cases, basket = build_cases()
     series_cases = build_series_cases()
     beta_cases = build_beta_cases()
+    replay_cases = build_replay_cases()
     out = []
     for case in cases:
         returns = case["returns"]
@@ -484,6 +640,7 @@ def main():
         "rolling_window": ROLLING_WINDOW,
         "series_cases": series_cases,
         "beta_cases": beta_cases,
+        "replay_cases": replay_cases,
     }
     with open(OUT, "w") as handle:
         json.dump(doc, handle, indent=1)
@@ -502,6 +659,10 @@ def main():
         members = len(case["members"][0])
         print(f"  {case['name']:<32} {members:>2} members, {len(case['weights'])} holdings, "
               f"beta={case['expected']['portfolio_beta']:.12f}")
+    for case in replay_cases:
+        print(f"  {case['name']:<32} {len(case['dollars'])} holdings, {len(case['returns'])} days, "
+              f"change={case['expected']['total_change']:.12f} "
+              f"low={case['expected']['deepest_fall']:.12f}")
 
 
 if __name__ == "__main__":

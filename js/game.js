@@ -24,8 +24,11 @@
 
 import { loadGameData, DISCLAIMER } from './gameView.js';
 import { validateLevels, displayFor, formatGuess, LEVELS_URL } from './levels.js';
-import { BUILD, GUESS, REVEAL, createRound, DOLLAR_STEP } from './round.js';
+import { BUILD, GUESS, REVEAL, createRound } from './round.js';
 import { WHY_URL, groupIndex, validateWhy } from './why.js';
+// The build screen, shared with Crash replay - and with Sandbox and My real
+// portfolio when they arrive. See the note at the top of js/build.js.
+import { h, button, money, tickerPicker, allocator, floorNotes } from './build.js';
 
 export const TICKERS_URL = 'tickers.json';
 
@@ -55,24 +58,6 @@ export function guessPlaces(level) {
   return displayFor(level).places;
 }
 
-// ------------------------------------------------------------------ DOM bits
-
-function h(tag, className, text) {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text !== undefined && text !== null) node.textContent = String(text);
-  return node;
-}
-
-function button(label, className, onClick, { disabled = false, aria = null } = {}) {
-  const node = h('button', className, label);
-  node.type = 'button';
-  node.disabled = disabled;
-  if (aria) node.setAttribute('aria-label', aria);
-  node.addEventListener('click', onClick);
-  return node;
-}
-
 /** The two lines every screen in a round carries. */
 function footNotes(game) {
   const wrap = h('div', 'game-foot');
@@ -100,11 +85,6 @@ export function basketFrom(doc) {
 /** Stars as text, so they copy and read aloud sensibly. */
 export function starText(count) {
   return `${'★'.repeat(count)}${'☆'.repeat(3 - count)}`;
-}
-
-/** The money, as a player reads it. */
-export function money(dollars) {
-  return `$${dollars.toLocaleString('en-US')}`;
 }
 
 // ------------------------------------------------------------- the session
@@ -159,96 +139,6 @@ function renderMenu(ctx) {
 
 // -------------------------------------------------------------- the build
 
-/** The level's pool, laid out under its group headings. */
-function tickerPicker(ctx, round) {
-  const wrap = h('div', 'picker');
-  const inPool = new Set(round.pool);
-
-  for (const group of ctx.tickers.groups) {
-    const names = group.tickers
-      .map((t) => (typeof t === 'string' ? t : t.ticker))
-      .filter((t) => inPool.has(t));
-    if (names.length === 0) continue;
-
-    const section = h('section', 'picker-group');
-    section.append(h('h3', 'picker-group-label', group.label));
-    const row = h('div', 'picker-row');
-    for (const ticker of names) {
-      const held = round.hasPick(ticker);
-      // A holding the level deals and keeps - level 4's QQQ - is shown held and
-      // locked rather than tappable and then refused. The round throws if it is
-      // removed, and a button whose only outcome is an error is not a button.
-      const locked = round.required.includes(ticker);
-      const node = button(ticker, [
-        'chip', held ? 'chip-on' : null, locked ? 'chip-locked' : null,
-      ].filter(Boolean).join(' '), () => {
-        round.togglePick(ticker);
-        ctx.draw();
-      }, {
-        // A full pool stays tappable for the names already held, so a player can
-        // always swap one out; the rest go flat rather than vanishing.
-        disabled: locked || (!held && !round.canAddPick()),
-        aria: locked
-          ? `${ticker} is required on this level`
-          : `${held ? 'Remove' : 'Add'} ${ticker}`,
-      });
-      node.setAttribute('aria-pressed', String(held));
-      row.append(node);
-    }
-    section.append(row);
-    wrap.append(section);
-  }
-  return wrap;
-}
-
-/** The $10,000, split across the holdings, moved in $100 steps. */
-function allocator(ctx, round) {
-  const wrap = h('div', 'allocator');
-  wrap.append(h('h3', 'allocator-head', `Split your ${money(round.total)}`));
-  for (const ticker of round.picks) {
-    const dollars = round.dollars[ticker] ?? 0;
-    const row = h('div', 'alloc-row');
-    row.append(h('span', 'alloc-ticker', ticker));
-    const amount = h('span', 'alloc-amount');
-    amount.append(h('strong', null, money(dollars)));
-    amount.append(h('span', 'alloc-share', `${Math.round((dollars / round.total) * 100)}%`));
-    row.append(amount);
-    const buttons = h('div', 'alloc-buttons');
-    // A step that cannot be taken is not offered. On level 4 that is QQQ at its
-    // $3,000 floor, and on every level it is the last $100 of any holding: the
-    // level asked for this many holdings, and a holding of nothing is one fewer.
-    buttons.append(button('−', 'btn btn-step', () => {
-      round.adjustDollars(ticker, -1);
-      ctx.draw();
-    }, { aria: `Take ${money(DOLLAR_STEP)} off ${ticker}`, disabled: !round.canLower(ticker) }));
-    buttons.append(button('+', 'btn btn-step', () => {
-      round.adjustDollars(ticker, 1);
-      ctx.draw();
-    }, { aria: `Add ${money(DOLLAR_STEP)} to ${ticker}`, disabled: !round.canRaise(ticker) }));
-    row.append(buttons);
-    wrap.append(row);
-  }
-  wrap.append(h('p', 'note', `Moves in ${money(DOLLAR_STEP)} steps, always adding up to ${money(round.total)}. It starts split evenly.`));
-  // The floors a level puts under a holding, named with the number the level
-  // asks for and the dollars it comes to, so the locked - button has a reason
-  // beside it rather than just being flat.
-  for (const line of floorNotes(round)) wrap.append(h('p', 'note note-floor', line));
-  return wrap;
-}
-
-/**
- * One line per holding the level puts a floor under: level 4's "at least 30% in
- * QQQ", as a share and as the money it works out to.
- */
-export function floorNotes(round) {
-  const shares = round.level.holdings?.minShare ?? {};
-  return Object.entries(shares).map(([ticker, share]) => {
-    const floor = round.floorOf(ticker);
-    return `${ticker} stays at ${money(floor)} or more: the ${Math.round(share * 100)}% `
-      + `this level asks you to keep in it.`;
-  });
-}
-
 function renderBuild(ctx, round) {
   const view = h('div', 'view view-round');
   view.append(roundHead(ctx, round, 'Build'));
@@ -270,8 +160,10 @@ function renderBuild(ctx, round) {
       ? `${round.picks.length} picked`
       : `${round.picks.length} of ${round.wanted} picked`;
     view.append(h('p', 'picker-count', count));
-    view.append(tickerPicker(ctx, round));
-    if (round.usesMoney && round.picks.length > 0) view.append(allocator(ctx, round));
+    view.append(tickerPicker(round, { groups: ctx.tickers.groups, redraw: ctx.draw }));
+    if (round.usesMoney && round.picks.length > 0) {
+      view.append(allocator(round, { redraw: ctx.draw }));
+    }
   }
 
   const ready = round.buildComplete();
