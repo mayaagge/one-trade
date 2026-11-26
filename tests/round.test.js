@@ -504,7 +504,11 @@ test('the reveal formats the number so it cannot contradict the pass check', () 
 
 test('a clear pass reads as a pass, in the same words', () => {
   const { result } = play(1, ['VOO', 'VTI'], 0.95);
-  assert.match(result.line, /clears the 0\.80 needed/);
+  // Three decimals on level 1, measure and threshold alike: VOO and VTI
+  // correlate at about 0.996, and "1.00" would claim a perfect pair.
+  assert.match(result.line, /clears the 0\.800 needed/);
+  assert.equal(result.shown.split('.')[1].length, 3, `shown as ${result.shown}`);
+  assert.ok(result.line.startsWith(result.shown), `"${result.line}" does not start with "${result.shown}"`);
 });
 
 test('level 2 has no pass line, because there is nothing to clear', () => {

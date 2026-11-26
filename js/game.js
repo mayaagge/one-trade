@@ -35,6 +35,13 @@ import { renderLineChart, chartBox } from './chart.js';
 // The build screen, shared with Crash replay - and with Sandbox and My real
 // portfolio when they arrive. See the note at the top of js/build.js.
 import { h, button, money, tickerPicker, allocator, floorNotes } from './build.js';
+// The share card: its words are decided by js/shareCard.js, which is pure, and
+// carried out of the browser by js/share.js, which the daily puzzle shares.
+import {
+  cardFromResult, cardFromSeries, drawShareCard, fontsReady, shareMessage,
+} from './shareCard.js';
+import { canvasToFile, copyOut, downloadFile, shareOut, shareUrl } from './share.js';
+import { ABOUT } from './config.js';
 
 export const TICKERS_URL = 'tickers.json';
 
@@ -362,7 +369,14 @@ function renderGuess(ctx, round) {
 
 // ------------------------------------------------------------- the reveal
 
-function renderReveal(ctx, round) {
+/**
+ * The reveal.
+ *
+ * Exported for tests/gameShare.test.js, which renders it to check that the
+ * share card is offered where there is a verdict and nowhere else. A series
+ * part has no verdict yet and must not offer one.
+ */
+export function renderReveal(ctx, round) {
   const level = round.level;
   const result = round.result;
   const view = h('div', 'view view-round');
@@ -469,6 +483,10 @@ function renderReveal(ctx, round) {
   view.append(holdings);
   view.append(h('p', 'note', `Measured over ${result.days} trading days, ${result.startDate} to ${result.endDate}.`));
 
+  // The card. Below the level, above the buttons that leave it: a player reads
+  // what happened, then decides whether to post it.
+  view.append(shareRow(cardFromResult(level, result, shareUrl(ABOUT, globalThis.location ?? null))));
+
   const next = ctx.nextLevelId(level.id);
   if (next !== null) {
     view.append(button(`Next: level ${next}`, 'btn btn-primary btn-wide', () => ctx.startRound(next)));
@@ -477,6 +495,81 @@ function renderReveal(ctx, round) {
   view.append(button('Back to the levels', 'btn btn-quiet btn-wide', () => ctx.toMenu()));
   view.append(footNotes(ctx.game));
   return view;
+}
+
+// --------------------------------------------------------- the share card
+
+/**
+ * "Share my score": the card, drawn and handed over.
+ *
+ * WHAT IS ON IT IS NOT DECIDED HERE. The content comes from js/shareCard.js as
+ * plain data - the level, the stars, one headline, the link, the disclaimer -
+ * and this function only paints it and passes it on. No text is added on the
+ * way, which is what lets tests/shareCard.test.js say what a player can post
+ * without rendering anything.
+ *
+ * THREE WAYS OUT, in order of what the device will take: the system share
+ * sheet with the picture in it, which is what a phone gives; the sheet with
+ * just the caption, on a browser that has one but will not take files; and a
+ * download beside a copy-link button, which is every laptop. A Share button
+ * that silently does nothing would be worse than none.
+ *
+ * NOTHING IS SENT ANYWHERE. Every path hands the image to the player.
+ */
+function shareRow(content) {
+  const row = h('div', 'share-row');
+  const status = h('p', 'share-status');
+  const holder = h('div', 'share-holder');
+  const preview = h('div', 'share-preview');
+
+  /** The fallback: the picture to keep, and the link to paste. */
+  const offerFallback = (file) => {
+    const actions = h('div', 'share-actions');
+    actions.append(button('Download the image', 'btn btn-quiet', () => {
+      downloadFile(file, content.fileName);
+      status.textContent = 'Saved.';
+    }));
+    actions.append(button('Copy the link', 'btn btn-quiet', async () => {
+      await copyOut(shareMessage(content), (said) => { status.textContent = said; }, holder);
+    }));
+    holder.replaceChildren(actions);
+  };
+
+  const share = button('Share my score', 'btn btn-quiet btn-wide share-card-button', async () => {
+    status.textContent = 'Drawing your card…';
+    try {
+      // The fonts FIRST. A canvas paints with whatever is loaded when fillText
+      // runs, so drawing before they arrive measures one face and paints another.
+      await fontsReady();
+      const canvas = document.createElement('canvas');
+      drawShareCard(canvas, content);
+
+      // The player sees what they are about to post before they post it.
+      canvas.className = 'share-card-image';
+      canvas.setAttribute('role', 'img');
+      canvas.setAttribute('aria-label', content.alt);
+      preview.replaceChildren(canvas);
+
+      const file = await canvasToFile(canvas, content.fileName);
+      const outcome = await shareOut({ text: shareMessage(content), file });
+      if (outcome === 'shared' || outcome === 'cancelled') {
+        status.textContent = '';
+        return;
+      }
+      status.textContent = 'Your card is ready.';
+      offerFallback(file);
+    } catch (error) {
+      // A card that cannot be drawn says so, and still offers the link.
+      status.textContent = `The card could not be made: ${error.message}`;
+      await copyOut(shareMessage(content), (said) => { status.textContent = said; }, holder);
+    }
+  });
+
+  row.append(share, status, preview, holder);
+  row.append(h('p', 'share-note',
+    'The card shows your stars and one line about the result. Never your holdings, '
+    + 'your money, or - on the mystery-portfolio levels - the answer.'));
+  return row;
 }
 
 /**
@@ -566,6 +659,11 @@ export function renderSeriesSummary(ctx, series) {
   const days = series.rounds[0].result.days;
   const first = series.rounds[0].result;
   view.append(h('p', 'note', `Each portfolio measured over ${days} trading days, ${first.startDate} to ${first.endDate}.`));
+
+  // Level 7's card is built from the VERDICT and nothing else - not from the
+  // three results - because the stars are all it is allowed to know. Its three
+  // portfolios come from the pools, and other players will be dealt them.
+  view.append(shareRow(cardFromSeries(level, verdict, shareUrl(ABOUT, globalThis.location ?? null))));
 
   view.append(button('Play this level again', 'btn btn-primary btn-wide', () => ctx.startRound(level.id)));
   view.append(button('Back to the levels', 'btn btn-quiet btn-wide', () => ctx.toMenu()));

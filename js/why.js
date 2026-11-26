@@ -330,8 +330,8 @@ export function signedPercent(change) {
  * the panel could read 0.7996 and the card 0.80, and the screen would contradict
  * itself about whether the level was passed.
  */
-export function formatCorrelation(r, threshold = null) {
-  return formatMeasure(r, { threshold });
+export function formatCorrelation(r, threshold = null, places = undefined) {
+  return formatMeasure(r, { threshold, ...(places === undefined ? {} : { places }) });
 }
 
 /**
@@ -511,7 +511,7 @@ export function crashFacts(result, { elsewhere = {} } = {}) {
  * something to talk about, even when it does not fire, so a test can see the
  * number that fell short.
  */
-export function ruleCandidate(facts, rule, { pairThreshold = null, limit = null } = {}) {
+export function ruleCandidate(facts, rule, { pairThreshold = null, pairPlaces = undefined, limit = null } = {}) {
   const when = rule.when;
   const none = { key: rule.key, fires: false, values: null };
 
@@ -669,7 +669,7 @@ export function ruleCandidate(facts, rule, { pairThreshold = null, limit = null 
       values: {
         a: facts.pair.a,
         b: facts.pair.b,
-        r: formatCorrelation(facts.pair.r, pairThreshold),
+        r: formatCorrelation(facts.pair.r, pairThreshold, pairPlaces),
         riskPct: percent(facts.pair.riskShare),
       },
     };
@@ -686,7 +686,7 @@ export function ruleCandidate(facts, rule, { pairThreshold = null, limit = null 
     return {
       key: rule.key,
       fires: closeEnough && bigEnough,
-      values: { a: facts.pair.a, b: facts.pair.b, r: formatCorrelation(facts.pair.r, pairThreshold) },
+      values: { a: facts.pair.a, b: facts.pair.b, r: formatCorrelation(facts.pair.r, pairThreshold, pairPlaces) },
     };
   }
 
@@ -771,9 +771,14 @@ export function leadingRules(why, outcome = null) {
  *                                      which decides whether any rule leads
  * @param {number|null} options.limit   the level's own pass threshold, for a card
  *                                      that states the limit a holding went past
+ * @param {number} [options.pairPlaces]  how many decimals the correlation gets, from
+ *                                      the level's revealPlaces. Level 1 reveals three,
+ *                                      and a card reading 1.00 under a panel reading
+ *                                      0.996 would be the screen contradicting itself
  */
 export function pickWhy(facts, why, {
-  bucket = null, pairThreshold = null, leadIn = null, outcome = null, limit = null,
+  bucket = null, pairThreshold = null, pairPlaces = undefined, leadIn = null, outcome = null,
+  limit = null,
 } = {}) {
   // The lead-in is kept BESIDE the card text and never joined to it. Two
   // templates, each rendered as written, is still no generated prose; one string
@@ -791,7 +796,7 @@ export function pickWhy(facts, why, {
     const values = {
       a: facts.pair.a,
       b: facts.pair.b,
-      r: formatCorrelation(facts.pair.r, pairThreshold),
+      r: formatCorrelation(facts.pair.r, pairThreshold, pairPlaces),
     };
     return asCard(bucket, card, values, leadInLine);
   }
@@ -800,7 +805,7 @@ export function pickWhy(facts, why, {
   // round that nothing leads on, this is exactly why.json's order.
   for (const key of [...leadingRules(why, outcome), ...why.order]) {
     const rule = why.rules.find((r) => r.key === key);
-    const candidate = ruleCandidate(facts, rule, { pairThreshold, limit });
+    const candidate = ruleCandidate(facts, rule, { pairThreshold, pairPlaces, limit });
     if (candidate.fires) return asCard(rule.key, rule, candidate.values, leadInLine);
   }
   return asCard(why.fallback.key ?? 'fallback', why.fallback, {}, leadInLine);

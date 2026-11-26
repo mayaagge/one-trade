@@ -3036,3 +3036,140 @@ show, and is therefore the first one built and the first one tested.
 824 tests pass.
 
 Educational, not investment advice.
+
+## The share card, 26 November 2026 (session 2.16)
+
+Milestone 2 step 8, part 1. A "Share my score" button on every reveal that has
+a verdict, making a 1080 x 1080 image: the level, the stars, one headline built
+from that level's own measure, the link and "Educational, not investment
+advice." New: js/shareCard.js, js/share.js, tests/shareCard.test.js,
+tests/share.test.js, tests/gameShare.test.js, tests/stubDom.js.
+
+### The card is decided before it is drawn
+
+shareCardContent() returns the whole card as plain data and drawShareCard()
+paints that object without adding a word. So everything a player can post is
+decided by a function node can run, and the tests scan the finished text rather
+than reading the templates. tests/shareCard.test.js checks the drawing too, with
+a canvas that records what it was asked to paint: every string reaching fillText
+has to be one the pure function already decided on.
+
+### The headlines live in levels.json
+
+Seven templates, one per level, in each level's new "share" block, filled from
+the measure the reveal screen printed - so the card and the screen cannot
+disagree about the same portfolio. A headline in code would have been a seventh
+place where a measure is described, and the one nobody would think to check.
+
+Two values break their own sentence, and both are reachable, so two levels carry
+a second line named for the condition it covers:
+
+* Level 6 at or below zero. guessNote records a legal build at -0.117, a
+  portfolio that ROSE 3.96% while the index fell. "Fell -0.12 times as far" is
+  not clumsy, it is false.
+* Level 4 below zero. bucketNote records that a portfolio can move slightly
+  AGAINST the basket.
+
+Every headline was read back for a pass AND a fail before anything was drawn.
+Level 5's survives both because maxRiskShare is the biggest share either way:
+"No holding carries more than 48% of my risk" is true on a miss.
+
+### Level 7's bands are the rule, not a description of it
+
+seriesVerdict() awards 3 stars for all three within 0.5, 2 for exactly two, 1
+for the pass rule alone - all three within 1 - and 0 for failing that. The four
+band strings say exactly those four things, and the test builds them by running
+seriesVerdict() on answer sets rather than by naming a star count, so a band and
+the rule that earns it cannot drift apart.
+
+### js/share.js, because the puzzle had it first
+
+The clipboard fallback, the share sheet and the link helpers were inside
+js/dailyView.js, where only the daily puzzle could reach them. They are in
+js/share.js now, with shareUrl() moved out of js/daily.js and re-exported there
+so every caller keeps the import it had. The daily puzzle's share tests pass
+unchanged, which is the check on the move.
+
+One thing the card needed that the puzzle did not: fonts. A canvas paints with
+whatever is loaded when fillText runs, so drawing before the fonts arrive
+measures one face and paints another, and the headline is wrapped to a width it
+is not drawn at. fontsReady() asks for the exact sizes and weights the card uses
+and then waits on document.fonts.ready.
+
+### Where the button is, and where it is not
+
+Not on one of level 7's three parts. There is no verdict there yet - the level
+is decided by all three guesses - and a card offered after portfolio 1 would be
+a card about a portfolio two more players are about to be dealt. That is the
+early return renderReveal() already had, so the share row sits after it; and
+tests/gameShare.test.js renders all three parts and the summary to check it.
+
+That test needed the DOM stub tests/dailyView.test.js grew, so the stub is
+tests/stubDom.js now and two screens are checked against one idea of what a
+document is.
+
+### Two levels must not say the answer, and the file enforces it
+
+Levels 2 and 7 are dealt their portfolios from the Hypothesis 3 pools, so the
+same portfolio reaches other players. Their cards carry the stars and a band -
+"within half a bet" - and NEITHER the answer NOR the guess. docs/PRD.md's
+share-card paragraph says so now; it used to say the card "includes stars and
+the bets number", which on those two levels would have been a spoiler.
+
+That rule is checked three times over, and only one of them is a test:
+
+1. `hidesValue()` reads `holdings.fixed`, so the two pool levels are found in
+   the data rather than listed as "2 and 7" in code. A pool level added later is
+   covered the day it is added.
+2. `validateShare()` in js/levels.js refuses to load a levels.json whose dealt
+   level carries `{value}` or `{holdings}` in its headline. The game does not
+   start with a card that would spoil its own pool, so the rule cannot be broken
+   by editing the data and running the tests that are left.
+3. The test that matters is a property, not a string match: two level-2 cards
+   built from the same stars and DIFFERENT answers come out `deepEqual`. A
+   friend who draws the same portfolio learns nothing from either card, which is
+   the actual requirement - no list of forbidden substrings can say that.
+
+The thing easiest to get wrong here is the guess, not the answer. "Within half a
+bet" is spoiler-free on its own, and a full answer beside a posted guess.
+
+### Three wording fixes, after reading all seven out loud
+
+Every headline was printed for a realistic pass AND a realistic fail, played
+against data/game.json and data/crashes.json rather than typed out. Three things
+only showed up that way.
+
+**A low band cannot end with "Can you?"** That ending invites a friend to match
+the result, which on a card that fell short invites them to do worse. The ending
+is per band now, beside the band words: level 2's 1-star card ends "Can you get
+closer?" and level 7's 0-star card ends "Can you get all three?". Every other
+band keeps "Can you?", and the levels that print a number needed no second
+ending at all - "Can you beat it?", "get lower?", "spread it thinner?", "fall
+less?" each name a direction, so the same sentence asks for better whether it
+passed or failed.
+
+The two second lines are the other way round: level 4's "moves against the AI
+basket" and level 6's "did not fall at all" are the best thing that can happen
+on their levels, so asking a friend to match them is right. Level 4's now ends
+"Can you do the same?", and level 6's keeps "Can you?". tests/shareCard.test.js
+pins all four cases rather than applying one blanket rule, because the blanket
+rule flagged level 6 and was wrong to.
+
+**Level 1 reveals three decimals now.** VOO and VTI correlate at 0.9962, which
+`toFixed(2)` turns into "1.00" - a claim that two holdings move together
+perfectly, on a number that is not that, and the card posts it. levels.json
+carries `revealPlaces: 3` on level 1 alone; js/levels.js's displayFor() hands it
+to the panel, the result line, the "Why?" card and the share card together, so
+the four cannot disagree about one pair. The GUESS keeps the slider's own two
+decimals: it is a value a player set in hundredths, not a measured answer.
+
+That change found a real seam. tests/why.test.js asserted that one pair reads
+the same whether its card is reached through a level or through
+check_why_cards.mjs's level-less rule path, and with a per-level precision those
+two were no longer the same question. cardFor() takes the places now, and the
+test asks for level 1's - the invariant is that a pair reads one way ON a level,
+not that a level-less card rounds like a level's.
+
+857 tests pass.
+
+Educational, not investment advice.

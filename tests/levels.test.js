@@ -316,7 +316,11 @@ test('the close-to-threshold window is wide enough to cover 2-decimal rounding',
 
 test('resultLine() prints the measure and the threshold to the same precision', () => {
   assert.equal(resultLine(level1, 0.7997), '0.7997 misses the 0.8000 needed');
-  assert.equal(resultLine(level1, 0.95), '0.95 clears the 0.80 needed');
+  // Level 1 reveals three decimals, and the threshold is printed to the same
+  // three: a correlation that rounds to 1.00 is not a pair that moves together
+  // perfectly, and the card posts this number.
+  assert.equal(resultLine(level1, 0.95), '0.950 clears the 0.800 needed');
+  assert.equal(resultLine(level1, 0.9962), '0.996 clears the 0.800 needed');
   assert.equal(resultLine(level3, 3.07), '3.07 clears the 3.00 needed');
   assert.equal(resultLine(level3, 2.9996), '2.9996 misses the 3.0000 needed');
   assert.equal(resultLine(level2, 2.1), null, 'level 2 has no threshold to print');

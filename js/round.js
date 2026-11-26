@@ -573,6 +573,9 @@ function buildWhyCard(level, {
     whyCard: pickWhy(facts, why, {
       bucket: onCorrelation && Array.isArray(level.buckets) ? bucketOf(level, value) : null,
       pairThreshold: onCorrelation ? level.pass.threshold ?? null : null,
+      // And to the same number of decimals as the panel above it: level 1
+      // reveals a correlation to three.
+      pairPlaces: onCorrelation ? displayFor(level).revealPlaces : undefined,
       // WHAT THIS ROUND WAS, so that a card written for one kind of round can
       // lead on it and stay silent everywhere else. Level 5 missed means one
       // holding went past the limit, and naming it is the whole answer to
@@ -1032,10 +1035,16 @@ export function createRound({
       guess: round.guess,
       passed,
       stars,
-      // Formatted here so every screen reads the same number.
+      // Formatted here so every screen reads the same number - the panel, the
+      // result line, the "Why?" card and the share card all take these.
       shown: formatMeasure(measured.value, {
-        threshold: level.pass.threshold ?? null, display: displayFor(level).display,
+        threshold: level.pass.threshold ?? null,
+        display: displayFor(level).display,
+        places: displayFor(level).revealPlaces,
       }),
+      // The GUESS keeps the slider's own places: it is a value the player set
+      // in hundredths or tenths, not a measured answer, and showing "0.950"
+      // would claim a precision the control does not have.
       guessShown: formatMeasure(round.guess, {
         threshold: level.pass.threshold ?? null, display: displayFor(level).display,
       }),

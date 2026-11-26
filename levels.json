@@ -132,6 +132,11 @@
       },
       "explain": "Two holdings with different names can be the same bet. Correlation measures how closely their daily moves line up: 1 means they move together every day, 0 means their moves are unrelated.",
       "why": "An S&P 500 fund and a total-market fund hold almost the same companies in almost the same proportions, so they rise and fall together. The names differ; the bet does not.",
+      "share": {
+        "headline": "I found two holdings with a correlation of {value}. Can you beat it?"
+      },
+      "revealPlaces": 3,
+      "revealPlacesNote": "A correlation is revealed to THREE decimals, not the two every other level uses. Two is not enough here: a real 0.9962 reads as \"1.00\", which claims a pair that moves together perfectly and is a claim the card then posts. Three reads 0.996. This is the revealed answer only - guess.places still describes the slider, which moves in hundredths - and js/round.js formats the panel, the result line, the \"Why?\" card and the share card through it together, so no two of them can disagree about the same pair.",
       "revealLabel": "How closely they really move together"
     },
     {
@@ -173,6 +178,20 @@
       "explain": "Effective bets counts independent sources of risk, not holdings. Five holdings that move together are closer to one bet. It counts risk rather than money, so a bond fund with a small share of the dollars can still be a real second bet.",
       "why": "This portfolio is drawn from a pool of 20, and level 7's first mystery portfolio comes from the same pool, so the two are equally hard on average. That is how Hypothesis 3 measures whether players improve.",
       "poolRef": "guessPool",
+      "share": {
+        "headline": "I guessed the bets in a mystery portfolio — {band}. {ending}",
+        "bands": {
+          "1": "out by more than 1 bet",
+          "2": "within 1 bet",
+          "3": "within half a bet"
+        },
+        "endings": {
+          "1": "Can you get closer?",
+          "2": "Can you?",
+          "3": "Can you?"
+        },
+        "note": "NO NUMBER, BY DESIGN. This level's portfolio is dealt from guessPool, the same pool level 7 draws from, so the same portfolio reaches other players; a card naming the answer would be a spoiler, and one naming the guess beside the band would be the answer worked out. The bands are this level's own star bands: 3 stars is stars.three.of, 2 stars is stars.two.of, and 1 star is everything else, since pass.measure is \"guess\" and this level cannot be failed. There is no \"0\" band for that reason. Each band carries its own ending: \"Can you?\" invites a friend to match a good result, and on the lowest band it would be inviting them to do worse, so that one asks them to get closer."
+      },
       "revealLabel": "Separate bets this portfolio really makes"
     },
     {
@@ -215,6 +234,10 @@
       },
       "explain": "Holdings from the same group tend to move together, so they collapse into one bet. Three real bets needs three groups that behave differently, not three names.",
       "why": "Five AI stocks are nearly one bet. A fund, a bond fund, gold, an energy name and a staples name are closer to five, because what drives each of them differs.",
+      "share": {
+        "headline": "I found {value} bets in {holdings} holdings. Can you beat it?",
+        "note": "docs/PRD.md's own example sentence. The portfolio is the player's own build off the whole ticker list, so the number gives nothing away to anybody else."
+      },
       "revealLabel": "Separate bets this portfolio really makes"
     },
     {
@@ -284,6 +307,11 @@
           "says": "within 0.10 of the real beta"
         }
       },
+      "share": {
+        "headline": "My portfolio moves {value}% for every 1% the AI basket moves. Can you get lower?",
+        "headlineBelowZero": "My portfolio moves against the AI basket, not with it. Can you do the same?",
+        "note": "A beta of 0.38 is 0.38% of movement per 1% of the basket's, which is why the headline carries the percent sign the reveal's number does not. bucketNote above records that a portfolio can move slightly AGAINST the basket; \"moves -0.05% for every 1%\" is a sentence a reader has to stop and decode, so a negative beta gets its own line."
+      },
       "revealLabel": "How far your portfolio moves with the AI basket",
       "explain": "Beta says how far your portfolio moves when the AI basket moves: 1 means it moves with the basket one for one, 0 means the basket tells you nothing about it. QQQ holds the AI names near the top of the Nasdaq-100, so 30% of it already buys some of that exposure before you pick anything else. Buying AI stocks on top stacks the same bet twice.",
       "why": "On the window this level was checked against, QQQ on its own had a beta of about 0.56 to the AI basket - more than this level allows. So the fund alone is already more than half an AI bet, and leaning harder on it is not the way out. What gets the beta under 0.50 is holding things the AI trade does not drive."
@@ -342,6 +370,10 @@
           "of": 0.05,
           "says": "within 5 points of the real share"
         }
+      },
+      "share": {
+        "headline": "No holding carries more than {value} of my risk. Can you spread it thinner?",
+        "note": "True whether the level was passed or failed: maxRiskShare is the biggest share, so nothing carries more than it either way."
       },
       "revealLabel": "Share of the risk in your biggest holding",
       "explain": "Share of risk is not share of dollars. Each holding's share is its part of what makes the portfolio move, and the four shares add up to 100%, so they can be read straight against the money. A quarter of the money in the holding that swings hardest can be most of the risk.",
@@ -412,6 +444,11 @@
           "of": 0.1,
           "says": "within 0.10 of the real ratio"
         }
+      },
+      "share": {
+        "headline": "My portfolio fell {value} times as far as the S&P 500 in the 2020 crash. Can you fall less?",
+        "headlineAtOrBelowZero": "My portfolio did not fall at all while the S&P 500 fell in the 2020 crash. Can you?",
+        "note": "\"Times as far\" is how this level's own explain reads the number: \"0.50 means you fell half as far\". guessNote above records that a legal build reaches -0.117 - a portfolio that ROSE while the index fell - and \"fell -0.12 times as far\" is not clumsy but false, so zero and below get their own line."
       },
       "revealLabel": "How much of the index's fall your portfolio took",
       "explain": "This level asks a different question from the others: not how many bets you made, but what happened when everything fell at once. The S&P 500 fell 33.99% in five weeks. Your answer is your own fall as a share of that one: 0.50 means you fell half as far, 1.00 means you fell with it, and above 1.00 means you fell harder. The 60% in stocks is there so the answer cannot be bought by simply holding less of the market.",
@@ -484,6 +521,22 @@
       },
       "explain": "This is every level at once. A portfolio can hold eight things and make one bet, or hold six and make four: what decides it is whether the holdings move together, not how many there are or how the money is split. Guessing three in a row is the test of that, because one number cannot be right about all three.",
       "why": "The first of these three portfolios comes from the same pool of 20 that dealt your level 2 portfolio, so the two are equally hard on average - that pair of guesses is how Hypothesis 3 measures whether players improve. It is never the same portfolio you saw on level 2.",
+      "share": {
+        "headline": "Three mystery portfolios — {band}. {ending}",
+        "bands": {
+          "0": "not all three within 1 bet",
+          "1": "all three within 1 bet",
+          "2": "two of three within half a bet",
+          "3": "all three within half a bet"
+        },
+        "endings": {
+          "0": "Can you get all three?",
+          "1": "Can you?",
+          "2": "Can you?",
+          "3": "Can you?"
+        },
+        "note": "The same spoiler rule as level 2, for the same reason: part 1 is drawn from guessPool and parts 2 and 3 from finalPool, and all three reach other players. Each band is the rule js/levels.js's seriesVerdict() applies for that many stars: 3 is all three inside stars.three.of, 2 is exactly two inside it (three would be 3 stars), 1 is the pass rule alone - all three within pass.of - and 0 is failing that. The 0-star ending asks for all three rather than saying \"Can you?\", which on a failed card would be inviting a friend to miss too."
+      },
       "revealLabel": "Separate bets this portfolio really makes"
     }
   ],

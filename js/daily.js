@@ -20,6 +20,8 @@
 //
 // Educational, not investment advice.
 
+import { withSource } from './share.js';
+
 /** Where a player's progress is kept. Versioned: an old shape is not a new one. */
 export const STORAGE_KEY = 'oneTrade.daily.v1';
 
@@ -129,16 +131,11 @@ export function gridOf(answers, entry) {
 /**
  * Where the game lives, for a link in a share.
  *
- * ABOUT.url when the deploy has set it; otherwise the page this is running on,
- * which is right on a laptop and right on the live site. An empty string if
- * there is neither - a share with no link beats a share button that throws.
+ * It lives in js/share.js now, because the score card needs the same link, and
+ * it is re-exported here so every caller of the puzzle's share keeps the one
+ * import it has always had.
  */
-export function shareUrl(about, location) {
-  const configured = about?.url;
-  if (typeof configured === 'string' && configured.length > 0) return configured;
-  if (location?.origin) return `${location.origin}${location.pathname ?? ''}`;
-  return '';
-}
+export { shareUrl } from './share.js';
 
 /**
  * What the player posts. SPOILER-FREE, and tests/daily.test.js goes looking:
@@ -151,7 +148,7 @@ export function shareUrl(about, location) {
  * tracking anybody.
  */
 export function shareText(answers, entry, url) {
-  const link = url ? `${url}${url.includes('?') ? '&' : '?'}src=daily` : '';
+  const link = withSource(url, 'daily');
   const lines = [
     `One Trade: Same bet? ${entry.date}`,
     gridOf(answers, entry),

@@ -25,6 +25,7 @@
 
 import { h, button } from './build.js';
 import { ABOUT } from './config.js';
+import { copyOut, shareOut } from './share.js';
 import { read, write } from './storage.js';
 import {
   DISCLAIMER,
@@ -121,27 +122,6 @@ function gridRow(state) {
   return row;
 }
 
-/** Copy to the clipboard, or fall back to something the player can select. */
-async function copyOut(text, say, holder) {
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-      say('Copied.');
-      return;
-    }
-  } catch {
-    // Permission refused, or no clipboard: fall through to the textarea.
-  }
-  const box = h('textarea', 'daily-share-text');
-  box.readOnly = true;
-  box.value = text;
-  box.rows = 5;
-  holder.replaceChildren(box);
-  box.focus();
-  box.select();
-  say('Copy the text above.');
-}
-
 /** The end of a day: the score, the grid, and the share. */
 function summary(state, onPlayToday) {
   const view = h('div', 'daily-summary');
@@ -154,15 +134,8 @@ function summary(state, onPlayToday) {
 
   view.append(button('Share', 'primary daily-share', async () => {
     // A phone gets the sheet it expects; everything else gets the clipboard.
-    if (navigator.share) {
-      try {
-        await navigator.share({ text });
-        return;
-      } catch (error) {
-        // A cancelled share is not a failure and should say nothing.
-        if (error?.name === 'AbortError') return;
-      }
-    }
+    // Both come from js/share.js, which the score card uses too.
+    if (await shareOut({ text }) !== 'unsupported') return;
     await copyOut(text, (said) => { status.textContent = said; }, holder);
   }));
   view.append(status);

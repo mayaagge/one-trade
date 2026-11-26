@@ -827,7 +827,7 @@ main { outline: none; }
 .daily-square-text { font-size: 0.72rem; opacity: 0.8; }
 
 .daily-share-status { font-size: 0.9rem; min-height: 1.2rem; margin: 0.4rem 0; }
-.daily-share-text { width: 100%; font-family: inherit; font-size: 0.9rem; }
+.share-text { width: 100%; font-family: inherit; font-size: 0.9rem; }
 .daily-spoiler-note, .daily-again, .daily-carried { font-size: 0.85rem; opacity: 0.8; }
 
 .daily-waiting { margin: 1.2rem 0; }
@@ -835,4 +835,24 @@ main { outline: none; }
 @media (max-width: 420px) {
   .daily-answer { flex: 1 1 100%; }
   .daily-tickers { font-size: 1.35rem; }
+}
+
+/* ---- the share card, on a level's reveal -------------------------------- */
+
+.share-row { margin: 1.4rem 0 0.6rem; }
+.share-status { font-size: 0.9rem; min-height: 1.2rem; margin: 0.4rem 0; }
+.share-note { font-size: 0.85rem; opacity: 0.8; margin: 0.2rem 0 0; }
+.share-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.4rem 0; }
+.share-actions .btn { flex: 1 1 12rem; }
+
+/* The card is drawn at 1080 and shown at whatever width there is: a player
+   should see what they are about to post, not a 1080px column. */
+.share-preview:not(:empty) { margin: 0.6rem 0; }
+.share-card-image {
+  display: block;
+  width: 100%;
+  max-width: 22rem;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
 }

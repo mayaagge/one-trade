@@ -20,6 +20,14 @@ export const STARTING_DOLLARS = 10000;
 export const CLOSE_TO_THRESHOLD = 0.005;
 
 /**
+ * How many decimals a revealed answer carries, unless its level says otherwise
+ * with revealPlaces. Two reads right for a number of bets, a beta and a ratio
+ * of falls; level 1 asks for three, because a correlation rounds to 1.00 while
+ * still being short of it.
+ */
+export const REVEAL_PLACES = 2;
+
+/**
  * Slack on a star band, so binary floating point cannot cost a player a star.
  *
  * A guess of 0.82 against an actual of 0.92 is "within 0.10" in every sense a
@@ -111,6 +119,11 @@ export function validateLevels(data) {
     validateBuckets(level);
     validateStars(level);
     validateWindow(level);
+    validateShare(level);
+    if (level.revealPlaces !== undefined
+      && (!Number.isInteger(level.revealPlaces) || level.revealPlaces < 0 || level.revealPlaces > 6)) {
+      throw new Error(`${where}: revealPlaces must be a whole number of decimals from 0 to 6`);
+    }
   }
 
   validateKinds(data);
@@ -491,6 +504,69 @@ function validateBuckets(level) {
       throw new Error(`${where}: the buckets must run from the top down; ${bucket.key} at ${bucket.min} is not below ${previous}`);
     }
     previous = bucket.min;
+  }
+}
+
+/**
+ * The share card's words, which are the only text in this game that leaves the
+ * browser. docs/PRD.md: "It includes stars and the headline number, never real
+ * holdings."
+ *
+ * THE SPOILER RULE IS ENFORCED HERE, not only in a test. A level whose
+ * portfolio is dealt from one of the Hypothesis 3 pools - level 2 and level 7 -
+ * sends the same portfolio to other players, so its card says how close the
+ * guess came and never the answer. A headline with {value} in it on such a
+ * level would post the answer, so the file will not load with one.
+ */
+function validateShare(level) {
+  const where = `level ${level.id}`;
+  const share = level.share;
+  if (!share || typeof share.headline !== 'string' || share.headline.length === 0) {
+    throw new Error(`${where}: share.headline is missing, so the level has no card to post`);
+  }
+  const dealt = level.holdings?.fixed === true;
+  if (!dealt) {
+    if (!share.headline.includes('{value}')) {
+      throw new Error(`${where}: share.headline says nothing about the level's own measure ({value})`);
+    }
+    if (share.bands) throw new Error(`${where}: share.bands belongs to a level that hides its answer`);
+    return;
+  }
+
+  // A dealt portfolio: bands, and not a number in sight.
+  for (const token of ['{value}', '{holdings}']) {
+    if (share.headline.includes(token)) {
+      throw new Error(
+        `${where} is dealt its portfolio from a pool, so its card cannot carry ${token}: `
+        + 'another player can draw the same portfolio',
+      );
+    }
+  }
+  if (!share.headline.includes('{band}')) {
+    throw new Error(`${where}: share.headline has no {band}, so the card would not say how close the guess was`);
+  }
+  // THE ENDING IS PER BAND, not per level. "Can you?" invites a friend to match
+  // the result, which on the lowest band would be inviting them to do worse.
+  if (!share.headline.includes('{ending}')) {
+    throw new Error(`${where}: share.headline has no {ending}, so every band would end the same way`);
+  }
+  // Every star count the level can award needs words. A level that passes on
+  // making a guess cannot score 0, and says so by having no "0" band.
+  const lowest = level.pass.measure === 'guess' ? 1 : 0;
+  for (let stars = lowest; stars <= 3; stars += 1) {
+    if (typeof share.bands?.[String(stars)] !== 'string') {
+      throw new Error(`${where}: share.bands has no band for ${stars} stars`);
+    }
+    if (typeof share.endings?.[String(stars)] !== 'string') {
+      throw new Error(`${where}: share.endings has no ending for ${stars} stars`);
+    }
+  }
+  for (const [what, block] of [['bands', share.bands], ['endings', share.endings]]) {
+    for (const key of Object.keys(block)) {
+      if (Number(key) < lowest) {
+        throw new Error(`${where}: share.${what} has one for ${key} stars, which this level cannot award`);
+      }
+    }
   }
 }
 
@@ -917,6 +993,14 @@ export function displayFor(level) {
     display: guess.display ?? 'number',
     places: guess.places ?? 2,
     step: guess.step ?? 0.01,
+    /**
+     * How many decimals the REVEALED answer gets, which is not always how many
+     * the guess gets. Two everywhere except level 1, where a correlation of
+     * 0.9962 would read "1.00" - a claim that two holdings move together
+     * perfectly, on a number that is not that. Every screen that states the
+     * answer reads this one value, so none of them can disagree.
+     */
+    revealPlaces: level.revealPlaces ?? REVEAL_PLACES,
   };
 }
 
@@ -926,7 +1010,7 @@ export function displayFor(level) {
  * same number of decimals as the measure, so a near miss does not read as
  * "0.7996 misses the 0.8 needed" with two different precisions side by side.
  */
-export function resultLine(level, measured, { places = 2, display = null } = {}) {
+export function resultLine(level, measured, { places = null, display = null } = {}) {
   const rule = level.pass;
   // Neither of the rules that are about guesses rather than quantities has a
   // threshold for one number to clear: level 2 passes on making a guess, and
@@ -939,7 +1023,9 @@ export function resultLine(level, measured, { places = 2, display = null } = {})
   // bet, while the revealed number is worth two decimals. Reading places off the
   // level here would quietly turn level 3's "3.07 bets" into "3.1 bets".
   const asNumber = display ?? displayFor(level).display;
-  const decimals = places;
+  // The level's own reveal places, so this line and the panel above it round
+  // the same number the same way. Level 1 shows three.
+  const decimals = places ?? displayFor(level).revealPlaces;
   const shown = formatMeasure(measured, {
     threshold: rule.threshold, places: decimals, display: asNumber,
   });

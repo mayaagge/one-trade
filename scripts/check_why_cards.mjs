@@ -275,7 +275,7 @@ export function frozenGameDoc(prices) {
  * which rule explains the portfolio, and that is a question about the rules.
  */
 export function cardFor(game, groups, why, dollars, {
-  days = WINDOW_DAYS, basket = null, outcome = null, limit = null,
+  days = WINDOW_DAYS, basket = null, outcome = null, limit = null, pairPlaces = undefined,
 } = {}) {
   const total = Object.values(dollars).reduce((sum, d) => sum + d, 0);
   if (total !== TOTAL_DOLLARS) {
@@ -300,7 +300,11 @@ export function cardFor(game, groups, why, dollars, {
   });
   // `outcome` is what the round WAS, for a lesson about a card that leads on one
   // kind of round rather than sitting in why.json's order.
-  return { facts, card: pickWhy(facts, why, { outcome, limit }), days: window.days };
+  // `pairPlaces` is for a caller comparing this card against a LEVEL's card:
+  // level 1 reveals a correlation to three decimals, and the same pair has to
+  // read the same way whichever path reached it. A bare lesson portfolio has no
+  // level and leaves it unset, which is the two decimals every card had before.
+  return { facts, card: pickWhy(facts, why, { outcome, limit, pairPlaces }), days: window.days };
 }
 
 /**

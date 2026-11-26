@@ -418,7 +418,9 @@ Reach students in groups, through the people who already gather them: instructor
 
 ### Growth built into the game
 
-- **Share card:** after each level, a "Share my score" button makes an image like "I found 3.2 bets in 5 holdings. Can you beat it?" with a challenge link. It includes stars and the bets number, never real holdings.
+- **Share card:** after each level, a "Share my score" button makes a 1080x1080 image: the level, the stars, one headline built from that level's own measure - "I found 3.2 bets in 5 holdings. Can you beat it?" - the challenge link, and "Educational, not investment advice." It never carries a ticker, a dollar amount or a weight.
+
+  **The two pool levels say how close the guess came, and never the answer.** Levels 2 and 7 are dealt their portfolios from the Hypothesis 3 pools, so the same portfolio reaches other players. Their cards carry the stars and a band - "within half a bet" - and neither the real number of bets nor the guess, since the two together are the answer. Every other level builds its own portfolio, so its number gives nobody else anything. The link carries ?src=share and nothing about the portfolio or the draw.
 
 - **Weekly challenge:** one new mystery portfolio each Monday, so there's a reason to come back and to post about it.
 
@@ -556,7 +558,7 @@ There are five milestones, in order, and each ends with a check you can verify. 
 
 7. Save progress in the browser's storage, wrapped in try/catch so the game still works without it.
 
-8. Add the share card (an image with stars and bets, never holdings) and the weekly challenge.
+8. Add the share card (an image with the stars and one headline, never holdings, and never the answer on the two pool levels) and the weekly challenge.
 
 9. Keep the previous portfolio checker as the Sandbox and My real portfolio modes.
 

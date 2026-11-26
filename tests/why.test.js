@@ -32,7 +32,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { validateLevels, levelById, bucketOf, weightsFromDollars } from '../js/levels.js';
+import { validateLevels, levelById, bucketOf, weightsFromDollars, displayFor } from '../js/levels.js';
 import { covariance, effectiveBets, maxRiskShare } from '../js/math.js';
 import { gameWindow, windowMatrix } from '../js/gameView.js';
 import {
@@ -601,13 +601,19 @@ test('an index fund and a tech fund read the same way on level 1 and by the rule
   // pair rule it answers to when a level allocates money.
   const lesson = LESSON_PORTFOLIOS.find((l) => l.key === 'index-plus-tech');
   assert.equal(lesson.onLevel, 1);
-  const byRule = cardFor(GAME, GROUPS, WHY, lesson.dollars);
+  // On level 1 - which is where this pair is met - a correlation is revealed to
+  // three decimals, so the rule path is asked for the same three. The invariant
+  // is that one pair reads one way on one level, not that a level-less card and
+  // a level's card round alike.
+  const places = displayFor(levelById(LEVELS, 1)).revealPlaces;
+  const byRule = cardFor(GAME, GROUPS, WHY, lesson.dollars, { pairPlaces: places });
   assert.equal(byRule.card.key, 'pair');
 
   const { result } = play(1, ['VOO', 'QQQ'], 0.95);
   assert.equal(result.whyCard.key, 'same', 'on level 1 it is the "same bet" bucket card');
   // Both paths name the same number for the same pair.
   assert.equal(result.whyCard.values.r, byRule.card.values.r);
+  assert.equal(result.whyCard.values.r.split('.')[1].length, 3, `read as ${result.whyCard.values.r}`);
 });
 
 test('the lesson set covers more than one rule, so it is not a single case', () => {

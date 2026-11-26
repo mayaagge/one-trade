@@ -1,18 +1,9 @@
 // tests/dailyView.test.js - the daily puzzle screen, actually rendered.
 //
-// WHY A DOM STUB RATHER THAN A BROWSER. This project has no dependencies
-// (CLAUDE.md rule 8) and no DOM library, and the other screens are checked by
-// being played. That leaves the riskiest part of a view - the first render, and
-// what a click does to it - running for the first time in front of a player.
-// The stub below is about sixty lines and supports only what js/dailyView.js
-// actually calls: createElement, textContent, className, append,
-// replaceChildren, querySelector by class, setAttribute and click listeners.
-//
-// It is NOT a browser and does not pretend to be: no layout, no styles, no
-// events beyond the one this screen uses. What it checks is the thing a unit
-// test of the pure logic cannot - that the words reach the screen, that a click
-// locks exactly one answer, and that a reload lands where it should. Playing it
-// in a real browser is still worth doing; this makes sure it is worth opening.
+// WHY A DOM STUB RATHER THAN A BROWSER, and where it lives: tests/stubDom.js,
+// which the Learn screens' share test uses too. What it checks is the thing a
+// unit test of the pure logic cannot - that the words reach the screen, that a
+// click locks exactly one answer, and that a reload lands where it should.
 //
 // Educational, not investment advice.
 
@@ -21,62 +12,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { StubNode, textOf } from './stubDom.js';
 import { mountDaily } from '../js/dailyView.js';
 import { STORAGE_KEY } from '../js/daily.js';
 
 const read = (name) => JSON.parse(readFileSync(fileURLToPath(new URL(`../${name}`, import.meta.url)), 'utf8'));
 const TICKERS = read('tickers.json');
-
-// ------------------------------------------------------------- the stub
-
-class StubNode {
-  constructor(tag) {
-    this.tagName = String(tag).toUpperCase();
-    this.children = [];
-    this.className = '';
-    this.attributes = {};
-    this.listeners = {};
-    this._text = '';
-    this.disabled = false;
-  }
-
-  set textContent(value) { this._text = String(value); this.children = []; }
-
-  get textContent() {
-    return this.children.length ? this.children.map((c) => c.textContent).join(' ') : this._text;
-  }
-
-  append(...nodes) { this.children.push(...nodes); }
-
-  replaceChildren(...nodes) { this.children = nodes; this._text = ''; }
-
-  insertBefore(node, before) {
-    const at = this.children.indexOf(before);
-    if (at === -1) this.children.push(node);
-    else this.children.splice(at, 0, node);
-  }
-
-  setAttribute(name, value) { this.attributes[name] = String(value); }
-
-  addEventListener(name, fn) { (this.listeners[name] ??= []).push(fn); }
-
-  click() {
-    if (this.disabled) return;
-    for (const fn of this.listeners.click ?? []) fn();
-  }
-
-  /** Every node in the tree, this one first. */
-  all() { return [this, ...this.children.flatMap((child) => child.all())]; }
-
-  matches(selector) {
-    return selector.split('.').filter(Boolean)
-      .every((name) => this.className.split(/\s+/).includes(name));
-  }
-
-  querySelector(selector) { return this.all().find((node) => node !== this && node.matches(selector)) ?? null; }
-
-  querySelectorAll(selector) { return this.all().filter((node) => node !== this && node.matches(selector)); }
-}
 
 /** A document, a localStorage and a fetch, for one render. */
 function browser({ daily, store = {} } = {}) {
@@ -141,8 +82,6 @@ function dailyDoc(date = '2026-11-27') {
     }],
   };
 }
-
-const textOf = (root) => root.all().map((n) => n._text).filter(Boolean).join(' | ');
 
 // ------------------------------------------------------------- the states
 
