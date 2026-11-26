@@ -83,6 +83,13 @@ export const MAX_DAILY_MOVE = 0.5;
 /** More weekdays than this without fresh data, and the refresh job goes red. */
 export const STALE_WEEKDAYS = 5;
 
+/**
+ * How many incomplete newest trading days may be dropped before the run gives
+ * up. Two covers a ticker whose bar is published late and the evening after it;
+ * a third missing day is a feed that is actually broken, not one that is slow.
+ */
+export const MAX_TRIMMED_DAYS = 2;
+
 export const DISCLAIMER = 'Educational, not investment advice.';
 
 /** Defaults. The live price file is fetched on every run and never committed. */
@@ -137,6 +144,88 @@ export function expectedTickers(spec) {
  * here, before anything is written, which is what keeps a broken game.json from
  * replacing a good one.
  */
+/**
+ * Cut every series back to the newest date EVERY ticker has, and say what was
+ * cut.
+ *
+ * WHY THIS EXISTS. Yahoo does not publish every ticker's daily bar at the same
+ * moment. On 25 November 2026 the scheduled refresh found 41 tickers with that
+ * day's close and AAPL without it, more than four hours after the close, and
+ * threw the whole evening away. The next morning AAPL had it. A tail that is a
+ * few hours behind is not a broken feed, and the answer is to play on the last
+ * day everybody has rather than on nothing.
+ *
+ * ONLY THE TAIL IS EVER CUT. A missing day in the MIDDLE of a ticker's history
+ * would turn one day's return into two days' worth, and that still stops the
+ * run: js/returns.js refuses it, and trimming the end cannot reach it. A
+ * snapshot can hold both faults at once and still be refused for the second.
+ *
+ * THE CALENDAR TICKER IS NOT A SPECIAL CASE. ^GSPC defines the trading days, so
+ * when it is the one lagging, every other ticker holds a date the calendar does
+ * not have, and js/returns.js refuses that too - the same complete evening lost
+ * for the same reason. The cut is therefore the oldest last-date across every
+ * series, ^GSPC included.
+ *
+ * @param {object} snapshot a price file in data/live_prices.json's shape
+ * @returns {{snapshot: object, cutDate: string, dropped: Array<{date: string, missing: string[]}>}}
+ */
+export function trimIncompleteTail(snapshot, { maxDropped = MAX_TRIMMED_DAYS } = {}) {
+  const prices = snapshot?.prices;
+  if (!prices || typeof prices !== 'object') {
+    throw new Error('trimIncompleteTail: the snapshot has no prices object');
+  }
+  const tickers = Object.keys(prices);
+  if (tickers.length === 0) throw new Error('trimIncompleteTail: the snapshot has no tickers');
+
+  const lastOf = {};
+  for (const ticker of tickers) {
+    const dates = prices[ticker]?.dates;
+    if (!Array.isArray(dates) || dates.length === 0) {
+      throw new Error(`trimIncompleteTail: ${ticker} has no dates at all`);
+    }
+    lastOf[ticker] = dates[dates.length - 1];
+  }
+
+  // The newest date every ticker has. Not the calendar's last day: if the
+  // calendar ticker is the laggard, its last day is already the cut.
+  const cutDate = tickers.reduce((oldest, ticker) => (
+    lastOf[ticker] < oldest ? lastOf[ticker] : oldest
+  ), lastOf[tickers[0]]);
+
+  // Every date ANY series holds past the cut, so a dropped day is reported even
+  // when only one ticker had it.
+  const past = new Set();
+  for (const ticker of tickers) {
+    for (const date of prices[ticker].dates) if (date > cutDate) past.add(date);
+  }
+  const dropped = [...past].sort().map((date) => ({
+    date,
+    missing: tickers.filter((ticker) => !prices[ticker].dates.includes(date)).sort(),
+  }));
+
+  if (dropped.length === 0) return { snapshot, cutDate, dropped };
+
+  if (dropped.length > maxDropped) {
+    const laggards = tickers.filter((ticker) => lastOf[ticker] === cutDate).sort();
+    throw new Error(
+      `build_game_data: the ${dropped.length} newest trading days are incomplete `
+      + `(${dropped.map((day) => `${day.date}: ${day.missing.join(', ')}`).join('; ')}). `
+      + `At most ${maxDropped} may be dropped, so nothing was written. The series that stops `
+      + `earliest is ${laggards.join(', ')}, which ends on ${cutDate} - if that is a delisting `
+      + 'rather than a late publication, the ticker list is what needs changing.',
+    );
+  }
+
+  const trimmed = {};
+  for (const ticker of tickers) {
+    const series = prices[ticker];
+    let keep = series.dates.length;
+    while (keep > 0 && series.dates[keep - 1] > cutDate) keep -= 1;
+    trimmed[ticker] = { ...series, dates: series.dates.slice(0, keep), close: series.close.slice(0, keep) };
+  }
+  return { snapshot: { ...snapshot, prices: trimmed }, cutDate, dropped };
+}
+
 export function buildGameData(snapshot, { days = GAME_DAYS, source = LIVE_PRICES_PATH } = {}) {
   const built = buildReturns(snapshot);
   if (built.dates.length < days) {
@@ -260,10 +349,23 @@ export function checkGameData(doc, { tickers, days = GAME_DAYS, minDays = MIN_DA
       const value = row[column];
       if (value === null) {
         if (first !== -1) {
+          // A run of nulls that reaches the last row is a SHORT TAIL - the
+          // ticker's prices stop early - and a null with values after it is a
+          // HOLE. They are different faults: a short tail is a bar that has not
+          // been published yet, which trimIncompleteTail() drops before this
+          // function ever sees it, and a hole would turn one day's return into
+          // two days' worth. Calling both "inside its own history" is what sent
+          // the refresh of 26 November 2026 looking for a gap that was not there.
+          const trailing = doc.rows.slice(i).every((later) => later[column] === null);
           throw new Error(
-            `game.json: ${ticker} has no value on ${row[0]}, inside its own history (it starts on `
-            + `${doc.rows[first][0]}). A missing day would turn one day's return into two days' `
-            + 'worth, so nothing was written.',
+            trailing
+              ? `game.json: ${ticker} has no values from ${row[0]} to the end of the file, so its `
+                + `prices stop ${doc.rows.length - i} trading day`
+                + `${doc.rows.length - i === 1 ? '' : 's'} early. That is a short tail, not a gap: `
+                + 'the newest days should have been trimmed before the file was built.'
+              : `game.json: ${ticker} has no value on ${row[0]}, inside its own history (it starts on `
+                + `${doc.rows[first][0]}). A missing day would turn one day's return into two days' `
+                + 'worth, so nothing was written.',
           );
         }
         continue;
@@ -431,8 +533,21 @@ function main(argv) {
     }
   }
 
-  const snapshot = JSON.parse(readFileSync(resolve(ROOT, args.prices), 'utf8'));
+  const fetched = JSON.parse(readFileSync(resolve(ROOT, args.prices), 'utf8'));
   const tickers = expectedTickers(JSON.parse(readFileSync(resolve(ROOT, 'tickers.json'), 'utf8')));
+
+  // An evening where a ticker's bar has not been published yet is one day
+  // behind, not broken. Drop the incomplete newest days, say which and why, and
+  // play on the last day everybody has.
+  const { snapshot, dropped } = trimIncompleteTail(fetched);
+  for (const day of dropped) {
+    console.warn(
+      `::warning title=Incomplete trading day dropped::${day.date} was dropped because `
+      + `${day.missing.length} ticker${day.missing.length === 1 ? ' has' : 's have'} no close for `
+      + `it yet: ${day.missing.join(', ')}. The game plays on the last day every ticker has.`,
+    );
+    say(`Dropped ${day.date}: no close yet for ${day.missing.join(', ')}`);
+  }
 
   const doc = buildGameData(snapshot, { source: args.prices });
   checkGameData(doc, { tickers });

@@ -65,7 +65,9 @@ jobs:
         with:
           node-version: 24
 
-      - uses: actions/setup-python@v5
+      # v7 runs on Node 24. v5 targets Node 20, which the runner now forces onto
+      # Node 24 with a deprecation warning on every run.
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
@@ -94,30 +96,52 @@ jobs:
 
       # A failed fetch keeps the previous file. That is right for one evening and
       # wrong for a fortnight, so the committed file's own age decides the colour.
+      # continue-on-error, like every step below that can fail on data rather
+      # than on code: going red is right, but stopping here would skip the puzzle
+      # build, the tests and the commit, which is how one bad evening used to
+      # take the whole job with it. The final step turns the run red.
       - name: Keep the previous data, or go red if it has gone stale
+        id: stale
         if: steps.fetch.outputs.fetched != 'true'
+        continue-on-error: true
         run: |
           echo "::warning title=Live fetch failed::Yahoo did not answer after 3 attempts. Keeping the previous data/game.json."
           node scripts/build_game_data.mjs --check-stale
 
       - name: Rebuild data/game.json
+        id: rebuild
         if: steps.fetch.outputs.fetched == 'true'
+        continue-on-error: true
         run: node scripts/build_game_data.mjs
 
       # No `if`: a failed fetch is a reason to play on yesterday's prices, never
       # a reason to leave tomorrow without a puzzle.
       - name: Build the daily "Same bet?" puzzle
+        id: puzzle
+        continue-on-error: true
         run: node scripts/build_puzzles.mjs
 
       # A push made with GITHUB_TOKEN does not trigger the Tests workflow, so the
       # tests run here. Without this the daily commit would be the one commit in
       # the repository that nothing checked.
+      # A HARD GATE, and the only one: a failing test means the code that built
+      # this data is suspect, and nothing should be committed on it.
+      #
+      # ONE_TRADE_SKIP_CROSS_FETCH defers the handful of tests that compare
+      # numbers from two different downloads. Yahoo re-adjusts old closes between
+      # fetches, so those can fail for a reason no commit caused - it happened on
+      # 26 November 2026 - and a re-adjustment must not keep an evening's prices
+      # out of the game. They run after the commit instead, below.
       - name: Run the tests
+        id: tests
+        env:
+          ONE_TRADE_SKIP_CROSS_FETCH: '1'
         run: node --test "tests/**/*.test.js"
 
       # data/live_prices.json is gitignored, so it is not in this list; --porcelain
       # strips to the path, which is compared whole rather than matched loosely.
       - name: Refuse to commit anything but the three data files this job owns
+        if: steps.tests.outcome == 'success'
         run: |
           changed=$(git status --porcelain --untracked-files=all | sed 's/^...//')
           echo "Changed: ${changed:-nothing}"
@@ -139,6 +163,7 @@ jobs:
       # move, so the two files are tested for change separately and the message
       # says which of them actually moved.
       - name: Commit, if the data changed
+        if: steps.tests.outcome == 'success'
         run: |
           # --porcelain rather than `git diff`, so the first run - when a file is
           # new and untracked, and a diff is therefore empty - still commits.
@@ -168,7 +193,9 @@ jobs:
       # fix in the levels file, not a reason to withhold today's prices from the
       # game.
       - name: Can every level still be passed three ways?
+        id: levelcheck
         if: steps.fetch.outputs.fetched == 'true'
+        continue-on-error: true
         run: node scripts/check_levels.mjs --prices data/live_prices.json
 
       # Also after the commit, for the same reason. Whether today's correlations
@@ -176,4 +203,49 @@ jobs:
       # not about any commit, so it colours the run and never withholds the data.
       # The unit tests deliberately do not check this; see tests/puzzles.test.js.
       - name: Can the daily puzzle still be built from today's prices?
+        id: poolcheck
+        continue-on-error: true
         run: node scripts/build_puzzles.mjs --check --days 60
+
+      # The tests held back above, now that the data is safely committed. These
+      # compare two downloads of the same prices, so they report on Yahoo's
+      # re-adjustment rather than on this repository's code.
+      - name: Do the two fetches still agree?
+        id: crossfetch
+        continue-on-error: true
+        run: node --test tests/liveRolling.test.js tests/research.test.js tests/crash.test.js
+
+      # THE RUN'S COLOUR. Every step above that can fail on data rather than on
+      # code is continue-on-error, so the job keeps going and the commit still
+      # happens; this is where those failures are added up.
+      #
+      # outcome, NOT conclusion. continue-on-error rewrites a failed step's
+      # CONCLUSION to success - that is what it is for - and leaves its OUTCOME
+      # as failure. A gate written on conclusion would be green every time.
+      # tests/workflow.test.js holds this file to that.
+      - name: Go red if anything above failed
+        if: >-
+          steps.stale.outcome == 'failure' ||
+          steps.rebuild.outcome == 'failure' ||
+          steps.puzzle.outcome == 'failure' ||
+          steps.levelcheck.outcome == 'failure' ||
+          steps.poolcheck.outcome == 'failure' ||
+          steps.crossfetch.outcome == 'failure'
+        run: |
+          echo "The data was committed if there was any to commit. These steps failed:"
+          for step in \
+            "stale:${{ steps.stale.outcome }}" \
+            "rebuild:${{ steps.rebuild.outcome }}" \
+            "puzzle:${{ steps.puzzle.outcome }}" \
+            "levelcheck:${{ steps.levelcheck.outcome }}" \
+            "poolcheck:${{ steps.poolcheck.outcome }}" \
+            "crossfetch:${{ steps.crossfetch.outcome }}"; do
+            name=${step%%:*}
+            outcome=${step#*:}
+            if [ "$outcome" = "failure" ]; then
+              echo "::error title=Refresh step failed::$name"
+            else
+              echo "  $name: $outcome"
+            fi
+          done
+          exit 1

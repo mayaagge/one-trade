@@ -46,6 +46,8 @@ import {
   checkGameData,
   weekdaysBetween,
   stalenessReport,
+  trimIncompleteTail,
+  MAX_TRIMMED_DAYS,
 } from '../scripts/build_game_data.mjs';
 
 const root = new URL('..', import.meta.url);
@@ -348,6 +350,185 @@ test('checkGameData refuses a row whose width does not match the tickers', () =>
   const doc = copy(goodDoc());
   doc.rows[7].push(0.001);
   assert.throws(() => checkGameData(doc, { tickers: TICKERS }), /width|values/i);
+});
+
+// --- 5b. an evening where Yahoo published late --------------------------------
+//
+// THE CASE THIS IS FOR. The scheduled refresh of 26 November 2026 went red with
+// "AAPL has no value on 2026-11-25, inside its own history". AAPL's bar for that
+// day simply was not published yet - the same fetch run the next morning had it
+// - and the run threw away a complete evening of prices over one ticker lagging
+// by a few hours.
+//
+// It is also a MISDIAGNOSIS, and that is fixed here too. checkInteriorDays() in
+// js/returns.js only looks between a ticker's OWN first and last date, so a
+// ticker whose history simply stops early is not an interior gap at all; it
+// arrives as a trailing null and checkGameData then calls it a hole "inside its
+// own history". A tail that is short and a hole in the middle are different
+// faults with different answers: trim the first, refuse the second.
+
+/** A tiny snapshot in data/live_prices.json's shape. */
+function snapshotOf(series) {
+  return {
+    mode: 'live',
+    prices: Object.fromEntries(Object.entries(series).map(([ticker, dates]) => [
+      ticker,
+      {
+        dates: Object.keys(dates),
+        close: Object.values(dates),
+      },
+    ])),
+  };
+}
+
+/** Closes for a run of dates, so a fixture reads as dates rather than numbers. */
+function closes(dates, start = 100) {
+  return Object.fromEntries(dates.map((date, i) => [date, start + i]));
+}
+
+const TRADING = [
+  '2026-11-16', '2026-11-17', '2026-11-18', '2026-11-19', '2026-11-20',
+  '2026-11-23', '2026-11-24', '2026-11-25',
+];
+
+test('one incomplete newest date is trimmed, and the build goes on', () => {
+  // AAPL stops a day early; everyone else has 2026-11-25.
+  const snapshot = snapshotOf({
+    '^GSPC': closes(TRADING),
+    AAPL: closes(TRADING.slice(0, -1)),
+    VOO: closes(TRADING),
+  });
+  const trimmed = trimIncompleteTail(snapshot);
+
+  assert.equal(trimmed.cutDate, '2026-11-24');
+  assert.deepEqual(trimmed.dropped.map((d) => d.date), ['2026-11-25']);
+  assert.deepEqual(trimmed.dropped[0].missing, ['AAPL']);
+  for (const ticker of ['^GSPC', 'AAPL', 'VOO']) {
+    assert.equal(
+      trimmed.snapshot.prices[ticker].dates.at(-1), '2026-11-24',
+      `${ticker} was not trimmed back to the date every ticker has`,
+    );
+    assert.equal(
+      trimmed.snapshot.prices[ticker].dates.length,
+      trimmed.snapshot.prices[ticker].close.length,
+      `${ticker}: dates and closes came out of step`,
+    );
+  }
+  // And what is left builds, which is the whole point of trimming.
+  assert.doesNotThrow(() => buildReturns(trimmed.snapshot));
+});
+
+test('two incomplete newest dates are still trimmed; three are refused', () => {
+  const two = snapshotOf({
+    '^GSPC': closes(TRADING),
+    AAPL: closes(TRADING.slice(0, -2)),
+    VOO: closes(TRADING),
+  });
+  assert.equal(trimIncompleteTail(two).dropped.length, 2, 'two days is the documented allowance');
+  assert.equal(trimIncompleteTail(two).cutDate, '2026-11-23');
+
+  const three = snapshotOf({
+    '^GSPC': closes(TRADING),
+    AAPL: closes(TRADING.slice(0, -3)),
+    VOO: closes(TRADING),
+  });
+  assert.throws(() => trimIncompleteTail(three), (error) => {
+    assert.match(error.message, /3 newest trading day/);
+    assert.match(error.message, /AAPL/, 'the ticker holding everyone back is not named');
+    assert.match(error.message, /2026-11-23/, 'the dropped dates are not named');
+    assert.match(error.message, new RegExp(String(MAX_TRIMMED_DAYS)));
+    return true;
+  });
+});
+
+test('the allowance is a boundary, not a suggestion', () => {
+  assert.equal(MAX_TRIMMED_DAYS, 2);
+});
+
+test('a gap in the middle is still refused, trimming or not', () => {
+  // AAPL has the newest day and is missing one in the middle. Nothing to trim,
+  // and the gap must still stop the run.
+  const middle = [...TRADING.slice(0, 3), ...TRADING.slice(4)];
+  const snapshot = snapshotOf({
+    '^GSPC': closes(TRADING),
+    AAPL: closes(middle),
+    VOO: closes(TRADING),
+  });
+  const trimmed = trimIncompleteTail(snapshot);
+  assert.equal(trimmed.dropped.length, 0, 'nothing should be trimmed: the newest date is complete');
+  assert.throws(() => buildReturns(trimmed.snapshot), /missing 1 trading day inside its own history/);
+});
+
+test('a short tail does not hide a gap in the middle of the same ticker', () => {
+  // Both faults at once on AAPL: stops a day early AND missing 2026-11-19.
+  // Trimming the tail must not excuse the hole.
+  const broken = [...TRADING.slice(0, 3), ...TRADING.slice(4, -1)];
+  const snapshot = snapshotOf({
+    '^GSPC': closes(TRADING),
+    AAPL: closes(broken),
+    VOO: closes(TRADING),
+  });
+  const trimmed = trimIncompleteTail(snapshot);
+  assert.deepEqual(trimmed.dropped.map((d) => d.date), ['2026-11-25']);
+  assert.throws(() => buildReturns(trimmed.snapshot), /inside its own history/);
+});
+
+test('the calendar ticker lagging is trimmed like any other ticker', () => {
+  // ^GSPC defines the calendar, so when IT is the one that has not published,
+  // every other ticker holds a date the calendar does not have. Left alone that
+  // is refused outright by js/returns.js - "not in ^GSPC's calendar" - which is
+  // the same complete evening thrown away for the same reason. It is a lagging
+  // tail whichever ticker lags.
+  const snapshot = snapshotOf({
+    '^GSPC': closes(TRADING.slice(0, -1)),
+    AAPL: closes(TRADING),
+    VOO: closes(TRADING),
+  });
+
+  // Without the trim this is what happens, and it is why the case is covered.
+  assert.throws(() => buildReturns(snapshot), /not a trading day on \^GSPC's calendar/);
+
+  const trimmed = trimIncompleteTail(snapshot);
+  assert.equal(trimmed.cutDate, '2026-11-24');
+  assert.deepEqual(trimmed.dropped.map((d) => d.date), ['2026-11-25']);
+  assert.deepEqual(trimmed.dropped[0].missing, ['^GSPC']);
+  assert.doesNotThrow(() => buildReturns(trimmed.snapshot));
+});
+
+test('a complete snapshot is handed back untouched', () => {
+  const snapshot = snapshotOf({
+    '^GSPC': closes(TRADING),
+    AAPL: closes(TRADING),
+    VOO: closes(TRADING),
+  });
+  const trimmed = trimIncompleteTail(snapshot);
+  assert.deepEqual(trimmed.dropped, []);
+  assert.equal(trimmed.cutDate, '2026-11-25');
+  assert.equal(trimmed.snapshot, snapshot, 'an untouched snapshot should not be copied for nothing');
+});
+
+test('a ticker that stopped reporting long ago is named, not quietly trimmed to', () => {
+  // The failure mode the allowance exists to catch: one ticker delisted or
+  // dropped by the feed would otherwise drag the cut date back for everyone.
+  const snapshot = snapshotOf({
+    '^GSPC': closes(TRADING),
+    AAPL: closes(TRADING),
+    DEAD: closes(TRADING.slice(0, 2)),
+  });
+  assert.throws(() => trimIncompleteTail(snapshot), /DEAD/);
+});
+
+test('today\'s live prices need no trimming', (t) => {
+  // A canary on the real file, when there is one: if the evening's fetch did
+  // come in complete, nothing above should fire.
+  if (!existsSync(path('data/live_prices.json'))) {
+    return t.skip('data/live_prices.json is not present; it is gitignored and written by the fetch');
+  }
+  const trimmed = trimIncompleteTail(readJson('data/live_prices.json'));
+  for (const day of trimmed.dropped) {
+    t.diagnostic(`${day.date} was incomplete: ${day.missing.join(', ')}`);
+  }
+  assert.ok(trimmed.dropped.length <= MAX_TRIMMED_DAYS);
 });
 
 // --- 6. staleness: a quiet outage has to go red ------------------------------

@@ -2814,3 +2814,96 @@ so a hand-edited daily.json fails.
 and runs from the first push after that.
 
 Educational, not investment advice.
+
+## Why the refresh went red twice, and what now survives, 26 November 2026 (session 2.14)
+
+Two failures, one evening, and they were not the same failure. Worth separating,
+because the obvious reading - "the refresh is broken" - would have had me fixing
+the wrong thing.
+
+**Run 2, the scheduled one at 00:15 UTC**, failed in tests/liveRolling.test.js:
+the live half of the rolling chart joined the frozen half 1.3e-7 away, against
+an assertion of 1e-9. That is Yahoo re-adjusting old closes, which docs/PRD.md
+already measures at up to 1.2e-6 relative, and f4d5fd6 had already replaced that
+bar with JOIN_TOLERANCE 42 minutes later. Nothing left to fix.
+
+**Run 3, the dispatch at 01:24 UTC**, is the real one: "AAPL has no value on
+2026-11-25". Re-fetching the same window this morning returned that bar for all
+42 tickers, and the rebuild went through, so the close had not been published
+when the job asked - more than four hours after the market closed. I cannot
+prove from here that it was late publishing rather than a transient hole that
+has since healed; what is established is absent-then, present-now, and both have
+the same answer.
+
+### A short tail is not a gap, and the error said it was
+
+js/returns.js checks a ticker's interior days only BETWEEN ITS OWN first and
+last date, so a ticker whose prices simply stop early is not an interior gap at
+all. It arrives as a trailing null, and checkGameData then reported it as a hole
+"inside its own history". Two different faults wearing one error message: one of
+them is a bar that is a few hours late, the other would turn one day's return
+into two days' worth. trimIncompleteTail() drops the first before the file is
+built; checkGameData now tells them apart in its wording as well, in case
+something else ever produces one.
+
+**The cut is the newest date EVERY ticker has, and ^GSPC is a ticker.** When the
+calendar ticker is the one lagging, every other series holds a date the calendar
+does not, and js/returns.js refuses that too - the same complete evening thrown
+away for the same reason. Taking the oldest last-date across all 42 series
+handles both directions without a special case. At most 2 days may be dropped;
+a third is a feed that is broken rather than slow, and the message then names
+the series that stops earliest, because a delisting looks identical to a late
+bar until you read which ticker it is.
+
+### One bad evening used to take the whole job with it
+
+Every step that can fail on DATA rather than on code is now continue-on-error,
+and a final step adds them up and colours the run. So a failed rebuild still
+builds and commits the puzzle from the committed game.json; a failed puzzle
+build still commits the prices; and either way the run ends red. The fetch
+itself stays outside that tally, deliberately: a red X every time Yahoo hiccups
+is a red X nobody reads, which is the rule this file already had.
+
+**The gate reads `outcome`, not `conclusion`.** continue-on-error rewrites a
+failed step's conclusion to "success" - that is its entire purpose - and leaves
+the outcome as "failure". A gate written on conclusion is green every time,
+including the evening everything broke, and it would look right in review.
+tests/workflow.test.js pulls the gate's own expression out of the YAML and
+evaluates it against made-up outcomes, so what is tested is what the condition
+DOES; one of those tests builds the conclusion-based version and asserts that it
+is blind, so the bug cannot be reintroduced as a cleanup.
+
+### The tests stay a hard gate, minus the four that read two downloads
+
+A failing test means the code that built this data is suspect, so nothing is
+committed on red. But run 2 shows a test can go red because Yahoo re-adjusted a
+price three years ago, and that must not keep tonight's prices out of the game.
+Four tests compare numbers that came from two different fetches:
+
+| Test | Why it spans two fetches |
+| --- | --- |
+| liveRolling: the live half joins the frozen half | live game.json against frozen results.json |
+| liveRolling: the committed files produce a tail | the same join, via liveTailState's own guard |
+| research: rollingTail() reads the basket off the results file | the same join again |
+| crash: where a window overlaps game.json, the two files agree | frozen crashes.json against live game.json |
+
+They are skipped by ONE_TRADE_SKIP_CROSS_FETCH in the pre-commit run and run
+again after the commit, beside check_levels.mjs and build_puzzles.mjs --check.
+On an ordinary push the flag is unset and all four run normally, because there
+game.json is the committed file and does not move.
+
+### Tonight and tomorrow
+
+Tonight is Thanksgiving, so there is no 26 November bar and nothing to trim; the
+newest date stays 25 November, one weekday inside the staleness allowance, and
+the puzzle's horizon is unchanged. game.json will still commit, because
+re-fetching the same 756 days moved 17,443 of its cells by up to 1.07e-6. That
+is Yahoo's rounding, it is three decimal orders inside anything the game shows,
+and it is why the 0.05 guard band around a bucket edge matters: a drift of 1e-6
+cannot move a pair across an answer.
+
+Tomorrow is a half day. Nothing in the pipeline reads session length.
+
+768 tests pass.
+
+Educational, not investment advice.
