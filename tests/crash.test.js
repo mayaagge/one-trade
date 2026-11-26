@@ -29,8 +29,10 @@ import {
   STARTING_DOLLARS,
   availableIn,
   buyAndHoldPath,
+  createBuild,
   deepestFall,
   fallAgainstIndex,
+  formatShortDate,
   readWindow,
   replay,
   totalChange,
@@ -294,4 +296,104 @@ test('the three windows tell the story the PRD says they do', () => {
   const nvda = tickerSeries(window, 'NVDA');
   assert.equal(gameDates(window)[0], '2025-01-27');
   assert.ok(Math.abs(nvda[0] - (-0.17)) < 0.005, `NVDA's first drawn day is ${nvda[0]}`);
+});
+
+// -------------------------------------------------------------- the build
+
+test('createBuild() accepts any number of holdings, split evenly', () => {
+  const window = windowByKey(CRASHES, 'bear2022');
+  const build = createBuild(availableIn(window, UNIVERSE));
+  assert.equal(build.total, STARTING_DOLLARS);
+  assert.equal(build.required.length, 0, 'Crash replay deals nothing and requires nothing');
+
+  build.togglePick('VOO');
+  build.togglePick('BND');
+  build.togglePick('GLD');
+  assert.deepEqual(build.picks, ['VOO', 'BND', 'GLD']);
+  assert.equal(build.allocated(), STARTING_DOLLARS);
+  assert.equal(build.buildComplete(), true);
+  for (const ticker of build.picks) assert.ok(build.dollars[ticker] > 0);
+
+  // No cap: a fourth, a fifth, however many the player wants to pick.
+  build.togglePick('XOM');
+  build.togglePick('JNJ');
+  assert.equal(build.picks.length, 5);
+  assert.equal(build.allocated(), STARTING_DOLLARS);
+});
+
+test('createBuild() refuses a ticker outside its own pool', () => {
+  const window = windowByKey(CRASHES, 'crash2020');
+  const build = createBuild(availableIn(window, UNIVERSE));
+  assert.throws(() => build.togglePick('PLTR'), /not in this game's universe/);
+});
+
+test('createBuild() refuses a ticker its own isAvailable rule rejects - the build layer, not only the picker', () => {
+  // This is how js/crashReplay.js actually uses it: the pool is the WHOLE
+  // universe, so an unavailable ticker still appears (disabled) in the picker,
+  // and isAvailable is what stops it being added even if a click reached
+  // togglePick() anyway - the same defense-in-depth js/round.js uses for a
+  // required holding it will not let go.
+  const window = windowByKey(CRASHES, 'crash2020');
+  const build = createBuild(UNIVERSE, { isAvailable: (ticker) => !unavailableIn(window, ticker) });
+  assert.ok(build.pool.includes('PLTR'), 'PLTR is still in the pool, so the picker can show and explain it');
+  assert.throws(() => build.togglePick('PLTR'), /not available for this build/);
+  // An available ticker is unaffected.
+  build.togglePick('VOO');
+  assert.deepEqual(build.picks, ['VOO']);
+  // Removing a HELD ticker never consults isAvailable - only adding does.
+  assert.doesNotThrow(() => build.togglePick('VOO'));
+});
+
+test('createBuild() moves money in $100 steps and never empties a holding', () => {
+  const window = windowByKey(CRASHES, 'ai2025');
+  const build = createBuild(availableIn(window, UNIVERSE));
+  build.togglePick('VOO');
+  build.togglePick('BND');
+  assert.equal(build.dollars.VOO, 5000);
+
+  const moved = build.adjustDollars('VOO', 3);
+  assert.equal(moved, 3);
+  assert.equal(build.dollars.VOO, 5300);
+  assert.equal(build.dollars.BND, 4700);
+  assert.equal(build.allocated(), STARTING_DOLLARS);
+
+  // Cannot take BND below its own $100.
+  const toZero = build.adjustDollars('VOO', 100);
+  assert.ok(build.dollars.BND >= 100, `BND went to ${build.dollars.BND}`);
+  assert.ok(toZero < 100, 'adjustDollars stopped short rather than emptying BND');
+  assert.equal(build.allocated(), STARTING_DOLLARS);
+
+  // A single holding cannot be adjusted - there is nowhere for the money to go.
+  const alone = createBuild(availableIn(window, UNIVERSE));
+  alone.togglePick('VOO');
+  assert.equal(alone.adjustDollars('VOO', 5), 0);
+  assert.equal(alone.canLower('VOO'), false);
+  assert.equal(alone.canRaise('VOO'), false);
+});
+
+test('createBuild()’s canLower and canRaise match what adjustDollars will actually do', () => {
+  const window = windowByKey(CRASHES, 'bear2022');
+  const build = createBuild(availableIn(window, UNIVERSE));
+  for (const ticker of ['VOO', 'BND', 'GLD', 'XOM']) build.togglePick(ticker);
+  for (const ticker of build.picks) {
+    assert.equal(build.canLower(ticker), build.adjustDollars(ticker, -1) === 1);
+    if (build.canLower(ticker)) build.adjustDollars(ticker, 1);   // put it back
+  }
+});
+
+// -------------------------------------------------------------- the dates
+
+test('formatShortDate() reads "Mon D" straight off the ISO string', () => {
+  assert.equal(formatShortDate('2020-02-19'), 'Feb 19');
+  assert.equal(formatShortDate('2022-01-03'), 'Jan 3');
+  assert.equal(formatShortDate('2025-12-01'), 'Dec 1');
+  assert.throws(() => formatShortDate('not-a-date'), /is not an ISO date/);
+});
+
+test('every window’s dates format without throwing, end to end', () => {
+  for (const window of CRASHES.windows) {
+    for (const date of [window.startDate, ...gameDates(window)]) {
+      assert.doesNotThrow(() => formatShortDate(date), `${window.key}: ${date}`);
+    }
+  }
 });

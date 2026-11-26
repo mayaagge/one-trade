@@ -1827,3 +1827,142 @@ errors on any of the five.
   on a phone before the mode is called done.
 
 Educational, not investment advice.
+
+## Crash replay, the screens, 26 November 2026 (session 2.8)
+
+Session B. The data and the math landed in session 2.7; this is the #crash
+route, the three screens, and the second line and legend js/chart.js needed to
+draw a portfolio against the index. Four real defects were found by actually
+driving the three windows in a browser - none of them would have shown up in a
+unit test, because each one is about what a real DOM, a real viewport or a real
+font actually does.
+
+### A second series, in the palette's own slot 2
+
+js/chart.js drew one line. Crash replay needs two - a portfolio against the
+index it is measured against - so `renderLineChart()` gained an optional
+`compare` series, a legend, a line key in the tooltip, and an end dot on each
+line. The dataviz skill's own validator chose the color: slot 2, orange
+(`#f47230` light / `#e76624` dark), which clears every CVD and normal-vision
+check against slot 1 blue in both modes (worst normal-vision Delta E 35.2
+light / 33.3 dark). Orange sits under 3:1 contrast on the light surface, which
+the skill's relief rule covers: text never wears it - the legend and tooltip
+keys are swatches beside text-ink labels, never colored text, and the plain-
+words sentence under the chart states both numbers again in the ordinary
+text color.
+
+Every new branch is `if (compare)`. Research's rolling-correlation chart passes
+no `compare` and nothing it draws changed - confirmed by driving it afterwards:
+one series, no legend, the same one-decimal y-ticks, no console errors.
+
+**The tooltip's own hardcoded wording came out in the move.** `renderLineChart`
+had "126 days ending {date}" baked into it, which is Research's own rolling-
+window phrasing and meant nothing to a crash replay. It is now `formatWhen`, a
+hook defaulting to exactly that string, so Research's call needs no change and
+Crash replay supplies its own.
+
+### Three defects, each found only by looking at the rendered page
+
+**1. The chart measured its own width before the view was attached to the
+document.** `renderReveal()` called `renderLineChart` on a `<div>` that was
+still a detached node, so `plot.clientWidth` read 0 and `chartBox()` fell back
+to its 720px default - every window got 6 x-axis labels and the wrong height,
+regardless of the real viewport. `js/research.js`'s own `renderResearch()` /
+`drawCharts()` split exists for exactly this reason; Crash replay had not
+followed it. Fixed by moving the chart draw to `ctx.draw()`, after
+`root.replaceChildren(view)`.
+
+**2. A fine y-step produced duplicate tick labels.** Rounding every tick to the
+nearest $1,000 made $9,000 and $9,500 both read "$9K" on the AI selloff window,
+whose range needed a $500 step. The formatter now keeps one decimal of a
+thousand when the step is that fine - "$9K", "$9.5K", "$10K" - never two
+different dollar amounts reading the same.
+
+**3. The widest y-tick clipped its own leading character.** "$10.5K" is wider
+than the 40px left gutter Research's one-decimal correlation reads were sized
+for, and SVG does not wrap or shrink a label that does not fit - it clips at
+the viewBox edge, silently dropping the "$". `renderLineChart` took a hardcoded
+`DEFAULT_PADDING`; it now takes an optional `padding`, and Crash replay passes
+a 54px left gutter sized for its own labels.
+
+**4. A pool already narrowed to "available" tickers made an unavailable one
+vanish instead of being explained.** The task asked for "unavailable holdings
+disabled and explained" - greyed out, with a reason, the way level 4's QQQ
+chip is locked rather than just missing. The first build fed `createBuild()`
+the output of `availableIn()`, which FILTERS the pool, so PLTR was never in it
+and `js/build.js`'s `reasonFor` mechanism had nothing to disable - the 2020
+crash's picker simply had no PLTR at all. `createBuild()` now always takes the
+whole game universe as its pool, and gained its own `isAvailable(ticker)` rule,
+enforced in `togglePick()` itself - not only by the picker disabling a button,
+the same defense-in-depth js/round.js already uses for a required holding it
+will not let go. A disabled chip stops a click; the build layer is what stops a
+caller.
+
+None of these four would have failed a unit test written against the pure
+functions in isolation - `chartBox(0)` returning the 720px default is CORRECT
+behaviour for that input, `niceStep` picking 500 for a tight range is correct,
+a 6-character label at 11px is genuinely wider than 32px, and `availableIn()`
+filtering its list is exactly what it is documented to do. Each one is a
+composition fault, visible only once the real pieces were wired together and
+looked at - which is why the task asked for the browser pass before calling
+this done rather than treating the test count as the finish line.
+
+### What a replay screen is, and is not
+
+No guess, no stars: docs/PRD.md asks Crash replay to show a portfolio through a
+real crash, not score a prediction of one, so the round here is CHOOSE -> BUILD
+-> REVEAL, two states short of Learn's. The build screen is js/build.js's,
+unchanged since session 2.7 beyond the pool fix above - the same picker, the
+same allocator, the same locked-chip styling level 4 already uses for a
+required holding, doing the same job for an unavailable one.
+
+`fallSentence()` is the one pure function in the file, tested the way
+`starsExplanation()` already is: "Your portfolio fell 15%. The S&P 500 (VOO,
+with dividends) fell 34%. That is 43% of the index's fall." It says nothing
+about a share when the portfolio rose, or when the index did not fall - a
+share of a rise is not a thing to compare, as `fallAgainstIndex()` already
+established in session 2.7.
+
+### How it was checked
+
+All three windows were built and revealed end to end in headless Chrome, with
+the viewport forced to a true 390px (`--window-size` alone left the actual
+viewport at 500px in headless new-mode - `Emulation.setDeviceMetricsOverride`
+is what a real phone's fixed viewport needed). No console errors on any screen.
+
+| Window | Points | x-ticks | y-ticks | Portfolio built | Reads |
+| --- | --- | --- | --- | --- | --- |
+| 2020 crash | 24 | 3 | 6, whole thousands | 50% VOO / 50% TLT | "Your portfolio fell 10%. The S&P 500 (VOO, with dividends) fell 34%. That is 29% of the index's fall." |
+| 2022 bear market | 195 | 3 | 6, whole thousands | VOO/BND/GLD/XOM, even | "Your portfolio rose 3%. The S&P 500 (VOO, with dividends) fell 25%." |
+| January 2025 AI selloff | 24 | 3 | 5, half-thousands | 50% QQQ / 50% NVDA | "Your portfolio fell 8%. The S&P 500 (VOO, with dividends) fell 2%. That is 363% of the index's fall." |
+
+The 195-point window's daily noise stays legible at 390px with both lines
+distinct throughout; the 24-point windows show NVDA's -17% opening day and the
+crash's full fall as a shape, not a point count - niceStep() and chartBox()
+scale the axes to the data's own range rather than to how many points are in
+it, which is why the same two functions serve both without a special case for
+either. 598 tests pass, and both check scripts are green.
+
+### What to watch
+
+- **The floating tooltip is nearly invisible against the chart's own dark
+  surface.** Its background and the chart's are the same `--surface-1`, so only
+  a 1px 10%-opacity border and a soft shadow separate them - confirmed present
+  and correctly positioned by querying the DOM, not visible by eye in a
+  screenshot. This is Research's own tooltip styling, unchanged by this
+  session, and the accessible `role="status"` readout beneath the chart carries
+  the same numbers in plain text regardless. Worth a look in a real playtest,
+  since every chart in the game shares this style.
+- **"That is 363% of the index's fall" is a mouthful for a portfolio that fell
+  harder than the index.** It is arithmetically exactly what `fallAgainstIndex()`
+  promises and it is true of 50% QQQ / 50% NVDA through the AI selloff, but the
+  wording was not tuned for the case where a portfolio loses several times over
+  what the index did - worth a playtest read.
+- **createBuild()'s `isAvailable` is per-build, not per-pick.** Switching crash
+  windows always calls `freshBuild()`, which rebuilds the closure over the new
+  window, so a portfolio built for one crash cannot carry an unavailable
+  holding into another by surviving a window change - there is no "keep my
+  picks" path between windows to have gotten this wrong, but it is the reason
+  there does not need to be one yet.
+
+Educational, not investment advice.

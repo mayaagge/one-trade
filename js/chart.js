@@ -4,7 +4,19 @@
 // CSS and JavaScript. The geometry is separated from the drawing so the maths
 // can be tested with `node --test`, where there is no document.
 //
-// One series only. The chart's title names it, so there is no legend box.
+// ONE SERIES BY DEFAULT. The chart's title names it, so there is no legend box.
+// A SECOND SERIES is optional, passed as `compare` - js/crash.js's Crash replay
+// is the only caller that uses it, to draw a portfolio against the index it is
+// measured against. Research's rolling-correlation chart passes no `compare`
+// and is untouched by anything below that checks for one: every new branch is
+// `if (compare)`, and the handful of formatting hooks (`formatDate`,
+// `formatYTick`, `formatWhen`) default to exactly what this file always did, so
+// an existing call with none of them produces the same output as before.
+//
+// Two series, not three: this chart draws identity with a legend, a line key in
+// the tooltip and an end dot per line, which is what the two-series case needs.
+// A chart with more series belongs to a different form (small multiples), not a
+// third color bolted onto this one.
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -35,6 +47,34 @@ export function niceScale(min, max, step = 0.1) {
 // Kill the 1e-17 tails that come out of dividing by 0.1.
 function round(x) {
   return Math.round(x * 1e10) / 1e10;
+}
+
+/**
+ * Pick a "nice" step for niceScale() - 1, 2 or 5 times a power of ten - so that
+ * the domain gets roughly `targetTicks` gridlines.
+ *
+ * Research's correlation charts always span -1 to 1, so their yStep (0.1) is
+ * just written down. Crash replay's dollar values range with the window and the
+ * portfolio, so its y-axis needs this instead of a constant.
+ */
+export function niceStep(min, max, targetTicks = 5) {
+  if (!Number.isFinite(min) || !Number.isFinite(max)) throw new Error('niceStep() needs finite bounds');
+  if (!(max > min)) throw new Error(`niceStep() got max ${max} at or below min ${min}`);
+  if (!(targetTicks > 0)) throw new Error('niceStep() needs a positive tick count');
+
+  const raw = (max - min) / targetTicks;
+  const magnitude = 10 ** Math.floor(Math.log10(raw));
+  const normalized = raw / magnitude;
+  const step = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+  return round(step * magnitude);
+}
+
+/** The index of the last finite value, or -1 if there is none. */
+function lastFiniteIndex(values) {
+  for (let i = values.length - 1; i >= 0; i -= 1) {
+    if (Number.isFinite(values[i])) return i;
+  }
+  return -1;
 }
 
 /**
@@ -160,6 +200,24 @@ export function yearEndSample(dates, values, extraIndices = []) {
     .map((i) => ({ index: i, date: dates[i], value: values[i] }));
 }
 
+/**
+ * Pick an SVG box for a plot of this width. Narrow screens get fewer x-axis
+ * labels, because six dates will not fit without colliding.
+ *
+ * Shared by every chart in the game: it was Research's own helper, moved here
+ * so Crash replay's chart is sized by the same rule rather than a second one
+ * tuned separately. js/research.js re-exports it, unchanged, for its own
+ * callers and tests.
+ */
+export function chartBox(containerWidth) {
+  const width = Math.max(320, Math.min(880, Math.round(containerWidth) || 720));
+  return {
+    width,
+    height: width < 520 ? 240 : 300,
+    xTickCount: width < 420 ? 3 : width < 620 ? 4 : 6,
+  };
+}
+
 function el(name, attrs = {}) {
   const node = document.createElementNS(SVG_NS, name);
   for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
@@ -169,16 +227,40 @@ function el(name, attrs = {}) {
 /**
  * Draw the chart into `container` and wire the crosshair.
  *
- * spec: { dates, values, mark, live, width, height, yStep, valueLabel, formatValue }
+ * spec: { dates, values, compare, seriesLabel, mark, live, width, height, yStep,
+ *         valueLabel, formatValue, formatDate, formatYTick, formatWhen, padding }
+ *
+ * `padding` defaults to DEFAULT_PADDING and sets the room around the plot. Its
+ * `left` has to fit the widest string formatYTick can produce - a caller whose
+ * y-axis reads wider than one decimal place (Crash replay's "$10.5K" beside
+ * Research's "0.8") passes a wider one, or the gutter clips the label.
+ *
  * `mark` is { index, date, value, label } or null.
  * `live` is { fromIndex, label, band } or null: the part of the series that came
  * from live prices. `band` false draws the boundary and the label but no shading,
  * which is what a single live day gets - see js/liveRolling.js.
+ *
+ * `compare` is { values, label, formatValue } or null: a SECOND series, drawn in
+ * the palette's slot-2 orange, with its own line key in the legend and the
+ * tooltip. `seriesLabel` names the first series for the same two; without
+ * `compare` neither is used and nothing changes - a single series needs no
+ * legend, which is why this chart draws none until a second series asks for one.
+ * `compare.formatValue` defaults to `formatValue`, for when both series are in
+ * the same units (Crash replay's two lines both read in dollars).
+ *
+ * `formatDate`, `formatYTick` and `formatWhen` default to exactly what this file
+ * always drew - a "YYYY-MM" x-tick, one decimal place on the y-axis, and the
+ * rolling-correlation tooltip's own wording - so a caller that sets none of them
+ * (every call before this one) is unaffected. Crash replay sets all three: its
+ * x-axis needs a day, its y-axis needs dollars, and its tooltip needs no mention
+ * of a 126-day window.
  */
 export function renderLineChart(container, spec) {
   const {
     dates,
     values,
+    compare = null,
+    seriesLabel = null,
     mark = null,
     live = null,
     width = 720,
@@ -188,12 +270,25 @@ export function renderLineChart(container, spec) {
     formatValue = (v) => v.toFixed(4),
     describedBy = null,
     xTickCount = 6,
+    formatDate = (d) => String(d).slice(0, 7),
+    formatYTick = (v) => v.toFixed(1),
+    formatWhen = (date, isLive) => `126 days ending ${date}${isLive ? ' · live, enters no verdict' : ''}`,
+    padding = DEFAULT_PADDING,
   } = spec;
+  const compareFormatValue = compare?.formatValue ?? formatValue;
+  const primaryLabel = seriesLabel ?? valueLabel;
 
   const finite = values.filter((v) => Number.isFinite(v));
-  if (finite.length === 0) throw new Error('renderLineChart() got no finite values');
-  const domain = niceScale(Math.min(...finite), Math.max(...finite), yStep);
-  const plot = plotArea(width, height, DEFAULT_PADDING);
+  const compareFinite = compare ? compare.values.filter((v) => Number.isFinite(v)) : [];
+  const allFinite = [...finite, ...compareFinite];
+  if (allFinite.length === 0) throw new Error('renderLineChart() got no finite values');
+  const domain = niceScale(Math.min(...allFinite), Math.max(...allFinite), yStep);
+  // The left gutter has to fit the widest y-tick label, which depends on
+  // formatYTick: Research's correlation reads to one decimal ("0.8"), but Crash
+  // replay's dollars can run to "$10.5K" - wider than DEFAULT_PADDING.left allows
+  // for, which clipped the leading "$" off the canvas before this was a caller's
+  // own choice. A caller with its own wide labels passes a wider `padding`.
+  const plot = plotArea(width, height, padding);
 
   container.replaceChildren();
 
@@ -202,7 +297,9 @@ export function renderLineChart(container, spec) {
     width: '100%',
     height: 'auto',
     role: 'img',
-    'aria-label': `${valueLabel}, ${dates[0]} to ${dates[dates.length - 1]}`,
+    'aria-label': compare
+      ? `${primaryLabel} and ${compare.label}, ${dates[0]} to ${dates[dates.length - 1]}`
+      : `${valueLabel}, ${dates[0]} to ${dates[dates.length - 1]}`,
     class: 'chart-svg',
   });
   if (describedBy) svg.setAttribute('aria-describedby', describedBy);
@@ -238,7 +335,7 @@ export function renderLineChart(container, spec) {
     const y = yOf(t, domain, plot);
     svg.append(el('line', { x1: plot.left, x2: plot.right, y1: y, y2: y, class: 'chart-grid' }));
     const label = el('text', { x: plot.left - 8, y: y + 4, class: 'chart-tick chart-tick-y' });
-    label.textContent = t.toFixed(1);
+    label.textContent = formatYTick(t);
     svg.append(label);
   }
 
@@ -258,7 +355,7 @@ export function renderLineChart(container, spec) {
       : i === xTicks[xTicks.length - 1] ? ' chart-tick-x-end'
       : '';
     const label = el('text', { x, y: plot.bottom + 18, class: `chart-tick chart-tick-x${anchor}` });
-    label.textContent = String(dates[i]).slice(0, 7);
+    label.textContent = formatDate(dates[i]);
     svg.append(label);
   }
 
@@ -269,6 +366,12 @@ export function renderLineChart(container, spec) {
     const label = el('text', { x: x + 6, y: plot.top + 12, class: 'chart-mark-label' });
     label.textContent = mark.label || String(mark.date);
     svg.append(label);
+  }
+
+  // The compare series, drawn BEFORE the primary line so the line the chart is
+  // really about sits on top where the two cross.
+  if (compare) {
+    svg.append(el('path', { d: linePath(compare.values, domain, plot), class: 'chart-line-compare', fill: 'none' }));
   }
 
   // The series: 2px, round join and cap.
@@ -284,12 +387,39 @@ export function renderLineChart(container, spec) {
     }));
   }
 
-  // The hover layer: a crosshair that snaps to the nearest day.
+  // Where each line ENDS, with a 2px surface ring, so two lines that have
+  // crossed or converged are still told apart without hovering. A single series
+  // needs no end mark - the axis already says where it stops.
+  if (compare) {
+    const lastPrimary = lastFiniteIndex(values);
+    if (lastPrimary !== -1) {
+      svg.append(el('circle', {
+        cx: xOf(lastPrimary, dates.length, plot),
+        cy: yOf(values[lastPrimary], domain, plot),
+        r: 4,
+        class: 'chart-end-dot',
+      }));
+    }
+    const lastCompare = lastFiniteIndex(compare.values);
+    if (lastCompare !== -1) {
+      svg.append(el('circle', {
+        cx: xOf(lastCompare, dates.length, plot),
+        cy: yOf(compare.values[lastCompare], domain, plot),
+        r: 4,
+        class: 'chart-end-dot chart-end-dot-compare',
+      }));
+    }
+  }
+
+  // The hover layer: a crosshair that snaps to the nearest day, with one dot per
+  // series so hovering shows where both lines sit that day.
   const crosshair = el('line', { y1: plot.top, y2: plot.bottom, class: 'chart-crosshair', x1: 0, x2: 0 });
   crosshair.style.display = 'none';
   const dot = el('circle', { r: 4, class: 'chart-hover-dot', cx: 0, cy: 0 });
   dot.style.display = 'none';
   svg.append(crosshair, dot);
+  const compareDot = compare ? el('circle', { r: 4, class: 'chart-hover-dot chart-end-dot-compare', cx: 0, cy: 0 }) : null;
+  if (compareDot) { compareDot.style.display = 'none'; svg.append(compareDot); }
 
   const tooltip = document.createElement('div');
   tooltip.className = 'chart-tooltip';
@@ -301,36 +431,88 @@ export function renderLineChart(container, spec) {
 
   function show(index) {
     const v = values[index];
-    if (!Number.isFinite(v)) return;
+    const cv = compare ? compare.values[index] : null;
+    const vFinite = Number.isFinite(v);
+    const cvFinite = compare && Number.isFinite(cv);
+    if (!vFinite && !cvFinite) return;
     const x = xOf(index, dates.length, plot);
-    const y = yOf(v, domain, plot);
     crosshair.setAttribute('x1', x);
     crosshair.setAttribute('x2', x);
     crosshair.style.display = '';
-    dot.setAttribute('cx', x);
-    dot.setAttribute('cy', y);
-    dot.style.display = '';
+
+    if (vFinite) {
+      dot.setAttribute('cx', x);
+      dot.setAttribute('cy', yOf(v, domain, plot));
+      dot.style.display = '';
+    } else {
+      dot.style.display = 'none';
+    }
+    if (compareDot) {
+      if (cvFinite) {
+        compareDot.setAttribute('cx', x);
+        compareDot.setAttribute('cy', yOf(cv, domain, plot));
+        compareDot.style.display = '';
+      } else {
+        compareDot.style.display = 'none';
+      }
+    }
 
     // A live reading says so, so a hovered number is never mistaken for one of
-    // the published, frozen values.
+    // the published, frozen values. Only Research's chart ever sets `live`.
     const isLive = liveFrom !== null && index >= liveFrom;
-    const when = `126 days ending ${dates[index]}${isLive ? ' · live, enters no verdict' : ''}`;
+    const when = formatWhen(dates[index], isLive);
 
-    // Value leads, label follows. textContent, never innerHTML.
     tooltip.replaceChildren();
-    const value = document.createElement('strong');
-    value.textContent = formatValue(v);
-    const label = document.createElement('span');
-    label.textContent = when;
-    tooltip.append(value, label);
+    if (compare) {
+      // One tooltip, every series: a keyed row per line, value leading, so the
+      // reader never has to land on a line to get its number. textContent only.
+      if (vFinite) {
+        const row = document.createElement('div');
+        row.className = 'chart-tooltip-row';
+        const key = document.createElement('span');
+        key.className = 'chart-tooltip-key';
+        const value = document.createElement('strong');
+        value.textContent = formatValue(v);
+        row.append(key, value);
+        tooltip.append(row);
+      }
+      if (cvFinite) {
+        const row = document.createElement('div');
+        row.className = 'chart-tooltip-row';
+        const key = document.createElement('span');
+        key.className = 'chart-tooltip-key chart-tooltip-key-compare';
+        const value = document.createElement('strong');
+        value.textContent = compareFormatValue(cv);
+        row.append(key, value);
+        tooltip.append(row);
+      }
+      const whenLine = document.createElement('span');
+      whenLine.className = 'chart-tooltip-when';
+      whenLine.textContent = when;
+      tooltip.append(whenLine);
+      readout.textContent = [
+        vFinite ? `${primaryLabel} ${formatValue(v)}` : null,
+        cvFinite ? `${compare.label} ${compareFormatValue(cv)}` : null,
+        when,
+      ].filter(Boolean).join(', ');
+    } else {
+      // Value leads, label follows. textContent, never innerHTML. Unchanged from
+      // before `compare` existed, so a caller with none of it sees none of this.
+      const value = document.createElement('strong');
+      value.textContent = formatValue(v);
+      const label = document.createElement('span');
+      label.textContent = when;
+      tooltip.append(value, label);
+      readout.textContent = `${formatValue(v)}, ${when}`;
+    }
     tooltip.hidden = false;
     tooltip.style.left = `${(x / width) * 100}%`;
-    readout.textContent = `${formatValue(v)}, ${when}`;
   }
 
   function hide() {
     crosshair.style.display = 'none';
     dot.style.display = 'none';
+    if (compareDot) compareDot.style.display = 'none';
     tooltip.hidden = true;
   }
 
@@ -360,6 +542,32 @@ export function renderLineChart(container, spec) {
   const frame = document.createElement('div');
   frame.className = 'chart-frame';
   frame.append(svg, tooltip);
-  container.append(frame, readout);
+
+  // The legend: present whenever a second series is. A single series needs
+  // none - the chart's title already names it.
+  const legend = compare ? buildLegend(primaryLabel, compare.label) : null;
+  container.append(...(legend ? [legend] : []), frame, readout);
   return { domain, plot };
+}
+
+/** The two-line-key legend a `compare` series adds above the chart. */
+function buildLegend(primaryLabel, compareLabel) {
+  const legend = document.createElement('div');
+  legend.className = 'chart-legend';
+  legend.append(
+    legendItem(primaryLabel, 'chart-legend-swatch'),
+    legendItem(compareLabel, 'chart-legend-swatch chart-legend-swatch-compare'),
+  );
+  return legend;
+}
+
+function legendItem(text, swatchClass) {
+  const item = document.createElement('span');
+  item.className = 'chart-legend-item';
+  const swatch = document.createElement('span');
+  swatch.className = swatchClass;
+  const label = document.createElement('span');
+  label.textContent = text;
+  item.append(swatch, label);
+  return item;
 }

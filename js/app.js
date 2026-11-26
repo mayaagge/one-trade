@@ -2,9 +2,10 @@
 
 import { mountResearch, DISCLAIMER } from './research.js';
 import { mountLearn } from './game.js';
+import { mountCrash } from './crashReplay.js';
 
 const DEFAULT_MODE = 'research';
-const MODES = ['learn', 'sandbox', 'research'];
+const MODES = ['learn', 'crash', 'sandbox', 'research'];
 
 /** The mode named by a hash such as "#research", or the default. */
 export function modeFromHash(hash) {
@@ -45,6 +46,10 @@ function render() {
   }
   if (mode === 'learn') {
     mountLearn(root);
+    return;
+  }
+  if (mode === 'crash') {
+    mountCrash(root);
     return;
   }
   stub(root, 'Sandbox', 'Build any portfolio and see every measure. Not built yet.');

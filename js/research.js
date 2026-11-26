@@ -10,7 +10,12 @@
 // is computed in the browser by js/liveRolling.js, is shaded and labelled on the
 // chart, and enters no verdict. Nothing else on this page computes anything.
 
-import { renderLineChart, yearEndSample } from './chart.js';
+import { renderLineChart, yearEndSample, chartBox } from './chart.js';
+
+// chartBox() moved to js/chart.js so Crash replay's chart sizes by the same
+// rule; re-exported here unchanged so this file's own callers and tests are
+// untouched.
+export { chartBox };
 import { liveTailState } from './liveRolling.js';
 
 // Each chart's data, kept against the element it draws into. The SVG is sized to
@@ -453,19 +458,6 @@ function renderProvenance(results) {
   node.append(list);
   node.append(paragraph(results.snapshot.sha256Note, 'note'));
   return node;
-}
-
-/**
- * Pick an SVG box for a plot of this width. Narrow screens get fewer x-axis
- * labels, because six dates will not fit without colliding.
- */
-export function chartBox(containerWidth) {
-  const width = Math.max(320, Math.min(880, Math.round(containerWidth) || 720));
-  return {
-    width,
-    height: width < 520 ? 240 : 300,
-    xTickCount: width < 420 ? 3 : width < 620 ? 4 : 6,
-  };
 }
 
 /** Draw every chart in `root`, sized to the width it actually has on screen. */

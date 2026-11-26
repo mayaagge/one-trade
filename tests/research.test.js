@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   niceScale,
+  niceStep,
   plotArea,
   xOf,
   yOf,
@@ -74,6 +75,31 @@ test('niceScale() refuses bounds and steps it cannot use', () => {
   assert.throws(() => niceScale(1, 0, 0.1), /below min/);
 });
 
+// -------------------------------------------------------------- niceStep
+
+test('niceStep() picks a round step close to the target tick count', () => {
+  // A $10,000 span in 5 steps: 2,000 a step, which is the plainest number
+  // anyone splitting $10,000 into five would pick by hand.
+  assert.equal(niceStep(0, 10000, 5), 2000);
+  const scale = niceScale(0, 10000, niceStep(0, 10000, 5));
+  assert.deepEqual(scale.ticks, [0, 2000, 4000, 6000, 8000, 10000]);
+});
+
+test('niceStep() rounds to 1, 2 or 5 times a power of ten, never anything else', () => {
+  for (const [min, max] of [[6000, 10500], [9000, 10200], [0.2, 0.9], [1, 3], [0, 1]]) {
+    const step = niceStep(min, max, 5);
+    const magnitude = 10 ** Math.floor(Math.log10(step));
+    const normalized = Math.round((step / magnitude) * 1e6) / 1e6;
+    assert.ok([1, 2, 5, 10].includes(normalized), `niceStep(${min}, ${max}) gave ${step}, not a 1-2-5 step`);
+  }
+});
+
+test('niceStep() refuses bounds it cannot use', () => {
+  assert.throws(() => niceStep(Number.NaN, 1), /finite bounds/);
+  assert.throws(() => niceStep(1, 1), /at or below min/);
+  assert.throws(() => niceStep(0, 1, 0), /positive tick count/);
+});
+
 // ------------------------------------------------------------------ geometry
 
 test('plotArea() sits inside its padding and refuses a box with no room', () => {
@@ -82,6 +108,15 @@ test('plotArea() sits inside its padding and refuses a box with no room', () => 
   assert.equal(PLOT.right, 720 - DEFAULT_PADDING.right);
   assert.equal(PLOT.bottom, 300 - DEFAULT_PADDING.bottom);
   assert.throws(() => plotArea(10, 10, DEFAULT_PADDING), /no room/);
+});
+
+test('plotArea() honours a wider left gutter, for a y-axis whose labels need one', () => {
+  // Crash replay's dollar ticks ("$10.5K") are wider than DEFAULT_PADDING.left
+  // (40) was sized for Research's one-decimal correlation reads; renderLineChart
+  // passes a custom `padding` through to exactly this function.
+  const wide = plotArea(720, 300, { ...DEFAULT_PADDING, left: 54 });
+  assert.equal(wide.left, 54);
+  assert.equal(wide.width, PLOT.width - 14, 'the extra gutter comes out of the plot, not the canvas');
 });
 
 test('xOf() puts the first point on the left edge and the last on the right', () => {

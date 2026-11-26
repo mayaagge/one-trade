@@ -1,7 +1,12 @@
 /* One Trade - one plain stylesheet. No framework, no build step.
-   Colours are the validated data-viz palette: categorical slot 1 (blue) for the
-   single chart series, with the palette's chart chrome and ink for everything
-   else. Dark mode is stepped for the dark surface, not an automatic flip. */
+   Colours are the validated data-viz palette: categorical slot 1 (blue) for a
+   single chart series, slot 2 (orange) added for Crash replay's second line -
+   a portfolio against the index - with the palette's chart chrome and ink for
+   everything else. Dark mode is stepped for the dark surface, not an automatic
+   flip. The pair passes the palette's own validator in both modes (worst normal-
+   vision Delta E 35.2 light / 33.3 dark); slot 2 sits under 3:1 contrast on the
+   light surface, which is why Crash replay never puts the orange line's own
+   color on text - see the legend and tooltip rules in js/chart.js. */
 
 :root {
   color-scheme: light;
@@ -14,6 +19,7 @@
   --border: rgba(11, 11, 11, 0.10);
   --series-1: #257de0;         /* the chart series */
   --series-1-soft: #cce3fd;
+  --series-2: #f47230;         /* Crash replay's second line: the index */
   --waiting: #fbb315;          /* status: waiting on data */
   --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
@@ -30,6 +36,7 @@
     --border: rgba(255, 255, 255, 0.10);
     --series-1: #338ced;
     --series-1-soft: #1757ac;
+    --series-2: #e76624;
     --waiting: #fbb315;
   }
 }
@@ -364,6 +371,43 @@ main { outline: none; }
 .chart-crosshair { stroke: var(--axis); stroke-width: 1; }
 .chart-hover-dot { fill: var(--series-1); stroke: var(--surface-1); stroke-width: 2; }
 
+/* A second line, drawn for Crash replay's portfolio-vs-index comparison. The
+   Research chart passes no `compare` series and never reaches any of this. */
+.chart-line-compare {
+  stroke: var(--series-2);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+/* Where each line ends, so two lines that converge or cross are still readable
+   without hovering: a filled dot in the series colour with a surface ring, the
+   same spacer the marked-date dot already uses. */
+.chart-end-dot { fill: var(--series-1); stroke: var(--surface-1); stroke-width: 2; }
+.chart-end-dot-compare { fill: var(--series-2); }
+
+/* The legend: present whenever a chart carries two series, per the data-viz
+   skill - color never carries identity alone. A short line key, not a filled
+   box, because a box is a bar's mark and this is a line chart. Text stays in
+   the text-ink token even beside the orange key, which sits under 3:1 contrast
+   on the light surface and is never used for text itself. */
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin: 4px 0 10px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+.chart-legend-item { display: inline-flex; align-items: center; gap: 7px; }
+.chart-legend-swatch {
+  display: inline-block;
+  width: 16px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--series-1);
+}
+.chart-legend-swatch-compare { background: var(--series-2); }
+
 .chart-tooltip {
   position: absolute;
   top: 0;
@@ -384,6 +428,30 @@ main { outline: none; }
   display: block;
   font-size: 0.78rem;
   color: var(--text-secondary);
+}
+/* One tooltip, every series: a keyed row per line when a chart compares two,
+   the value leading and the key beside it rather than a colored number - text
+   never wears the data color. */
+.chart-tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.chart-tooltip-row strong { font-variant-numeric: tabular-nums; }
+.chart-tooltip-key {
+  display: inline-block;
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--series-1);
+  flex: none;
+}
+.chart-tooltip-key-compare { background: var(--series-2); }
+.chart-tooltip-when {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin-top: 2px;
 }
 .chart-readout {
   font-size: 0.85rem;

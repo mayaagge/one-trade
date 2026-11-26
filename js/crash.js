@@ -33,6 +33,7 @@
 // Educational, not investment advice.
 
 import { gameDates, tickerSeries } from './gameView.js';
+import { DOLLAR_STEP, evenSplit } from './round.js';
 
 export const CRASHES_URL = 'data/crashes.json';
 export const DISCLAIMER = 'Educational, not investment advice.';
@@ -276,6 +277,129 @@ export function replay(doc, key, dollars) {
 export function fallAgainstIndex({ change, indexChange }) {
   if (!(indexChange < 0)) return { fell: change < 0, share: null, indexFell: false };
   return { fell: change < 0, share: change / indexChange, indexFell: true };
+}
+
+// --------------------------------------------------------------- the build
+
+/**
+ * A build for Crash replay: any number of a window's available holdings, split
+ * evenly and nudged in $100 steps, same as js/round.js's round.
+ *
+ * It carries no `level`, no required holding and no floor - the PRD asks Crash
+ * replay to build "a pretend portfolio" with no rule on what it holds, the way
+ * Sandbox does. The shape is the one js/build.js's tickerPicker() and
+ * allocator() already read - pool, picks, dollars, total, required, hasPick,
+ * canAddPick, togglePick, adjustDollars, canLower, canRaise, buildComplete,
+ * allocated - so the same build screen draws it.
+ *
+ * `pool` IS THE WHOLE GAME UNIVERSE, not just this window's own tickers. A
+ * holding the window cannot replay - PLTR in the 2020 crash - still has to be
+ * drawn, disabled, with a reason; a pool already narrowed to what is available
+ * would make it vanish instead, which is a different thing from explaining it.
+ * `isAvailable(ticker)` is the window's own rule, and togglePick() enforces it
+ * the way js/round.js's round refuses to drop a required holding - at the build
+ * layer, not only by the picker disabling a button. A bypassed disabled button
+ * still cannot add an unavailable holding; a disabled button can only ever stop
+ * a click, never a caller.
+ */
+export function createBuild(pool, {
+  total = STARTING_DOLLARS, step = DOLLAR_STEP, isAvailable = () => true,
+} = {}) {
+  const build = {
+    pool: [...pool],
+    total,
+    picks: [],
+    dollars: {},
+    // No holding is required and none carries a floor: every holding's least
+    // share is the plain $100 step every build respects.
+    required: [],
+  };
+
+  build.hasPick = (ticker) => build.picks.includes(ticker);
+  build.canAddPick = () => true;
+
+  build.togglePick = (ticker) => {
+    if (!build.pool.includes(ticker)) throw new Error(`${ticker} is not in this game's universe`);
+    if (!build.hasPick(ticker) && !isAvailable(ticker)) {
+      throw new Error(`${ticker} is not available for this build`);
+    }
+    build.picks = build.hasPick(ticker)
+      ? build.picks.filter((t) => t !== ticker)
+      : [...build.picks, ticker];
+    build.dollars = build.picks.length > 0 ? evenSplit(build.picks, total, step) : {};
+    return build;
+  };
+
+  build.allocated = () => build.picks.reduce((sum, t) => sum + (build.dollars[t] ?? 0), 0);
+
+  build.buildComplete = () => build.picks.length > 0
+    && build.allocated() === total
+    && build.picks.every((t) => build.dollars[t] > 0);
+
+  /** Every holding's floor is the plain $100 step - there are no required holdings to carry one of their own. */
+  build.floorOf = () => step;
+
+  build.canLower = (ticker, s = step) => build.hasPick(ticker)
+    && build.picks.length > 1
+    && (build.dollars[ticker] ?? 0) - s >= step;
+
+  build.canRaise = (ticker, s = step) => build.hasPick(ticker)
+    && build.picks.some((other) => other !== ticker && build.dollars[other] - s >= step);
+
+  /**
+   * Move one holding's dollars by whole steps, taking the difference from the
+   * other holdings so the total stays at exactly `total`. Mirrors
+   * js/round.js's adjustDollars() exactly, with every holding's floor the plain
+   * step rather than a level's own.
+   */
+  build.adjustDollars = (ticker, steps, s = step) => {
+    if (!build.hasPick(ticker)) throw new Error(`${ticker} is not in this portfolio`);
+    if (!Number.isInteger(steps)) throw new Error('adjustDollars: steps must be a whole number');
+    const others = build.picks.filter((t) => t !== ticker);
+    if (others.length === 0) return 0;
+
+    let moved = 0;
+    const direction = Math.sign(steps);
+    for (let i = 0; i < Math.abs(steps); i += 1) {
+      if (direction > 0) {
+        const from = others
+          .filter((t) => build.dollars[t] - s >= s)
+          .sort((a, b) => build.dollars[b] - build.dollars[a])[0];
+        if (from === undefined) break;
+        build.dollars[from] -= s;
+        build.dollars[ticker] += s;
+      } else {
+        if (build.dollars[ticker] - s < s) break;
+        const to = others.sort((a, b) => build.dollars[a] - build.dollars[b])[0];
+        build.dollars[ticker] -= s;
+        build.dollars[to] += s;
+      }
+      moved += 1;
+    }
+    return moved;
+  };
+
+  return build;
+}
+
+// ------------------------------------------------------------------ dates
+
+const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/**
+ * An ISO date as "Mon D" - "Feb 19" - for Crash replay's x-axis and tooltip.
+ *
+ * Every window sits inside one calendar year, so the year is left off; parsed
+ * straight out of the string rather than through a Date object, which would
+ * read the day back in whatever timezone the browser is in.
+ */
+export function formatShortDate(isoDate) {
+  const [, month, day] = String(isoDate).split('-');
+  const index = Number(month) - 1;
+  if (!(index >= 0 && index < 12) || !Number.isFinite(Number(day))) {
+    throw new Error(`formatShortDate: "${isoDate}" is not an ISO date`);
+  }
+  return `${MONTH_ABBR[index]} ${Number(day)}`;
 }
 
 /** Read data/crashes.json. The caller handles the failure, as with game.json. */
