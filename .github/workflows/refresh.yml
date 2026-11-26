@@ -3,11 +3,25 @@ name: Refresh game data
 # Fetch live prices every weekday evening, rebuild data/game.json, and commit it
 # only if it changed.
 #
-# WHAT THIS JOB MAY WRITE: data/game.json, and nothing else. The frozen research
-# data - data/prices.json and data/results.json - is the exact bytes every
-# published verdict was computed from, so a step below fails the run if anything
-# other than game.json appears in the diff, and scripts/fetch_data.py refuses to
-# write the frozen snapshot in live mode even if asked to.
+# WHAT THIS JOB MAY WRITE: data/game.json, data/puzzles.json and
+# data/daily.json, and nothing else. The frozen research data -
+# data/prices.json and data/results.json - is the exact bytes every published
+# verdict was computed from, so a step below fails the run if anything else
+# appears in the diff, and scripts/fetch_data.py refuses to write the frozen
+# snapshot in live mode even if asked to.
+#
+# WHY THE PUZZLE IS BUILT EVEN WHEN THE FETCH FAILS. data/puzzles.json is a
+# ledger with one entry per calendar date, and a hole in it is a day with no
+# puzzle. The builder reads the committed data/game.json rather than tonight's
+# download, so it has something to work from on an evening Yahoo did not answer,
+# and it writes the week ahead so a run of bad evenings still cannot leave a
+# gap. It may never rewrite a date that has arrived; tests/puzzles.test.js
+# checks that against git, which is why the checkout below is two deep.
+#
+# data/daily.json is the same entries sliced to today through today + 7, and
+# it is the only puzzle file the game loads. The ledger keeps every day ever
+# played and does not stop growing; the game should not download a year of
+# past answers to play one morning.
 #
 # WHEN IT RUNS. 23:30 UTC on weekdays: 18:30 in New York in winter, 19:30 in
 # summer, so the US close at 16:00 has settled either way. GitHub's cron is UTC
@@ -41,7 +55,11 @@ jobs:
     if: github.repository == 'mayaagge/one-trade'
     runs-on: ubuntu-latest
     steps:
+      # fetch-depth 2, so tests/puzzles.test.js can read the parent commit and
+      # check that no committed puzzle was rewritten after its date arrived.
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
 
       - uses: actions/setup-node@v5
         with:
@@ -86,17 +104,20 @@ jobs:
         if: steps.fetch.outputs.fetched == 'true'
         run: node scripts/build_game_data.mjs
 
+      # No `if`: a failed fetch is a reason to play on yesterday's prices, never
+      # a reason to leave tomorrow without a puzzle.
+      - name: Build the daily "Same bet?" puzzle
+        run: node scripts/build_puzzles.mjs
+
       # A push made with GITHUB_TOKEN does not trigger the Tests workflow, so the
       # tests run here. Without this the daily commit would be the one commit in
       # the repository that nothing checked.
       - name: Run the tests
-        if: steps.fetch.outputs.fetched == 'true'
         run: node --test "tests/**/*.test.js"
 
       # data/live_prices.json is gitignored, so it is not in this list; --porcelain
       # strips to the path, which is compared whole rather than matched loosely.
-      - name: Refuse to commit anything but data/game.json
-        if: steps.fetch.outputs.fetched == 'true'
+      - name: Refuse to commit anything but the three data files this job owns
         run: |
           changed=$(git status --porcelain --untracked-files=all | sed 's/^...//')
           echo "Changed: ${changed:-nothing}"
@@ -104,27 +125,41 @@ jobs:
           # check would then pass while reporting a failure.
           bad=0
           while IFS= read -r file; do
-            if [ -n "$file" ] && [ "$file" != "data/game.json" ]; then
-              echo "::error title=Unexpected change::$file changed. This job may only write data/game.json."
-              bad=1
-            fi
+            case "$file" in
+              ""|data/game.json|data/puzzles.json|data/daily.json) ;;
+              *)
+                echo "::error title=Unexpected change::$file changed. This job may only write data/game.json, data/puzzles.json and data/daily.json."
+                bad=1
+                ;;
+            esac
           done <<< "$changed"
           if [ "$bad" -ne 0 ]; then exit 1; fi
 
+      # The puzzle ledger gains an entry most evenings even when prices did not
+      # move, so the two files are tested for change separately and the message
+      # says which of them actually moved.
       - name: Commit, if the data changed
-        if: steps.fetch.outputs.fetched == 'true'
         run: |
-          # --porcelain rather than `git diff`, so the first run - when game.json is
+          # --porcelain rather than `git diff`, so the first run - when a file is
           # new and untracked, and a diff is therefore empty - still commits.
-          if [ -z "$(git status --porcelain --untracked-files=all -- data/game.json)" ]; then
-            echo "No change: the market's last trading day is unchanged, so nothing to commit."
+          game=$(git status --porcelain --untracked-files=all -- data/game.json)
+          puzzles=$(git status --porcelain --untracked-files=all -- data/puzzles.json data/daily.json)
+          if [ -z "$game" ] && [ -z "$puzzles" ]; then
+            echo "No change: prices and puzzles are both unchanged, so nothing to commit."
             exit 0
           fi
           through=$(node -e "process.stdout.write(JSON.parse(require('fs').readFileSync('data/game.json','utf8')).meta.liveThrough)")
+          if [ -n "$game" ] && [ -n "$puzzles" ]; then
+            message="Refresh game data and the daily puzzle: live prices through $through"
+          elif [ -n "$game" ]; then
+            message="Refresh game data: live prices through $through"
+          else
+            message="Extend the daily puzzle, on prices through $through"
+          fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add data/game.json
-          git commit -m "Refresh game data: live prices through $through"
+          git add data/game.json data/puzzles.json data/daily.json
+          git commit -m "$message"
           git push
 
       # After the commit, and deliberately not blocking it: live prices move, and
@@ -135,3 +170,10 @@ jobs:
       - name: Can every level still be passed three ways?
         if: steps.fetch.outputs.fetched == 'true'
         run: node scripts/check_levels.mjs --prices data/live_prices.json
+
+      # Also after the commit, for the same reason. Whether today's correlations
+      # still offer a same-bet pair and a surprise is a fact about the market,
+      # not about any commit, so it colours the run and never withholds the data.
+      # The unit tests deliberately do not check this; see tests/puzzles.test.js.
+      - name: Can the daily puzzle still be built from today's prices?
+        run: node scripts/build_puzzles.mjs --check --days 60

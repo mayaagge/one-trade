@@ -9,7 +9,12 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
+      # Two commits deep, so tests/puzzles.test.js can compare data/puzzles.json
+      # against the parent of the commit being tested. Against HEAD alone it would
+      # be comparing the file with itself, which no rewrite could ever fail.
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
       - uses: actions/setup-node@v5
         with:
           node-version: 24

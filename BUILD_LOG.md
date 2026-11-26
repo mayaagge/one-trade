@@ -2654,3 +2654,163 @@ stands out here".
 browser at 390px: a pass at three stars, a pass at two, and a miss that hedged.
 
 Educational, not investment advice.
+
+## The daily "Same bet?" puzzle: the builder, 26 November 2026 (session 2.13)
+
+docs/PRD.md, Feature roadmap Tier 1: "Five ticker pairs a day, the same for
+every player, picked from the date." This session built the half that makes a
+day's puzzle exist - `scripts/build_puzzles.mjs`, `data/puzzles.json` and the
+`dailyPuzzle` rules in levels.json. The screen is the next session.
+
+### Why a day's puzzle is written down rather than computed in the browser
+
+Not for speed. docs/PRD.md, "The committed price snapshot is the reference
+data", records that Yahoo's adjusted closes are not reproducible between
+fetches: refetching KO disagreed with the committed snapshot on 1,731 of 2,513
+days, by up to 8.1e-7 relative, and across the universe by up to 1.2e-6. That is
+orders of magnitude below anything that moves a verdict, and quite enough to
+move a pair sitting at 0.7000003 across a bucket edge - for the same date, after
+somebody answered it. Add the weekday rebuild of data/game.json, which slides
+the 252-day window every evening, and a correlation computed in the browser is
+simply not the same number twice. So it is computed once and frozen.
+
+### The freeze rule, and the hole in the first version of it
+
+An entry may be written or rewritten only while its date is still in the future.
+Stated as a check on a change: every entry that differs from the previous
+committed version must be dated AFTER the New York date of the version doing the
+changing.
+
+The first version of this read the boundary off the PARENT commit's date, and
+that leaves today unguarded. Wednesday evening's refresh has Tuesday's commit as
+its parent, so a Tuesday boundary would let it rewrite Wednesday's entry while
+Wednesday was being played. The test named WEDNESDAY in tests/puzzles.test.js
+pins both halves: the rule catches it, and the parent-dated version does not.
+
+Comparing against HEAD alone has the opposite failure. In the Tests workflow the
+pushed commit IS HEAD, so the working tree and HEAD are the same bytes and the
+comparison can never fail. The test therefore makes two comparisons - the
+working tree against HEAD, read against today, which is what the refresh
+workflow runs before it commits; and HEAD against its parent, read against
+HEAD's own committer date, which is the one with something to say after a push.
+Both checkouts are now `fetch-depth: 2`.
+
+### The pairs teach, and that is a rule with numbers in it
+
+A random five pairs would be nearly all "different bets": over the 252-day
+window on 25 November 2026, of the 780 pairs, 546 fall below 0.3 and only 29
+reach 0.7. So each day holds all three answers, two of one, two of another and
+one of the third, and at least one SURPRISE - a pair whose answer disagrees with
+the groups in tickers.json. Kind A is the same bet from different groups
+(VXUS/QQQ at 0.82); kind B is different bets from the same group (ADBE/CSCO at
+-0.08).
+
+**Which answer gets the single slot is weighted, not even, and the weighting is
+the whole reason the puzzle is playable daily.** Even weights spend 1.67
+same-bet pairs a day out of a pool of 24, so a pair comes round every 8 days and
+a daily player starts recognising VOO/VTI inside a fortnight. At 5:1:1 - "the
+same bet" takes the single slot on 5 days in 7 - the shortest gap is 15 days and
+the mean 19.
+
+**A longer no-repeat window makes this worse, not better.** Measured over 60
+days at these weights: 14 days gives a shortest gap of 15 and never relaxes; 16
+gives 17; 18 gives **12** and relaxes on 3 days; 20 gives **11** and relaxes on
+12. Past about 16 days the 24-pair pool cannot fill the window, the ladder
+halves it, and the result is shorter gaps than the rule that was not stretched.
+So the window stays at 14 and the ladder is a safety net that currently never
+fires.
+
+**The cost of the weighting, stated:** a player who always answers "different
+bets" now scores 1.85 of 5 rather than 1.68. Still under the cap of 2 - no
+constant answer can reach 3 of 5, which is what the cap is for - but "different
+bets" is the best lazy answer by 0.6 of a point instead of 0.06.
+
+### The guard band
+
+A pair within 0.05 of a bucket edge is never used. The puzzle scores a bucket
+with no slider and no partial credit, so NVDA/QQQ at 0.7099 is a coin flip
+rather than a question. It drops 84 of the 780 pairs. This is the opposite of
+level 1's pool, which deliberately keeps VTI/VXUS at 0.7997 as a near miss,
+because there the player types a number and sees four decimals.
+
+### The two windows disagree, visibly, and both screens say which they used
+
+The puzzle reads 252 days, as docs/PRD.md asks; the levels read 756. VTI and
+VXUS correlate 0.7997 over 756 days and 0.8655 over 252, so the same pair is a
+near miss on level 1 and the same bet in the puzzle. That is the window, not a
+bug, and the reveal names its own window so the two screens cannot look like
+they contradict each other.
+
+### What is counted rather than dropped quietly
+
+Every pair the builder discards is counted into the entry: inside the guard
+band, short of 252 days, or named in tickers.json but absent from game.json.
+Each entry also records how many candidates each answer had left after the
+no-repeat rule, and which rung of the ladder it used. A guard band that quietly
+ate half the pool would otherwise look exactly like one that ate three pairs.
+
+### Where the numbers came from
+
+The selector was prototyped and simulated for 60 and 180 days BEFORE
+scripts/build_puzzles.mjs was written, and the script then reproduced the
+prototype's figures exactly - shortest gap 15, mean 19.1, kind A leading 21
+days, always-different 1.85. Two implementations agreeing is worth more than
+either one agreeing with itself.
+
+### A future date is REBUILT each evening, not merely filled in
+
+Worth stating plainly, because the two behaviours look identical most nights.
+`extendLedger` keeps every entry dated on or before today and throws the rest
+away, then builds the whole horizon again from tonight's prices. So tomorrow's
+puzzle is computed from last night's closes rather than from whatever the pool
+looked like a week ago, and the horizon is a buffer against missed evenings
+rather than a week of work done in advance.
+
+The first attempt to demonstrate this showed nothing: perturbing every return by
+`v * 1.03 + 1e-4` left all seven future days identical, because an affine
+transform of two series leaves their Pearson correlation exactly unchanged.
+Re-run with independent noise per ticker, the candidate pool moved - 24 same-bet
+pairs became 14 - and all seven future dates came back different. The
+demonstration was wrong, not the behaviour.
+
+Only dates in the future are touched. A build that would change a date that has
+arrived refuses before writing anything, and says which dates and why.
+
+### The live-pool checks do not run in the test suite
+
+They did, and they could have blocked a price commit. `node --test` runs in the
+refresh workflow BEFORE the commit, so a test asserting "today's market still
+offers a same-bet pair" would, on the evening that stopped being true, keep that
+evening's prices out of the game as well. docs/PRD.md weakness 3 is exactly this
+- live data moves the goalposts - and scripts/check_levels.mjs already answers
+it by running after the commit.
+
+So the market-shaped assertions moved to `scripts/build_puzzles.mjs --check`,
+which the refresh workflow runs after it has pushed, beside the level check. It
+colours the run and never withholds the data. What stayed in the test suite is
+the thing a commit can actually break: that every ticker in tickers.json has
+prices in game.json, that --check reports a thin pool rather than throwing at
+it, and that daily.json matches the ledger.
+
+**One blocking path is left, deliberately.** If no day can be built at all, the
+builder itself throws and nothing is committed. That is not a goalpost moving;
+it is a day with no puzzle, and there is nothing to ship.
+
+### Two puzzle files, and only one of them is for the game
+
+`data/puzzles.json` is the full record and keeps every day ever played.
+`data/daily.json` is today through today + 7, copied out of it without being
+rebuilt, and it is the only puzzle file the game loads. At about 1.5 KB an
+entry the ledger passes 500 KB inside a year, which is not a download to ask for
+in order to play one morning.
+
+Sliced, not recomputed, and the test says so with `assert.equal` on the object
+rather than `assert.deepEqual` on its contents: a rebuilt entry that happened to
+come out identical would pass a deep comparison and still be the beginning of
+two files drifting apart. A second test holds the committed pair to each other,
+so a hand-edited daily.json fails.
+
+748 tests pass. The git freeze check skips until data/puzzles.json is committed,
+and runs from the first push after that.
+
+Educational, not investment advice.

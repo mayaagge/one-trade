@@ -114,6 +114,7 @@ export function validateLevels(data) {
   }
 
   validateKinds(data);
+  validateDailyPuzzle(data);
   validateGuessPool(data.guessPool);
   validateFinalPool(data.finalPool, data.guessPool);
   return data;
@@ -300,6 +301,142 @@ function validateKindFloor(level, data, wanted) {
       );
     }
   }
+}
+
+/**
+ * The daily "Same bet?" puzzle's rules, which live in levels.json beside the
+ * levels because they are rules a reviewer should be able to read.
+ *
+ * The puzzle has no buckets of its own: it answers in LEVEL 1's buckets, and
+ * dailyPuzzle.bucketsFrom says so. This function therefore checks that the
+ * level it points at exists and has buckets, and nothing here re-states an
+ * edge. docs/PRD.md: "The buckets are the ones the daily puzzle already uses,
+ * not new numbers."
+ *
+ * Returns the block, or null if the file carries no puzzle at all - an older
+ * levels.json is not an error, it is a levels.json without a puzzle.
+ */
+export function validateDailyPuzzle(data) {
+  const puzzle = data?.dailyPuzzle;
+  if (puzzle === undefined) return null;
+  if (!puzzle || typeof puzzle !== 'object') throw new Error('dailyPuzzle: expected an object');
+
+  for (const field of ['pairsPerDay', 'days', 'maxPerAnswer', 'maxPerTicker', 'noRepeatDays', 'horizonDays']) {
+    if (!Number.isInteger(puzzle[field]) || puzzle[field] < 1) {
+      throw new Error(`dailyPuzzle: ${field} must be a whole number of 1 or more`);
+    }
+  }
+  if (!Number.isFinite(puzzle.guardBand) || puzzle.guardBand < 0) {
+    throw new Error('dailyPuzzle: guardBand must be a number of 0 or more');
+  }
+
+  // The buckets come from a level, and that level has to be in this file.
+  const source = levelById(data, bucketLevelId(puzzle));
+  if (!Array.isArray(source.buckets) || source.buckets.length === 0) {
+    throw new Error(`dailyPuzzle: bucketsFrom points at level ${source.id}, which has no buckets`);
+  }
+  const keys = source.buckets.map((bucket) => bucket.key);
+
+  // Five pairs, three answers, no answer more than twice: the three numbers
+  // have to leave a day that can actually be built.
+  if (puzzle.maxPerAnswer * keys.length < puzzle.pairsPerDay) {
+    throw new Error(
+      `dailyPuzzle: ${keys.length} answers capped at ${puzzle.maxPerAnswer} each cannot fill `
+      + `${puzzle.pairsPerDay} pairs`,
+    );
+  }
+  if (puzzle.pairsPerDay < keys.length) {
+    throw new Error(
+      `dailyPuzzle: ${puzzle.pairsPerDay} pairs cannot show all ${keys.length} answers in a day`,
+    );
+  }
+
+  const weights = puzzle.singleSlotWeights;
+  if (!weights || typeof weights !== 'object') {
+    throw new Error('dailyPuzzle: singleSlotWeights is missing');
+  }
+  for (const key of keys) {
+    if (!Number.isInteger(weights[key]) || weights[key] < 0) {
+      throw new Error(`dailyPuzzle: singleSlotWeights.${key} must be a whole number of 0 or more`);
+    }
+  }
+  for (const key of Object.keys(weights)) {
+    if (!keys.includes(key)) {
+      throw new Error(`dailyPuzzle: singleSlotWeights names "${key}", which is not one of the buckets`);
+    }
+  }
+  if (keys.reduce((total, key) => total + weights[key], 0) <= 0) {
+    throw new Error('dailyPuzzle: the singleSlotWeights are all zero, so no answer could take the single slot');
+  }
+
+  if (!Array.isArray(puzzle.relaxations) || puzzle.relaxations.length === 0) {
+    throw new Error('dailyPuzzle: relaxations must be a non-empty list of no-repeat windows');
+  }
+  if (puzzle.relaxations[0] !== puzzle.noRepeatDays) {
+    throw new Error(
+      `dailyPuzzle: the first relaxation is ${puzzle.relaxations[0]} but noRepeatDays is `
+      + `${puzzle.noRepeatDays}; the ladder has to start at the rule it relaxes`,
+    );
+  }
+  for (const [i, days] of puzzle.relaxations.entries()) {
+    if (!Number.isInteger(days) || days < 0) {
+      throw new Error(`dailyPuzzle: relaxation ${i} must be a whole number of days of 0 or more`);
+    }
+    if (i > 0 && days >= puzzle.relaxations[i - 1]) {
+      throw new Error('dailyPuzzle: the relaxations must get shorter, each one looser than the last');
+    }
+  }
+
+  const surprise = puzzle.surprise;
+  if (!surprise || !Number.isInteger(surprise.required) || surprise.required < 1) {
+    throw new Error('dailyPuzzle: surprise.required must be a whole number of 1 or more');
+  }
+  if (!Array.isArray(surprise.kinds) || surprise.kinds.length === 0) {
+    throw new Error('dailyPuzzle: surprise.kinds must be a non-empty list');
+  }
+  if (surprise.required > puzzle.pairsPerDay) {
+    throw new Error('dailyPuzzle: more surprises are required than there are pairs in a day');
+  }
+  const kindKeys = new Set();
+  for (const kind of surprise.kinds) {
+    if (!kind || typeof kind.key !== 'string' || kind.key.length === 0) {
+      throw new Error('dailyPuzzle: every surprise kind needs a key');
+    }
+    if (kindKeys.has(kind.key)) throw new Error(`dailyPuzzle: duplicate surprise kind ${kind.key}`);
+    kindKeys.add(kind.key);
+    if (!keys.includes(kind.bucket)) {
+      throw new Error(
+        `dailyPuzzle: surprise kind ${kind.key} names bucket "${kind.bucket}", which level `
+        + `${source.id} does not have`,
+      );
+    }
+    if (typeof kind.sameGroup !== 'boolean') {
+      throw new Error(`dailyPuzzle: surprise kind ${kind.key} needs sameGroup true or false`);
+    }
+  }
+
+  if (typeof puzzle.timeZone !== 'string' || puzzle.timeZone.length === 0) {
+    throw new Error('dailyPuzzle: a timeZone is needed, or two devices could see different days');
+  }
+  return puzzle;
+}
+
+/** Which level the puzzle borrows its buckets from: "level 1" or a number. */
+export function bucketLevelId(puzzle) {
+  const from = puzzle?.bucketsFrom;
+  if (Number.isInteger(from)) return from;
+  const match = /^level\s+(\d+)$/.exec(String(from ?? ''));
+  if (!match) {
+    throw new Error(`dailyPuzzle: bucketsFrom should read "level N", got ${JSON.stringify(from)}`);
+  }
+  return Number(match[1]);
+}
+
+/** Level 1's buckets, as the puzzle answers in them. Throws if the file has no puzzle. */
+export function puzzleBuckets(data) {
+  const puzzle = validateDailyPuzzle(data);
+  if (!puzzle) throw new Error('levels.json carries no dailyPuzzle block');
+  return levelById(data, bucketLevelId(puzzle));
 }
 
 /** The tickers a kind covers, from levels.json, or an empty list if there is no such kind. */

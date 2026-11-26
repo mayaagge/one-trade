@@ -742,12 +742,98 @@ def build_beta_cases():
     return out
 
 
+# --- the daily "Same bet?" puzzle's window ----------------------------------
+
+PUZZLE_DAYS = 252         # levels.json dailyPuzzle.days: "last year's correlation"
+
+
+def build_puzzle_cases():
+    """Known answers for a PAIR's correlation over the puzzle's 252-day window.
+
+    The daily puzzle does not add a new measure - it is js/math.js correlation()
+    again - but it does add a new WINDOW, and that is what can go wrong. The
+    puzzle reads data/game.json, a row per trading day with one column per
+    ticker and leading nulls where a ticker had not listed yet, slices the last
+    252 days both tickers cover, and correlates. A fixture that handed the
+    correlator a ready-made 252-row matrix would never catch an off-by-one in
+    the slice, so these cases carry the WHOLE series, nulls and all, and numpy
+    does the slicing here independently of js/gameView.js.
+
+    A fresh generator at the registered seed, so nothing above moves.
+    """
+    rng = np.random.default_rng(SEED)
+    total = 300                                  # longer than the window, as game.json is
+
+    # Three tickers. CCC lists late, which is the registered shape: VRT and PLTR
+    # have leading nulls in data/game.json for exactly this reason.
+    late_start = 60
+    target = np.array([[1.0, 0.82, 0.25], [0.82, 1.0, 0.31], [0.25, 0.31, 1.0]])
+    scale = np.diag([0.011, 0.013, 0.019])
+    draws = rng.normal(0.0, 1.0, (total, 3)) @ np.linalg.cholesky(scale @ target @ scale).T
+
+    # Weekday dates, so the fixture reads like a trading calendar. Which dates
+    # they are changes no number: the window is counted in rows.
+    dates, day = [], np.datetime64("2024-01-01")
+    while len(dates) < total:
+        if np.is_busday(day):
+            dates.append(str(day))
+        day = day + np.timedelta64(1, "D")
+
+    tickers = ["AAA", "BBB", "CCC"]
+    columns = {
+        "AAA": [float(x) for x in draws[:, 0]],
+        "BBB": [float(x) for x in draws[:, 1]],
+        # None for every day before CCC listed.
+        "CCC": [None] * late_start + [float(x) for x in draws[late_start:, 2]],
+    }
+
+    cases = []
+    for a, b in [("AAA", "BBB"), ("AAA", "CCC"), ("BBB", "CCC")]:
+        # The days BOTH tickers cover, newest backwards, then at most 252 of them.
+        first = max(
+            next(i for i, v in enumerate(columns[a]) if v is not None),
+            next(i for i, v in enumerate(columns[b]) if v is not None),
+        )
+        available = total - first
+        days = min(PUZZLE_DAYS, available)
+        start = total - days
+        window = np.column_stack([columns[a][start:], columns[b][start:]]).astype(float)
+        cases.append({
+            "name": f"puzzle_window_{a}_{b}",
+            "description": (
+                f"{a} and {b} over the last {days} trading days both cover, out of {total} in the file."
+            ),
+            "pair": [a, b],
+            "requested_days": PUZZLE_DAYS,
+            "expected": {
+                "days": days,
+                "available_days": available,
+                "start_date": dates[start],
+                "end_date": dates[-1],
+                "correlation": float(correlation(window)[0][1]),
+            },
+        })
+
+    return {
+        "note": (
+            "A game.json-shaped document and the correlation of each pair over the last "
+            "252 trading days both tickers cover. Synthetic; no real price is here."
+        ),
+        "requested_days": PUZZLE_DAYS,
+        "dates": dates,
+        "tickers": tickers,
+        "columns": columns,
+        "cases": cases,
+    }
+
+
 def main():
     cases, basket = build_cases()
     series_cases = build_series_cases()
     beta_cases = build_beta_cases()
     replay_cases = build_replay_cases()
     fall_share_cases = build_fall_share_cases()
+    puzzle_window = build_puzzle_cases()
     out = []
     for case in cases:
         returns = case["returns"]
@@ -801,6 +887,7 @@ def main():
         "beta_cases": beta_cases,
         "replay_cases": replay_cases,
         "fall_share_cases": fall_share_cases,
+        "puzzle_window": puzzle_window,
     }
     with open(OUT, "w") as handle:
         json.dump(doc, handle, indent=1)
@@ -827,6 +914,9 @@ def main():
         share = case["expected"]["fall_share"]
         print(f"  {case['name']:<32} {len(case['dollars'])} holdings, {len(case['returns'])} days, "
               f"share={'none' if share is None else f'{share:.12f}'}")
+    for case in puzzle_window["cases"]:
+        print(f"  {case['name']:<32} {case['expected']['days']:>3} days, "
+              f"r={case['expected']['correlation']:.12f}")
 
 
 if __name__ == "__main__":

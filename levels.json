@@ -487,6 +487,53 @@
       "revealLabel": "Separate bets this portfolio really makes"
     }
   ],
+  "dailyPuzzle": {
+    "note": "The daily 'Same bet?' puzzle, docs/PRD.md Feature roadmap Tier 1. Five ticker pairs a day, the same for every player, answered as one of three buckets. Every rule the builder applies is here rather than in code, so an instructor or a reviewer can read what makes a day's puzzle without reading scripts/build_puzzles.mjs.",
+    "pairsPerDay": 5,
+    "days": 252,
+    "daysNote": "About one year of daily returns, and deliberately NOT the 756-day window the levels use. docs/PRD.md says the puzzle is 'scored on last year's correlation'. The two windows disagree, and visibly: VTI and VXUS correlate 0.7997 over 756 days and 0.8655 over 252, so the same pair is a near miss on level 1 and the same bet in the puzzle. Every reveal therefore names its own window.",
+    "bucketsFrom": "level 1",
+    "bucketsNote": "The three buckets are level 1's own, read from this file at build time and never re-typed here: 0.7 and above is the same bet, 0.3 to 0.7 is partly, below 0.3 is different bets. One definition, so the two screens cannot drift apart.",
+    "guardBand": 0.05,
+    "guardBandNote": "A pair whose correlation sits within 0.05 of a bucket edge is never used. The puzzle scores a bucket with no slider and no partial credit, so a pair at 0.7099 would be a coin flip rather than a question. On the window measured on 25 November 2026 this drops 84 of the 780 pairs.",
+    "singleSlotWeights": {
+      "same": 5,
+      "partly": 1,
+      "different": 1
+    },
+    "singleSlotNote": "Each day holds all three answers, two of one, two of another and one of the third. These weights choose which answer gets the single slot: 'the same bet' on 5 days in 7. It is weighted because the pools are nothing like equal - 24 pairs correlate above 0.7 against 507 below 0.3 - so an even split would show the same handful of same-bet pairs every eight days. At these weights the gap between two showings of one same-bet pair is 15 days at its shortest and 19 on average.",
+    "maxPerAnswer": 2,
+    "maxPerAnswerNote": "No answer is correct more than twice in a day, so always picking one answer cannot score 3 of 5. Measured over 60 days: always 'different bets' scores 1.85, always 'partly' 1.90, always 'the same bet' 1.25.",
+    "maxPerTicker": 2,
+    "maxPerTickerNote": "No ticker appears in more than two of a day's five pairs, so one name cannot carry the whole day.",
+    "noRepeatDays": 14,
+    "relaxations": [14, 7, 0],
+    "relaxationsNote": "A pair used in the last 14 days is not used again. If that leaves a bucket unable to fill its slots, the window halves to 7 and then to 0, in this fixed order, and the entry records which one it used; the three-answer mix and the surprise are never dropped, and a day that cannot be built fails the build rather than shipping a weaker puzzle. A LONGER window is not better: at 18 days the 24-pair same-bet pool cannot fill it, the fallback fires, and the shortest gap gets worse, not better - 12 days against 15.",
+    "surprise": {
+      "required": 1,
+      "kinds": [
+        {
+          "key": "A",
+          "bucket": "same",
+          "sameGroup": false,
+          "label": "the same bet, from different groups"
+        },
+        {
+          "key": "B",
+          "bucket": "different",
+          "sameGroup": true,
+          "label": "different bets, from the same group"
+        }
+      ],
+      "note": "At least one pair a day where the answer disagrees with the group the two tickers sit in, which is the lesson the game is named after. Groups come from tickers.json. The day's seed chooses which kind, among the kinds that still have an unused pair. Kind A is scarce - all 10 of its pairs are also same-bet pairs - so it leads about a third of days and appears on about half."
+    },
+    "order": "surpriseLast",
+    "orderNote": "The surprise is the fifth pair, so a day ends on the pair that teaches most.",
+    "horizonDays": 7,
+    "horizonNote": "Each build writes any missing entry from tomorrow through tomorrow + 6, which carries the puzzle across weekends, market holidays and a run of failed fetches. A build may rewrite an entry dated after its own New York date and may never touch one dated on or before it: that date is being played, or has been.",
+    "timeZone": "America/New_York",
+    "timeZoneNote": "The puzzle turns over with the market, so two devices in different time zones get the same five pairs."
+  },
   "guessPool": {
     "size": 20,
     "note": "Level 2's portfolio and the first of level 7's mystery portfolios are both drawn from this one pool, as PREREG.md requires, so on average they are equally hard.",

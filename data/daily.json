@@ -1,0 +1,677 @@
+{
+ "meta": {
+  "builtBy": "scripts/build_puzzles.mjs",
+  "slicedFrom": "data/puzzles.json",
+  "from": "2026-11-26",
+  "to": "2026-12-03",
+  "sliceNote": "Today through today + 7 days, copied out of data/puzzles.json without being rebuilt. The ledger is the full record and keeps every day ever played; this is the only puzzle file the game loads, so that opening the page does not download a year of past answers.",
+  "disclaimer": "Educational, not investment advice."
+ },
+ "entries": [
+  {
+   "date": "2026-11-27",
+   "builtFrom": {
+    "liveThrough": "2026-11-25",
+    "levelsVersion": 1
+   },
+   "window": {
+    "days": 252,
+    "from": "2025-11-25",
+    "to": "2026-11-25"
+   },
+   "noRepeatDays": 14,
+   "relaxed": false,
+   "singleAnswer": "same",
+   "surpriseKind": "B",
+   "pairs": [
+    {
+     "a": "VXUS",
+     "b": "QQQ",
+     "correlation": 0.820288741442,
+     "answer": "same",
+     "groups": [
+      "international_funds",
+      "core_us_funds"
+     ],
+     "surprise": "A"
+    },
+    {
+     "a": "AVGO",
+     "b": "ORCL",
+     "correlation": 0.49319449632,
+     "answer": "partly",
+     "groups": [
+      "ai_stocks",
+      "ai_stocks"
+     ],
+     "surprise": null
+    },
+    {
+     "a": "NVDA",
+     "b": "GS",
+     "correlation": 0.467624529972,
+     "answer": "partly",
+     "groups": [
+      "ai_stocks",
+      "banks"
+     ],
+     "surprise": null
+    },
+    {
+     "a": "ABBV",
+     "b": "BND",
+     "correlation": 0.082885133182,
+     "answer": "different",
+     "groups": [
+      "health_care",
+      "bonds_and_gold"
+     ],
+     "surprise": null
+    },
+    {
+     "a": "ADBE",
+     "b": "CSCO",
+     "correlation": -0.083850562232,
+     "answer": "different",
+     "groups": [
+      "other_large_tech",
+      "other_large_tech"
+     ],
+     "surprise": "B"
+    }
+   ],
+   "counts": {
+    "candidates": 696,
+    "byAnswer": {
+     "same": 24,
+     "partly": 165,
+     "different": 507
+    },
+    "bySurpriseKind": {
+     "A": 10,
+     "B": 38
+    },
+    "dropped": {
+     "shortWindow": 0,
+     "guardBand": 84,
+     "missingTicker": 0
+    },
+    "freeAfterNoRepeat": {
+     "same": 24,
+     "partly": 165,
+     "different": 507
+    }
+   }
+  },
+  {
+   "date": "2026-11-28",
+   "builtFrom": {
+    "liveThrough": "2026-11-25",
+    "levelsVersion": 1
+   },
+   "window": {
+    "days": 252,
+    "from": "2025-11-25",
+    "to": "2026-11-25"
+   },
+   "noRepeatDays": 14,
+   "relaxed": false,
+   "singleAnswer": "same",
+   "surpriseKind": "B",
+   "pairs": [
+    {
+     "a": "VWO",
+     "b": "VTI",
+     "correlation": 0.860173785583,
+     "answer": "same",
+     "groups": [
+      "international_funds",
+      "core_us_funds"
+     ],
+     "surprise": "A"
+    },
+    {
+     "a": "MSFT",
+     "b": "ADBE",
+     "correlation": 0.365145867576,
+     "answer": "partly",
+     "groups": [
+      "ai_stocks",
+      "other_large_tech"
+     ],
+     "surprise": null
+    },
+    {
+     "a": "MRVL",
+     "b": "VRT",
+     "correlation": 0.556062330167,
+     "answer": "partly",
+     "groups": [
+      "ai_stocks",
+      "ai_stocks"
+     ],
+     "surprise": null
+    },
+    {
+     "a": "AVGO",
+     "b": "KO",
+     "correlation": -0.307614625377,
+     "answer": "different",
+     "groups": [
+      "ai_stocks",
+      "consumer_staples"
+     ],
+     "surprise": null
+    },
+    {
+     "a": "MRVL",
+     "b": "META",
+     "correlation": 0.168415613689,
+     "answer": "different",
+     "groups": [
+      "ai_stocks",
+      "ai_stocks"
+     ],
+     "surprise": "B"
+    }
+   ],
+   "counts": {
+    "candidates": 696,
+    "byAnswer": {
+     "same": 24,
+     "partly": 165,
+     "different": 507
+    },
+    "bySurpriseKind": {
+     "A": 10,
+     "B": 38
+    },
+    "dropped": {
+     "shortWindow": 0,
+     "guardBand": 84,
+     "missingTicker": 0
+    },
+    "freeAfterNoRepeat": {
+     "same": 23,
+     "partly": 163,
+     "different": 505
+    }
+   }
+  },
+  {
+   "date": "2026-11-29",
+   "builtFrom": {
+    "liveThrough": "2026-11-25",
+    "levelsVersion": 1
+   },
+   "window": {
+    "days": 252,
+    "from": "2025-11-25",
+    "to": "2026-11-25"
+   },
+   "noRepeatDays": 14,
+   "relaxed": false,
+   "singleAnswer": "same",
+   "surpriseKind": "B",
+   "pairs": [
+    {
+     "a": "VEA",
+     "b": "VOO",
+     "correlation": 0.827405762694,
+     "answer": "same",
+     "groups": [
+      "international_funds",
+      "core_us_funds"
+     ],
+     "surprise": "A"
+    },
+    {
+     "a": "AMD",
+     "b": "VEA",
+     "correlation": 0.592349376883,
+     "answer": "partly",
+     "groups": [
+      "ai_stocks",
+      "international_funds"
+     ],
+     "surprise": null
+    },
+    {
+     "a": "NVDA",
+     "b": "VRT",
+     "correlation": 0.504368716948,
+     "answer": "partly",
+     "groups": [
+      "ai_stocks",
+      "ai_stocks"
+     ],
+     "surprise": null
+    },
+    {
+     "a": "MU",
+     "b": "LQD",
+     "correlation": 0.143211708349,
+     "answer": "different",
+     "groups": [
+      "ai_stocks",
+      "bonds_and_gold"
+     ],
+     "surprise": null
+    },
+    {
+     "a": "JNJ",
+     "b": "UNH",
+     "correlation": 0.166314915996,
+     "answer": "different",
+     "groups": [
+      "health_care",
+      "health_care"
+     ],
+     "surprise": "B"
+    }
+   ],
+   "counts": {
+    "candidates": 696,
+    "byAnswer": {
+     "same": 24,
+     "partly": 165,
+     "different": 507
+    },
+    "bySurpriseKind": {
+     "A": 10,
+     "B": 38
+    },
+    "dropped": {
+     "shortWindow": 0,
+     "guardBand": 84,
+     "missingTicker": 0
+    },
+    "freeAfterNoRepeat": {
+     "same": 22,
+     "partly": 161,
+     "different": 503
+    }
+   }
+  },
+  {
+   "date": "2026-11-30",
+   "builtFrom": {
+    "liveThrough": "2026-11-25",
+    "levelsVersion": 1
+   },
+   "window": {
+    "days": 252,
+    "from": "2025-11-25",
+    "to": "2026-11-25"
+   },
+   "noRepeatDays": 14,
+   "relaxed": false,
+   "singleAnswer": "different",
+   "surpriseKind": "B",
+   "pairs": [
+    {
+     "a": "VTI",
+     "b": "QQQ",
+     "correlation": 0.932034867212,
+     "answer": "same",
+     "groups": [
+      "core_us_funds",
+      "core_us_funds"
+     ],
+     "surprise": null
+    },
+    {
+     "a": "VXUS",
+     "b": "VWO",
+     "correlation": 0.936576401183,
+     "answer": "same",
+     "groups": [
+      "international_funds",
+      "international_funds"
+     ],
+     "surprise": null
+    },
+    {
+     "a": "AMZN",
+     "b": "QQQ",
+     "correlation": 0.486931166506,
+     "answer": "partly",
+     "groups": [
+      "ai_stocks",
+      "core_us_funds"
+     ],
+     "surprise": null
+    },
+    {
+     "a": "ORCL",
+     "b": "GS",
+     "correlation": 0.402549256332,
+     "answer": "partly",
+     "groups": [
+      "ai_stocks",
+      "banks"
+     ],
+     "surprise": null
+    },
+    {
+     "a": "ANET",
+     "b": "MSFT",
+     "correlation": 0.217846047751,
+     "answer": "different",
+     "groups": [
+      "ai_stocks",
+      "ai_stocks"
+     ],
+     "surprise": "B"
+    }
+   ],
+   "counts": {
+    "candidates": 696,
+    "byAnswer": {
+     "same": 24,
+     "partly": 165,
+     "different": 507
+    },
+    "bySurpriseKind": {
+     "A": 10,
+     "B": 38
+    },
+    "dropped": {
+     "shortWindow": 0,
+     "guardBand": 84,
+     "missingTicker": 0
+    },
+    "freeAfterNoRepeat": {
+     "same": 21,
+     "partly": 159,
+     "different": 501
+    }
+   }
+  },
+  {
+   "date": "2026-12-01",
+   "builtFrom": {
+    "liveThrough": "2026-11-25",
+    "levelsVersion": 1
+   },
+   "window": {
+    "days": 252,
+    "from": "2025-11-25",
+    "to": "2026-11-25"
+   },
+   "noRepeatDays": 14,
+   "relaxed": false,
+   "singleAnswer": "same",
+   "surpriseKind": "A",
+   "pairs": [
+    {
+     "a": "AMD",
+     "b": "ORCL",
+     "correlation": 0.434479455165,
+     "answer": "partly",
+     "groups": [
+      "ai_stocks",
+      "ai_stocks"
+     ],
+     "surprise": null
+    },
+    {
+     "a": "PLTR",
+     "b": "VOO",
+     "correlation": 0.461006656216,
+     "answer": "partly",
+     "groups": [
+      "ai_stocks",
+      "core_us_funds"
+     ],
+     "surprise": null
+    },
+    {
+     "a": "GOOGL",
+     "b": "JPM",
+     "correlation": 0.175733093382,
+     "answer": "different",
+     "groups": [
+      "ai_stocks",
+      "banks"
+     ],
+     "surprise": null
+    },
+    {
+     "a": "ABBV",
+     "b": "LQD",
+     "correlation": 0.079570759726,
+     "answer": "different",
+     "groups": [
+      "health_care",
+      "bonds_and_gold"
+     ],
+     "surprise": null
+    },
+    {
+     "a": "VWO",
+     "b": "VOO",
+     "correlation": 0.857536557865,
+     "answer": "same",
+     "groups": [
+      "international_funds",
+      "core_us_funds"
+     ],
+     "surprise": "A"
+    }
+   ],
+   "counts": {
+    "candidates": 696,
+    "byAnswer": {
+     "same": 24,
+     "partly": 165,
+     "different": 507
+    },
+    "bySurpriseKind": {
+     "A": 10,
+     "B": 38
+    },
+    "dropped": {
+     "shortWindow": 0,
+     "guardBand": 84,
+     "missingTicker": 0
+    },
+    "freeAfterNoRepeat": {
+     "same": 19,
+     "partly": 157,
+     "different": 500
+    }
+   }
+  },
+  {
+   "date": "2026-12-02",
+   "builtFrom": {
+    "liveThrough": "2026-11-25",
+    "levelsVersion": 1
+   },
+   "window": {
+    "days": 252,
+    "from": "2025-11-25",
+    "to": "2026-11-25"
+   },
+   "noRepeatDays": 14,
+   "relaxed": false,
+   "singleAnswer": "partly",
+   "surpriseKind": "B",
+   "pairs": [
+    {
+     "a": "VEA",
+     "b": "QQQ",
+     "correlation": 0.781556898631,
+     "answer": "same",
+     "groups": [
+      "international_funds",
+      "core_us_funds"
+     ],
+     "surprise": "A"
+    },
+    {
+     "a": "CRM",
+     "b": "ADBE",
+     "correlation": 0.757400717587,
+     "answer": "same",
+     "groups": [
+      "other_large_tech",
+      "other_large_tech"
+     ],
+     "surprise": null
+    },
+    {
+     "a": "NVDA",
+     "b": "CSCO",
+     "correlation": 0.367686210809,
+     "answer": "partly",
+     "groups": [
+      "ai_stocks",
+      "other_large_tech"
+     ],
+     "surprise": null
+    },
+    {
+     "a": "GOOGL",
+     "b": "BND",
+     "correlation": 0.16194391104,
+     "answer": "different",
+     "groups": [
+      "ai_stocks",
+      "bonds_and_gold"
+     ],
+     "surprise": null
+    },
+    {
+     "a": "AVGO",
+     "b": "MSFT",
+     "correlation": 0.225168397614,
+     "answer": "different",
+     "groups": [
+      "ai_stocks",
+      "ai_stocks"
+     ],
+     "surprise": "B"
+    }
+   ],
+   "counts": {
+    "candidates": 696,
+    "byAnswer": {
+     "same": 24,
+     "partly": 165,
+     "different": 507
+    },
+    "bySurpriseKind": {
+     "A": 10,
+     "B": 38
+    },
+    "dropped": {
+     "shortWindow": 0,
+     "guardBand": 84,
+     "missingTicker": 0
+    },
+    "freeAfterNoRepeat": {
+     "same": 18,
+     "partly": 155,
+     "different": 498
+    }
+   }
+  },
+  {
+   "date": "2026-12-03",
+   "builtFrom": {
+    "liveThrough": "2026-11-25",
+    "levelsVersion": 1
+   },
+   "window": {
+    "days": 252,
+    "from": "2025-11-25",
+    "to": "2026-11-25"
+   },
+   "noRepeatDays": 14,
+   "relaxed": false,
+   "singleAnswer": "same",
+   "surpriseKind": "B",
+   "pairs": [
+    {
+     "a": "AMD",
+     "b": "QQQ",
+     "correlation": 0.777439502416,
+     "answer": "same",
+     "groups": [
+      "ai_stocks",
+      "core_us_funds"
+     ],
+     "surprise": "A"
+    },
+    {
+     "a": "AVGO",
+     "b": "VXUS",
+     "correlation": 0.541104101386,
+     "answer": "partly",
+     "groups": [
+      "ai_stocks",
+      "international_funds"
+     ],
+     "surprise": null
+    },
+    {
+     "a": "JNJ",
+     "b": "WMT",
+     "correlation": 0.381191393017,
+     "answer": "partly",
+     "groups": [
+      "health_care",
+      "consumer_staples"
+     ],
+     "surprise": null
+    },
+    {
+     "a": "MU",
+     "b": "META",
+     "correlation": 0.14290842042,
+     "answer": "different",
+     "groups": [
+      "ai_stocks",
+      "ai_stocks"
+     ],
+     "surprise": "B"
+    },
+    {
+     "a": "CRM",
+     "b": "INTC",
+     "correlation": -0.121567053927,
+     "answer": "different",
+     "groups": [
+      "other_large_tech",
+      "other_large_tech"
+     ],
+     "surprise": "B"
+    }
+   ],
+   "counts": {
+    "candidates": 696,
+    "byAnswer": {
+     "same": 24,
+     "partly": 165,
+     "different": 507
+    },
+    "bySurpriseKind": {
+     "A": 10,
+     "B": 38
+    },
+    "dropped": {
+     "shortWindow": 0,
+     "guardBand": 84,
+     "missingTicker": 0
+    },
+    "freeAfterNoRepeat": {
+     "same": 16,
+     "partly": 154,
+     "different": 496
+    }
+   }
+  }
+ ]
+}
