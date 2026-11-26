@@ -352,6 +352,85 @@ export function checkLevel2(built, level, guessPool) {
   };
 }
 
+/**
+ * Level 7: can it still be passed, and can it still not be passed blind?
+ *
+ * "Three winning designs" says nothing about this level - it has no build, so a
+ * player picks nothing and there is no design to win with. What a guessing level
+ * can lose instead is its spread. Level 7 passes on three guesses all within 1,
+ * so if the capstone pool's two strata ever drifted within 2 bets of each other,
+ * one number would be within 1 of all three answers and the capstone could be
+ * passed without reading a portfolio.
+ *
+ * MEASURED HERE, FOR EVERY TRIPLE THE DRAW CAN PRODUCE, not for the pool's
+ * declared bands. The bands are a claim about answers; this recomputes the
+ * answers. tests/series.test.js makes the same check against the frozen snapshot,
+ * and this one is the reason the script exists: a weekly run against prices that
+ * have moved is where drift would show up first.
+ */
+export function checkLevel7(built, level, guessPool, finalPool) {
+  const betsOf = (portfolio) => {
+    const { tickers, weights } = weightsFromDollars(portfolio.dollars);
+    return { id: portfolio.id, stratum: portfolio.stratum, value: betsFor(built, tickers, weights).bets };
+  };
+  const first = guessPool.portfolios.map(betsOf);
+  const capstone = finalPool.portfolios.map(betsOf);
+  const byStratum = finalPool.strata.map((stratum) => ({
+    stratum,
+    members: capstone.filter((p) => p.stratum === stratum.key),
+  }));
+
+  // A portfolio whose answer has drifted out of the band it was published in.
+  const drifted = [];
+  for (const { stratum, members } of byStratum) {
+    for (const member of members) {
+      if (member.value < stratum.min || member.value > stratum.max) {
+        drifted.push({ ...member, band: stratum });
+      }
+    }
+  }
+
+  // Every triple: one from the pool of 20, one from each stratum.
+  const [low, high] = byStratum.map((s) => s.members);
+  let triples = 0;
+  let worst = { spread: Infinity, ids: null };
+  for (const a of first) {
+    for (const b of low) {
+      for (const c of high) {
+        triples += 1;
+        const values = [a.value, b.value, c.value];
+        const spread = Math.max(...values) - Math.min(...values);
+        if (spread < worst.spread) worst = { spread, ids: [a.id, b.id, c.id], values };
+      }
+    }
+  }
+
+  // Can it be passed at all? A player guessing each answer exactly always can,
+  // so what this really asks is whether the slider reaches every answer, within
+  // 1, at the step it moves in.
+  const reach = [...first, ...capstone].filter((p) => {
+    const nearest = Math.min(
+      Math.max(Math.round(p.value / level.guess.step) * level.guess.step, level.guess.min),
+      level.guess.max,
+    );
+    return Math.abs(nearest - p.value) > level.pass.of;
+  });
+
+  return {
+    considered: triples,
+    worst,
+    drifted,
+    unreachable: reach,
+    strata: byStratum.map(({ stratum, members }) => ({
+      key: stratum.key,
+      low: Math.min(...members.map((m) => m.value)),
+      high: Math.max(...members.map((m) => m.value)),
+      count: members.length,
+    })),
+    gap: Math.min(...high.map((p) => p.value)) - Math.max(...low.map((p) => p.value)),
+  };
+}
+
 function report(title, { considered, winners }, show, formatter) {
   const enough = winners.length >= REQUIRED_DESIGNS;
   console.log(`\n${title}`);
@@ -385,7 +464,7 @@ function main(argv = []) {
   const universe = universeFrom(tickersFile);
   const groupOf = groupsFrom(tickersFile);
 
-  console.log(`Levels 1 to 5 against ${pricesPath}, ${WINDOW_DAYS}-day windows.`);
+  console.log(`Levels 1 to 5 and 7 against ${pricesPath}, ${WINDOW_DAYS}-day windows.`);
   console.log('Level 6 against data/crashes.json, which is history and does not move.');
   console.log(`Each level needs at least ${REQUIRED_DESIGNS} different winning designs.`);
 
@@ -482,8 +561,39 @@ function main(argv = []) {
   const okTwo = two.considered === 20 && two.spread.high - two.spread.low >= 1;
   console.log(`  ${okTwo ? 'OK' : 'FAIL - the pool is too narrow to tell a good guess from a lucky one'}`);
 
+  const level7 = levelById(levels, 7);
+  const seven = checkLevel7(built, level7, levels.guessPool, levels.finalPool);
+  console.log(`\nLevel 7 - ${level7.title}: ${level7.pass.says}`);
+  for (const stratum of seven.strata) {
+    console.log(`  the ${stratum.key} stratum's ${stratum.count} portfolios answer ${stratum.low.toFixed(3)} to ${stratum.high.toFixed(3)} bets`);
+  }
+  console.log(`  the gap between them is ${seven.gap.toFixed(3)} bets`);
+  console.log(`  the closest any of the ${seven.considered} triples comes to being covered by one guess: `
+    + `${seven.worst.spread.toFixed(3)} bets apart (${seven.worst.ids.join(', ')})`);
+  const okSevenBlind = seven.worst.spread > 2;
+  console.log(`  ${okSevenBlind
+    ? 'OK - no single guess is within 1 of all three, so it cannot be passed blind'
+    : 'FAIL - one guess would be within 1 of all three answers'}`);
+  // A published answer that has drifted out of its own band is not yet a broken
+  // level - what breaks the level is the gap closing - so it is reported on its
+  // own line and does not fail the run by itself.
+  if (seven.drifted.length > 0) {
+    console.log(`  ${seven.drifted.length} portfolios have drifted out of their published band:`);
+    for (const d of seven.drifted) {
+      console.log(`    ${d.id} now answers ${d.value.toFixed(3)}, published in ${d.band.min} to ${d.band.max}`);
+    }
+  }
+  if (seven.unreachable.length > 0) {
+    console.log(`  FAIL - the slider cannot get within 1 of ${seven.unreachable.map((p) => p.id).join(', ')}`);
+  }
+  const okSeven = okSevenBlind && seven.unreachable.length === 0;
+
   console.log('\nEducational, not investment advice.');
 
+  if (!okSeven) {
+    console.error('\nLevel 7 can no longer do its job: see the lines above.');
+    process.exit(1);
+  }
   if (!(okOne && okTwo && okThree && okFour && okFive && okSix)) {
     console.error('\nAt least one level does not have 3 winning designs.');
     process.exit(1);

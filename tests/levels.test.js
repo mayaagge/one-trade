@@ -59,9 +59,9 @@ const copy = () => JSON.parse(JSON.stringify(LEVELS));
 
 // ------------------------------------------------------------------ the file
 
-test('levels.json is valid, and holds levels 1 to 6', () => {
+test('levels.json is valid, and holds levels 1 to 7', () => {
   assert.equal(validateLevels(LEVELS), LEVELS);
-  assert.deepEqual(LEVELS.levels.map((l) => l.id), [1, 2, 3, 4, 5, 6]);
+  assert.deepEqual(LEVELS.levels.map((l) => l.id), [1, 2, 3, 4, 5, 6, 7]);
   assert.equal(LEVELS.startingDollars, STARTING_DOLLARS);
   assert.equal(LEVELS.disclaimer, DISCLAIMER);
 });
@@ -126,7 +126,7 @@ test('validateLevels() refuses a file the game would choke on', () => {
 
   const badBand = copy();
   badBand.levels[1].stars.two = { test: 'vibes' };
-  assert.throws(() => validateLevels(badBand), /must be "within" or "bucket"/);
+  assert.throws(() => validateLevels(badBand), /must be "within", "bucket" or "countWithin"/);
 
   const shortPool = copy();
   shortPool.guessPool.portfolios.pop();
@@ -139,7 +139,7 @@ test('validateLevels() refuses a file the game would choke on', () => {
 
 test('levelById() names what was asked for when it is not there', () => {
   assert.equal(levelById(LEVELS, 2), level2);
-  assert.throws(() => levelById(LEVELS, 7), /no level 7/);
+  assert.throws(() => levelById(LEVELS, 8), /no level 8/);
 });
 
 // ------------------------------------------------------------------ the pool

@@ -87,7 +87,15 @@ export function validateLevels(data) {
     if (!level.pass || typeof level.pass.measure !== 'string') {
       throw new Error(`${where}: a pass rule with a measure is missing`);
     }
-    if (level.pass.measure !== 'guess') {
+    if (level.pass.measure === 'series') {
+      // Level 7's rule is about THREE guesses together, so it has no single
+      // measured value to compare against a threshold. seriesVerdict() applies
+      // it; validateSeries() checks the level carries what that needs.
+      if (level.pass.test !== 'allWithin' || !Number.isFinite(level.pass.of)) {
+        throw new Error(`${where}: a series pass rule needs test "allWithin" and a numeric "of"`);
+      }
+      validateSeries(level, data);
+    } else if (level.pass.measure !== 'guess') {
       if (!MEASURES.includes(level.pass.measure)) {
         throw new Error(`${where}: pass.measure "${level.pass.measure}" is not one this game computes (${MEASURES.join(', ')})`);
       }
@@ -107,6 +115,7 @@ export function validateLevels(data) {
 
   validateKinds(data);
   validateGuessPool(data.guessPool);
+  validateFinalPool(data.finalPool, data.guessPool);
   return data;
 }
 
@@ -350,8 +359,8 @@ function validateStars(level) {
   for (const key of ['two', 'three']) {
     const band = stars[key];
     if (!band || typeof band.test !== 'string') throw new Error(`${where}: stars.${key}.test is missing`);
-    if (!['within', 'bucket'].includes(band.test)) {
-      throw new Error(`${where}: stars.${key}.test must be "within" or "bucket"`);
+    if (!['within', 'bucket', 'countWithin'].includes(band.test)) {
+      throw new Error(`${where}: stars.${key}.test must be "within", "bucket" or "countWithin"`);
     }
     if (band.test === 'within' && !Number.isFinite(band.of)) {
       throw new Error(`${where}: stars.${key}.of must be a number for a "within" test`);
@@ -359,7 +368,219 @@ function validateStars(level) {
     if (band.test === 'bucket' && !Array.isArray(level.buckets)) {
       throw new Error(`${where}: a bucket test needs the level's buckets`);
     }
+    if (band.test === 'countWithin') {
+      if (!Number.isFinite(band.of)) {
+        throw new Error(`${where}: stars.${key}.of must be a number for a "countWithin" test`);
+      }
+      const count = level.series?.count;
+      if (!Number.isInteger(band.atLeast) || band.atLeast < 1) {
+        throw new Error(`${where}: stars.${key}.atLeast must be a whole number of 1 or more`);
+      }
+      if (Number.isInteger(count) && band.atLeast > count) {
+        throw new Error(
+          `${where}: stars.${key} asks for ${band.atLeast} guesses within ${band.of} `
+          + `but the level only asks ${count} questions`,
+        );
+      }
+    }
   }
+}
+
+/**
+ * Level 7's series: three portfolios in one level, each drawn from a named pool.
+ *
+ * THE FIRST PART IS THE REGISTERED ONE, and the check that it comes from
+ * guessPool is not a formality. PREREG.md's Hypothesis 3 compares a player's
+ * level-2 error with their error on "the first of level 7's mystery portfolios",
+ * and that comparison is only the registered one while the first part draws from
+ * the same pool of 20 level 2 does. A file that pointed part 1 somewhere else
+ * would still play perfectly and would quietly stop measuring the hypothesis.
+ */
+function validateSeries(level, data = {}) {
+  const where = `level ${level.id}`;
+  const series = level.series;
+  if (!series || !Number.isInteger(series.count) || series.count < 1) {
+    throw new Error(`${where}: a series pass rule needs series.count, a whole number of 1 or more`);
+  }
+  if (!Array.isArray(series.parts) || series.parts.length !== series.count) {
+    throw new Error(
+      `${where}: series.parts must list ${series.count} parts, one per question`,
+    );
+  }
+  const pools = { guessPool: data.guessPool, finalPool: data.finalPool };
+  series.parts.forEach((part, index) => {
+    const at = `${where}, series part ${index + 1}`;
+    if (part.part !== index + 1) {
+      throw new Error(`${at}: part should be numbered ${index + 1}, so the order in the file is the order played`);
+    }
+    if (typeof part.pool !== 'string' || !(part.pool in pools)) {
+      throw new Error(`${at}: pool must name one of ${Object.keys(pools).join(' or ')}`);
+    }
+    if (!pools[part.pool]) throw new Error(`${at}: pool "${part.pool}" is not in this file`);
+  });
+  if (series.parts[0].pool !== 'guessPool') {
+    throw new Error(
+      `${where}: series part 1 must draw from guessPool. PREREG.md's Hypothesis 3 compares `
+      + "level 2's error with the first of level 7's mystery portfolios, and that comparison "
+      + `is only the registered one while part 1 comes from the pool of 20, not "${series.parts[0].pool}"`,
+    );
+  }
+  if (series.parts[0].excludeSeen !== true) {
+    throw new Error(
+      `${where}: series part 1 must set excludeSeen, so a player is never asked the portfolio `
+      + 'they already saw on level 2',
+    );
+  }
+}
+
+/**
+ * The capstone pool: level 7's second and third portfolios.
+ *
+ * The check that earns its place here is the GAP between the strata. Level 7
+ * passes on three guesses all within 1, so if the two bands came within 2 bets
+ * of each other, one number would be within 1 of both and the capstone could be
+ * passed without reading a single holding. That is a property of the data, and
+ * data changes - so it is checked on load rather than trusted to the script that
+ * wrote the file.
+ */
+export function validateFinalPool(pool, guessPool = null) {
+  if (pool === undefined || pool === null) return null;     // a file without level 7 is still valid
+  if (!Array.isArray(pool.portfolios)) throw new Error('levels: finalPool.portfolios is missing');
+  if (!Array.isArray(pool.strata) || pool.strata.length !== 2) {
+    throw new Error('levels: finalPool needs two strata, so one guess cannot cover both answers');
+  }
+  if (!Number.isFinite(pool.topWeightCap) || !(pool.topWeightCap > 0) || pool.topWeightCap > 1) {
+    throw new Error('levels: finalPool.topWeightCap must be a share above 0 and at most 1');
+  }
+
+  const ids = new Set();
+  const byStratum = new Map(pool.strata.map((s) => [s.key, []]));
+  const seenIds = new Set((guessPool?.portfolios ?? []).map((p) => p.id));
+
+  for (const portfolio of pool.portfolios) {
+    if (!portfolio.id) throw new Error('levels: a capstone portfolio has no id');
+    if (ids.has(portfolio.id)) throw new Error(`levels: duplicate capstone id ${portfolio.id}`);
+    if (seenIds.has(portfolio.id)) {
+      throw new Error(`levels: ${portfolio.id} is an id in both pools, so a drawn portfolio would be ambiguous`);
+    }
+    ids.add(portfolio.id);
+
+    const total = totalDollars(portfolio);
+    if (total !== STARTING_DOLLARS) {
+      throw new Error(`levels: ${portfolio.id} allocates ${total} dollars, not ${STARTING_DOLLARS}`);
+    }
+    const dollars = Object.values(portfolio.dollars ?? {});
+    const top = Math.max(...dollars) / STARTING_DOLLARS;
+    if (top > pool.topWeightCap + BAND_TOLERANCE) {
+      throw new Error(
+        `levels: ${portfolio.id} puts ${(100 * top).toFixed(0)}% in one holding, over the `
+        + `${(100 * pool.topWeightCap).toFixed(0)}% cap - concentration, not spread, would be `
+        + 'earning its answer',
+      );
+    }
+    if (!byStratum.has(portfolio.stratum)) {
+      throw new Error(`levels: ${portfolio.id} names stratum "${portfolio.stratum}", which finalPool does not carry`);
+    }
+    if (!Number.isFinite(portfolio.expectedBets)) {
+      throw new Error(`levels: ${portfolio.id} has no expectedBets`);
+    }
+    byStratum.get(portfolio.stratum).push(portfolio);
+  }
+
+  for (const stratum of pool.strata) {
+    const here = byStratum.get(stratum.key);
+    if (here.length !== stratum.slots) {
+      throw new Error(
+        `levels: the ${stratum.key} stratum holds ${here.length} portfolios, not its ${stratum.slots} slots`,
+      );
+    }
+    for (const portfolio of here) {
+      const bets = portfolio.expectedBets;
+      if (bets < stratum.min - BAND_TOLERANCE || bets > stratum.max + BAND_TOLERANCE) {
+        throw new Error(
+          `levels: ${portfolio.id} makes ${bets.toFixed(3)} bets, outside its own ${stratum.key} `
+          + `stratum of ${stratum.min} to ${stratum.max}`,
+        );
+      }
+    }
+  }
+
+  // The gap, measured on the portfolios themselves rather than on the declared
+  // bands: the bands are a claim, the answers are the fact.
+  const [a, b] = pool.strata.map((s) => byStratum.get(s.key).map((p) => p.expectedBets));
+  const gap = Math.min(...b) - Math.max(...a);
+  const spread = Math.abs(gap);
+  if (spread <= 2) {
+    throw new Error(
+      `levels: the capstone strata are only ${spread.toFixed(3)} bets apart, so a single guess `
+      + 'would be within 1 of both and level 7 could be passed without reading the portfolios',
+    );
+  }
+  return pool;
+}
+
+/**
+ * Level 7's verdict, over the three guesses together.
+ *
+ * `answers` is one entry per part, in the order played: {guess, actual}. A part
+ * not yet guessed is left out, and the verdict of an unfinished series is not a
+ * verdict - `complete` says so, and `passed` is false until every part is in.
+ *
+ * THE BANDS, and why they are not the usual two. The pass rule is already "every
+ * guess within 1", which is the same thing the 2-star band says on levels 2 and
+ * 3, so reusing it here would hand 2 stars to everyone who passed. Level 7
+ * therefore counts how many guesses landed within half a bet: 1 star for
+ * passing, 2 for two of the three, 3 for all three. Both numbers - 1 and 0.5 -
+ * are the bands docs/PRD.md already gives a level whose answer is a bets count;
+ * only what is counted is new.
+ */
+export function seriesVerdict(level, answers) {
+  const rule = level.pass;
+  if (rule.measure !== 'series') {
+    throw new Error(`seriesVerdict: level ${level.id} does not pass on a series`);
+  }
+  const count = level.series.count;
+  const parts = answers.map(({ guess, actual }) => {
+    const error = Number.isFinite(guess) && Number.isFinite(actual)
+      ? Math.abs(guess - actual)
+      : null;
+    return {
+      guess,
+      actual,
+      error,
+      // The same 1e-9 slack every star band gives a guess, and for the same
+      // reason: binary floating point should not decide a level.
+      within: error !== null && error <= rule.of + BAND_TOLERANCE,
+    };
+  });
+
+  const complete = parts.length === count && parts.every((p) => p.error !== null);
+  const passed = complete && parts.every((p) => p.within);
+
+  let stars = 0;
+  if (passed) {
+    stars = level.stars.pass;
+    for (const [band, value] of [[level.stars.two, 2], [level.stars.three, 3]]) {
+      if (band.test !== 'countWithin') {
+        throw new Error(`seriesVerdict: level ${level.id} needs countWithin star bands, got "${band.test}"`);
+      }
+      const tight = parts.filter((p) => p.error !== null && p.error <= band.of + BAND_TOLERANCE).length;
+      if (tight >= band.atLeast && value > stars) stars = value;
+    }
+  }
+
+  return {
+    parts,
+    complete,
+    passed,
+    stars,
+    /** How many landed inside the pass band, for the line the screen reads out. */
+    withinPassBand: parts.filter((p) => p.within).length,
+    /** The worst guess decides the level, so it is worth naming. */
+    worstError: parts.some((p) => p.error === null)
+      ? null
+      : Math.max(...parts.map((p) => p.error)),
+  };
 }
 
 function validateGuessPool(pool) {
@@ -565,7 +786,11 @@ export function displayFor(level) {
  */
 export function resultLine(level, measured, { places = 2, display = null } = {}) {
   const rule = level.pass;
-  if (rule.measure === 'guess') return null;
+  // Neither of the rules that are about guesses rather than quantities has a
+  // threshold for one number to clear: level 2 passes on making a guess, and
+  // level 7 on all three landing within 1, which is a line the series writes
+  // once, not a line each part writes about itself.
+  if (rule.measure === 'guess' || rule.measure === 'series') return null;
   // The DISPLAY comes from the level, because percent-or-not is a property of the
   // measure and the whole screen has to agree on it. The DECIMAL PLACES do not:
   // levels.json's guess.places describes the slider, which moves in tenths of a

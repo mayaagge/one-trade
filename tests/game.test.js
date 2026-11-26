@@ -23,6 +23,7 @@ import { validateLevels, levelById } from '../js/levels.js';
 import { createRound } from '../js/round.js';
 import {
   basketFrom,
+  seenPoolIds,
   buildHint,
   guessPlaces,
   guessSliderState,
@@ -166,8 +167,8 @@ test('the slider state reads its range and step from the level, on every level',
   assert.deepEqual([one.min, one.max, one.step], [-1, 1, 0.01]);
 
   const two = guessSliderState(atGuess(2));
-  assert.deepEqual([two.min, two.max, two.step], [1, 5, 0.1]);
-  assert.equal(two.value, 3, 'halfway between 1 and 5 bets');
+  assert.deepEqual([two.min, two.max, two.step], [1, 6, 0.1]);
+  assert.equal(two.value, 3.5, 'halfway between 1 and 6 bets');
   assert.equal(two.blank, true, 'a dealt portfolio still gets a blank slider');
 
   const three = guessSliderState(atGuess(3, ['VOO', 'BND', 'GLD', 'XOM', 'JNJ']));
@@ -238,22 +239,43 @@ test('the best score for a level stands, and a worse replay does not undo it', (
 
 test('the pool portfolio drawn on level 2 is remembered, so level 7 can avoid it', () => {
   const session = newSession();
-  recordResult(session, 2, { stars: 2, drawnId: 'p11' });
-  recordResult(session, 2, { stars: 1, drawnId: 'p04' });
-  assert.deepEqual([...session.drawnPoolIds].sort(), ['p04', 'p11']);
+  recordResult(session, 2, { stars: 2, drawnId: 'p11', drawnPool: 'guessPool' });
+  recordResult(session, 2, { stars: 1, drawnId: 'p04', drawnPool: 'guessPool' });
+  assert.deepEqual([...session.drawnPoolIds].sort(), ['guessPool:p04', 'guessPool:p11']);
+  assert.deepEqual(seenPoolIds(session).sort(), ['p04', 'p11'], 'what level 7 leaves out');
   // A level that draws nothing adds nothing.
   recordResult(session, 3, { stars: 1, drawnId: null });
   assert.equal(session.drawnPoolIds.size, 2);
+});
+
+test('a capstone portfolio never shrinks the pool of 20 that Hypothesis 3 needs', () => {
+  // Both pools are remembered, but only guessPool ids are excluded from level
+  // 7's first draw. If a capstone id leaked into that list it would quietly take
+  // a portfolio out of the registered pool of 20.
+  const session = newSession();
+  recordResult(session, 2, { stars: 1, drawnId: 'p07', drawnPool: 'guessPool' });
+  recordResult(session, 7, { stars: 1, drawnId: 'f13', drawnPool: 'finalPool' });
+  assert.equal(session.drawnPoolIds.size, 2, 'both are remembered');
+  assert.deepEqual(seenPoolIds(session), ['p07'], 'only the pool-of-20 one is excluded');
+});
+
+test('an id recorded without its pool is taken for a pool-of-20 id', () => {
+  // Level 2 is the only level that draws without naming a pool, and its
+  // portfolio is always from the pool of 20.
+  const session = newSession();
+  recordResult(session, 2, { stars: 1, drawnId: 'p11' });
+  assert.deepEqual(seenPoolIds(session), ['p11']);
 });
 
 test('every id the session could remember is a real pool portfolio', () => {
   const ids = new Set(LEVELS.guessPool.portfolios.map((p) => p.id));
   const session = newSession();
   for (const portfolio of LEVELS.guessPool.portfolios) {
-    recordResult(session, 2, { stars: 1, drawnId: portfolio.id });
+    recordResult(session, 2, { stars: 1, drawnId: portfolio.id, drawnPool: 'guessPool' });
   }
-  for (const id of session.drawnPoolIds) assert.ok(ids.has(id), `${id} is not in the pool`);
+  for (const id of seenPoolIds(session)) assert.ok(ids.has(id), `${id} is not in the pool`);
   assert.equal(session.drawnPoolIds.size, 20);
+  assert.equal(seenPoolIds(session).length, 20);
 });
 
 // --------------------------------------------------------------- the money

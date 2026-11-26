@@ -35,6 +35,8 @@ import {
   GUESS,
   REVEAL,
   createRound,
+  createSeries,
+  isSeries,
   raiseToKindFloor,
   usesCrashWindow,
   drawFromPool,
@@ -335,12 +337,25 @@ test('a guess outside the level range is refused', () => {
   assert.equal(r.guess, 1);
 });
 
-test('levels 2 and 3 take a guess between 1 and 5 bets', () => {
+test("level 2 takes a guess on level 7's slider, between 1 and 6 bets", () => {
+  // The two ranges are deliberately the same one. PREREG.md's Hypothesis 3
+  // compares a player's level-2 error with their level-7 error, so the two
+  // guesses have to be typed on the same instrument: a different midpoint, or a
+  // different distance per drag, could shift a guess for a reason that is not
+  // learning. tests/series.test.js holds the two levels to each other.
   const r = round(2);
   r.toGuess();
+  assert.deepEqual(r.guessRange(), { min: 1, max: 6 });
+  assert.throws(() => r.setGuess(0.5), /outside this level's range of 1 to 6/);
+  assert.throws(() => r.setGuess(7), /outside this level's range of 1 to 6/);
+});
+
+test('level 3 still takes its own guess between 1 and 5 bets', () => {
+  // Level 3 is not part of the registered comparison, so it keeps its range.
+  const r = round(3);
+  for (const ticker of ['VOO', 'BND', 'GLD', 'XOM', 'JNJ']) r.togglePick(ticker);
+  r.toGuess();
   assert.deepEqual(r.guessRange(), { min: 1, max: 5 });
-  assert.throws(() => r.setGuess(0.5), /outside this level's range of 1 to 5/);
-  assert.throws(() => r.setGuess(6), /outside this level's range of 1 to 5/);
 });
 
 test('going back to the build throws the guess away rather than carrying it over', () => {
@@ -528,6 +543,26 @@ test('every level in the file can be played end to end', () => {
     6: ['WMT', 'PG', 'TLT', 'BND'],
   };
   for (const level of LEVELS.levels) {
+    // A LEVEL THAT ASKS SEVERAL QUESTIONS IS PLAYED AS SEVERAL. Level 7 deals
+    // three portfolios and scores them together, so "played end to end" means
+    // all three answered and a verdict out the other side; one round of it is
+    // not the level. tests/series.test.js is where its draw and its record live.
+    if (isSeries(level)) {
+      const s = createSeries({
+        levels: LEVELS, levelId: level.id, game: GAME, universe: UNIVERSE, random: () => 0,
+      });
+      for (let i = 0; i < s.count; i += 1) {
+        const part = s.current();
+        part.setGuess(level.guess.min);
+        const result = part.reveal();
+        assert.ok(Number.isFinite(result.value), `level ${level.id}, question ${i + 1}, produced no number`);
+        if (s.hasNext()) s.advance();
+      }
+      const verdict = s.verdict();
+      assert.ok(verdict, `level ${level.id} produced no verdict`);
+      assert.ok(verdict.stars >= 0 && verdict.stars <= 3);
+      continue;
+    }
     const r = round(level.id);
     for (const ticker of picks[level.id] ?? []) r.togglePick(ticker);
     r.toGuess();

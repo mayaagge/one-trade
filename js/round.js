@@ -51,6 +51,7 @@ import {
   levelById,
   passes,
   resultLine,
+  seriesVerdict,
   starsFor,
   weightsFromDollars,
   formatMeasure,
@@ -241,21 +242,129 @@ export function raiseToKindFloor(dollars, picks, inKind, floor, step = DOLLAR_ST
 }
 
 /**
- * Pick one of the 20 pool portfolios.
+ * Pick one of a pool's portfolios, leaving out the ones this player has seen.
  *
  * PREREG.md gives level 2 and level 7's first mystery portfolio one shared pool
  * "so on average they are equally hard", which holds only if the draw is
  * uniform. `random` is injected so tests can pin the draw; the game passes
  * Math.random.
+ *
+ * THE EXCLUSION DOES NOT BREAK THAT SENTENCE, and the arithmetic is worth having
+ * in the file rather than only in the log. Level 2 draws one of 20; level 7 then
+ * draws one of the remaining 19. For any portfolio, the chance it is level 7's
+ * first is 19/20 x 1/19 = 1/20 - exactly uniform over all 20, not approximately.
+ * The pair is also exactly exchangeable, which is what the registered one-sided
+ * sign test assumes. What the exclusion removes is a player being asked the
+ * portfolio they already saw, which would measure their memory of a reveal
+ * rather than what they learned, and would bias Hypothesis 3 toward "supported".
+ *
+ * IT NEVER BLOCKS PLAY. Progress lives in memory until browser storage is built,
+ * and storage can be cleared or refused at any time, so a player can reach level
+ * 7 with nothing recorded to exclude. Then the draw is uniform over all 20, as it
+ * was before. An exclusion that refused to deal a portfolio would be a worse game
+ * and no better a study.
  */
-export function drawFromPool(guessPool, random = Math.random) {
+export function drawFromPool(guessPool, random = Math.random, { exclude = [] } = {}) {
   const portfolios = guessPool?.portfolios;
   if (!Array.isArray(portfolios) || portfolios.length === 0) {
     throw new Error('drawFromPool: the guess pool is empty');
   }
-  const index = Math.floor(random() * portfolios.length);
-  const chosen = portfolios[Math.min(Math.max(index, 0), portfolios.length - 1)];
-  return { id: chosen.id, dollars: { ...chosen.dollars } };
+  const skip = new Set(exclude);
+  const live = portfolios.filter((p) => !skip.has(p.id));
+  // Everything seen already: fall back to the whole pool rather than refuse. A
+  // player who has played level 2 twenty times has earned a repeat, not an error.
+  const from = live.length > 0 ? live : portfolios;
+  const index = Math.floor(random() * from.length);
+  const chosen = from[Math.min(Math.max(index, 0), from.length - 1)];
+  return { id: chosen.id, dollars: { ...chosen.dollars }, pool: 'guessPool' };
+}
+
+/**
+ * Pick one of the capstone pool's portfolios from a named stratum.
+ *
+ * Level 7's second and third portfolios come one from each stratum, and the gap
+ * between the two bands is what stops a single number being within 1 of both.
+ * The stratum is therefore part of the draw and not a detail of it: drawing
+ * both from the same band would hand back a level that can be passed blind,
+ * which is why this refuses a stratum the pool does not carry rather than
+ * quietly drawing from everything.
+ */
+export function drawFromStratum(finalPool, stratumKey, random = Math.random, { exclude = [] } = {}) {
+  const portfolios = finalPool?.portfolios;
+  if (!Array.isArray(portfolios) || portfolios.length === 0) {
+    throw new Error('drawFromStratum: the capstone pool is empty');
+  }
+  const inStratum = portfolios.filter((p) => p.stratum === stratumKey);
+  if (inStratum.length === 0) {
+    throw new Error(
+      `drawFromStratum: the capstone pool carries no "${stratumKey}" stratum`
+      + ` (it has ${[...new Set(portfolios.map((p) => p.stratum))].join(', ')})`,
+    );
+  }
+  const skip = new Set(exclude);
+  const live = inStratum.filter((p) => !skip.has(p.id));
+  const from = live.length > 0 ? live : inStratum;
+  const index = Math.floor(random() * from.length);
+  const chosen = from[Math.min(Math.max(index, 0), from.length - 1)];
+  return {
+    id: chosen.id, dollars: { ...chosen.dollars }, pool: 'finalPool', stratum: chosen.stratum,
+  };
+}
+
+/** Does this level ask three questions in a row rather than one? */
+export function isSeries(level) {
+  return level?.pass?.measure === 'series';
+}
+
+/**
+ * Deal level 7's three portfolios, in the order they will be played.
+ *
+ * Drawn ALL AT ONCE, before the first question is asked, and the order the
+ * random stream is consumed in is fixed here: part 1, then the coin that decides
+ * which stratum comes second, then parts 2 and 3. Nothing about parts 2 and 3
+ * reaches the player before their turn, and a test that pins `random` pins the
+ * whole deal.
+ *
+ * WHICH STRATUM COMES SECOND IS DRAWN, not fixed. Always showing the low
+ * stratum second would make the capstone's shape learnable from one play -
+ * "the middle one is always the one trade" - and the level is meant to be
+ * answered by reading portfolios, not by remembering an order.
+ */
+export function dealSeries(levels, level, random = Math.random, { exclude = [] } = {}) {
+  const parts = level.series?.parts;
+  if (!Array.isArray(parts)) throw new Error(`level ${level.id}: no series parts to deal`);
+  const strata = (levels.finalPool?.strata ?? []).map((s) => s.key);
+  if (strata.length !== 2) {
+    throw new Error(`level ${level.id}: the capstone pool needs two strata to deal from, found ${strata.length}`);
+  }
+
+  const first = drawFromPool(levels.guessPool, random, { exclude });
+  // The coin is spent whether or not the order matters, so the stream reads the
+  // same way on every play.
+  const order = random() < 0.5 ? strata : [...strata].reverse();
+
+  const dealt = [{ ...first, part: parts[0].part }];
+  const seen = [first.id];
+  order.forEach((stratumKey, i) => {
+    const drawn = drawFromStratum(levels.finalPool, stratumKey, random, { exclude: [...exclude, ...seen] });
+    seen.push(drawn.id);
+    dealt.push({ ...drawn, part: parts[i + 1].part });
+  });
+  return dealt;
+}
+
+/**
+ * Which quantity a level's round actually computes.
+ *
+ * A level's pass rule is not always a measure. Level 2 passes on making a guess
+ * and level 7 on three guesses landing within 1 of their answers; neither is a
+ * number to work out from prices. Both levels still measure something - the
+ * effective bets their guess is about - and that is what this returns.
+ */
+export function measureOf(level) {
+  return ['guess', 'series'].includes(level.pass.measure)
+    ? level.guess.measure
+    : level.pass.measure;
 }
 
 /**
@@ -268,7 +377,7 @@ export function drawFromPool(guessPool, random = Math.random) {
 export function measureFor(level, game, { tickers, weights }, window, {
   basket = null, crashes = null, dollars = null,
 } = {}) {
-  const measure = level.pass.measure === 'guess' ? level.guess.measure : level.pass.measure;
+  const measure = measureOf(level);
 
   // LEVEL 6 LEAVES HERE FIRST. Its prices are a fixed stretch of 2020 in
   // data/crashes.json, not the rolling window in data/game.json, so none of what
@@ -402,6 +511,10 @@ export function measureFor(level, game, { tickers, weights }, window, {
  * so the two cannot be allowed to disagree - a second copy of that number could.
  */
 function leadInKey(level, { passed, stars }) {
+  // A SERIES PART HAS NO VERDICT YET, so it gets no lead-in. Level 7 is decided
+  // by three guesses together, and "close" or "wide" about one of them would be
+  // a verdict on a level the player is still halfway through.
+  if (level.pass.measure === 'series') return null;
   if (level.pass.measure === 'guess') return stars >= 2 ? 'closeGuess' : 'wideGuess';
   return passed ? 'passed' : 'missed';
 }
@@ -453,7 +566,7 @@ function buildWhyCard(level, {
   }
 
   if (!matrix) return { whyCard: null, whyFacts: null };
-  const measure = level.pass.measure === 'guess' ? level.guess.measure : level.pass.measure;
+  const measure = measureOf(level);
   const onCorrelation = measure === 'correlation';
   const facts = whyFacts({ tickers, weights, matrix, groups, basketReturns, basketMembers });
   return {
@@ -497,7 +610,7 @@ function buildWhyCard(level, {
  */
 export function createRound({
   levels, levelId, game, universe = [], why = null, groups = null, basket = null,
-  crashes = null, random = Math.random,
+  crashes = null, random = Math.random, dealt = null,
 }) {
   const level = levelById(levels, levelId);
   const window = {
@@ -543,10 +656,21 @@ export function createRound({
     : 0;
 
   // Level 2's portfolio is drawn here, once, when the round starts. The id is
-  // kept so a later session can keep level 7 from drawing the same portfolio: it
-  // would measure a player's memory rather than their learning. Progress is in
-  // memory only for now, so this lives on the round and nowhere else.
-  const drawn = isFixed(level) ? drawFromPool(levels.guessPool, random) : null;
+  // kept so level 7 can leave it out of its own draw: asking a player the
+  // portfolio they have already seen would measure their memory rather than
+  // their learning.
+  //
+  // A SERIES PART IS DEALT, NEVER DRAWN HERE. Level 7's three portfolios are
+  // dealt together by dealSeries() before its first question is asked, so that
+  // one function owns the whole deal and a test can pin it. A round on a series
+  // level without a dealt portfolio is a caller mistake, not a round to improvise.
+  if (isSeries(level) && dealt === null) {
+    throw new Error(
+      `level ${level.id} asks ${level.series?.count ?? 'several'} questions in a row, so its `
+      + 'portfolios are dealt by dealSeries() and handed in - createRound does not draw them',
+    );
+  }
+  const drawn = dealt ?? (isFixed(level) ? drawFromPool(levels.guessPool, random) : null);
 
   // Level 4's QQQ. "Keep at least 30% in QQQ" is not a choice about whether to
   // hold it, so it is dealt with the round and cannot be given up; what a player
@@ -571,8 +695,12 @@ export function createRound({
     window,
     usesMoney: usesMoney(level),
     fixed: isFixed(level),
-    /** Which of the 20 pool portfolios was drawn, or null on a level that builds its own. */
+    /** Which pool portfolio was dealt, or null on a level that builds its own. */
     drawnId: drawn ? drawn.id : null,
+    /** Which pool it came from, so a session knows what to exclude next time. */
+    drawnPool: drawn ? (drawn.pool ?? 'guessPool') : null,
+    /** Which of a series' questions this round is, or null on a one-question level. */
+    seriesPart: drawn && Number.isFinite(drawn.part) ? drawn.part : null,
     /** The holdings this level deals and will not let go, and their dollar floors. */
     required,
     floors,
@@ -885,8 +1013,16 @@ export function createRound({
     const { matrix, basketReturns, ...measured } = measureFor(
       level, gameData, weighted, window, { basket, crashes, dollars: round.dollars },
     );
-    const passed = passes(level, measured.value);
-    const stars = starsFor(level, { guess: round.guess, actual: measured.value, passed });
+    // A SERIES PART IS NOT SCORED ON ITS OWN. Level 7 passes on all three
+    // guesses together, so there is no verdict to give after one of them, and
+    // inventing one - "passed", because a guess was made - would put a verdict on
+    // the screen that the level's own rule might contradict two questions later.
+    // js/levels.js's seriesVerdict() scores the three, once they are all in.
+    const part = isSeries(level);
+    const passed = part ? null : passes(level, measured.value);
+    const stars = part
+      ? null
+      : starsFor(level, { guess: round.guess, actual: measured.value, passed });
 
     round.result = {
       ...measured,
@@ -914,6 +1050,8 @@ export function createRound({
         }
         : null,
       drawnId: round.drawnId,
+      drawnPool: round.drawnPool,
+      seriesPart: round.seriesPart,
       ...buildWhyCard(level, {
         ...weighted, matrix, groups, why, basketReturns, basketMembers: basket,
         // The replay, on a level that is one, and the file it came from: the
@@ -930,4 +1068,147 @@ export function createRound({
   };
 
   return round;
+}
+
+/**
+ * Level 7: three portfolios, guessed and revealed one after another, then one
+ * verdict over all three.
+ *
+ * A THIN WRAPPER OVER THREE ORDINARY ROUNDS, deliberately. Each part is a
+ * createRound() with its portfolio dealt to it, so every refusal that file
+ * already makes - no reveal before a guess, no guess outside the level's range,
+ * no window shorter than 252 days - applies to a capstone question exactly as it
+ * does to level 2. This file adds the order, the record, and the verdict, and
+ * nothing else.
+ *
+ * THE NEXT PORTFOLIO DOES NOT EXIST UNTIL THE LAST ONE IS ANSWERED. A part's
+ * round is built when the series reaches it, not up front. That is what makes
+ * "each record is sent before the next portfolio appears" a property of the code
+ * rather than a promise about it: there is nothing to appear until advance() is
+ * called, and advance() refuses to run before the live part has revealed.
+ *
+ * @param {Function} [options.emit]  called with one record per locked guess, at
+ *   the moment it is locked. The record carries the level, the guess and the
+ *   actual value; the per-browser ID and the date belong to whatever sends it,
+ *   and PREREG.md fixes those five fields. Defaults to doing nothing, so the
+ *   round is testable and playable with no sender attached.
+ * @param {string[]} [options.seenPoolIds]  pool portfolios this browser has
+ *   already been shown, left out of part 1's draw.
+ */
+export function createSeries({
+  levels, levelId, game, universe = [], why = null, groups = null, basket = null,
+  crashes = null, random = Math.random, seenPoolIds = [], emit = () => {},
+}) {
+  const level = levelById(levels, levelId);
+  if (!isSeries(level)) {
+    throw new Error(`level ${level.id} asks one question, so it is a round and not a series`);
+  }
+  const dealt = dealSeries(levels, level, random, { exclude: seenPoolIds });
+
+  const series = {
+    level,
+    levelId: level.id,
+    /** How many questions, from levels.json. */
+    count: level.series.count,
+    /** Which question is live, from 0. */
+    at: 0,
+    /** The portfolios dealt, in play order. Parts not yet reached are dealt but unseen. */
+    dealt,
+    /** One round per question, built as the series reaches it. */
+    rounds: [],
+    /** {guess, actual} per answered question, in order. */
+    answers: [],
+    /** Every record emitted, in the order it was sent. */
+    records: [],
+  };
+
+  /** Build the round for question `index`, and arrange for its record to be sent. */
+  function attach(index) {
+    const round = createRound({
+      levels, levelId, game, universe, why, groups, basket, crashes, random, dealt: dealt[index],
+    });
+
+    // The record is sent from inside reveal(), not from advance() and not from a
+    // screen. A guess is locked the moment its answer is worked out, and that is
+    // the moment the record exists in full: batching three of them at the end of
+    // the level would leave their arrival order - the only thing that tells them
+    // apart, since all three carry level 7 - up to whatever order the requests
+    // happened to land in. Hypothesis 3 reads the earliest level-7 row.
+    const reveal = round.reveal;
+    round.reveal = (gameData) => {
+      const already = round.state === REVEAL;
+      const result = reveal(gameData);
+      if (already) return result;                  // reveal() is idempotent; the record is not
+      series.answers.push({
+        part: dealt[index].part,
+        guess: result.guess,
+        actual: result.value,
+        drawnId: result.drawnId,
+        pool: result.drawnPool,
+      });
+      const record = { level: series.levelId, guess: result.guess, actual: result.value };
+      series.records.push(record);
+      emit(record);
+      return result;
+    };
+
+    series.rounds[index] = round;
+    return round;
+  }
+
+  attach(0);
+
+  /** The question being played. */
+  series.current = () => series.rounds[series.at];
+
+  /** Has the live question been answered? */
+  series.partRevealed = () => series.current().state === REVEAL;
+
+  /** Is there another question after this one? */
+  series.hasNext = () => series.at + 1 < series.count;
+
+  /**
+   * Move to the next question.
+   *
+   * Refuses before the live one has revealed, which is the rule that keeps a
+   * record from being skipped: the next portfolio cannot be built until the last
+   * one's guess has been locked and sent.
+   */
+  series.advance = () => {
+    if (!series.partRevealed()) {
+      throw new Error(
+        `level ${series.levelId}: question ${series.at + 1} has not been answered yet, so there is `
+        + 'nothing to move on from - and its record has not been sent',
+      );
+    }
+    if (!series.hasNext()) {
+      throw new Error(`level ${series.levelId}: all ${series.count} questions have been answered`);
+    }
+    series.at += 1;
+    return attach(series.at);
+  };
+
+  /** Are all three in? */
+  series.complete = () => series.answers.length === series.count;
+
+  /**
+   * The level's verdict, over the three guesses together. Null until all three
+   * are in: an unfinished series has no verdict, and a partial one would be a
+   * verdict on a level the player has not finished.
+   */
+  series.verdict = () => (series.complete()
+    ? seriesVerdict(level, series.answers.map(({ guess, actual }) => ({ guess, actual })))
+    : null);
+
+  /**
+   * Which pool portfolios this play has shown, for the session to remember. Only
+   * guessPool ids matter to the exclusion - the capstone pool is not part of the
+   * registered comparison - but both are reported, so a session can avoid
+   * repeating a capstone portfolio too.
+   */
+  series.shownIds = () => series.dealt
+    .slice(0, series.at + 1)
+    .map(({ id, pool }) => ({ id, pool }));
+
+  return series;
 }

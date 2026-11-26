@@ -24,7 +24,7 @@
 
 import { loadGameData, DISCLAIMER } from './gameView.js';
 import { validateLevels, displayFor, formatGuess, LEVELS_URL } from './levels.js';
-import { BUILD, GUESS, REVEAL, createRound } from './round.js';
+import { BUILD, GUESS, REVEAL, createRound, isSeries } from './round.js';
 import { WHY_URL, groupIndex, validateWhy } from './why.js';
 import { CRASHES_URL, loadCrashes } from './crash.js';
 // Level 6 replays a crash window, so its reveal draws the two lines Crash
@@ -102,15 +102,36 @@ export function starText(count) {
 export function newSession() {
   return {
     stars: new Map(),          // level id -> best stars so far
-    drawnPoolIds: new Set(),   // pool portfolios already seen, for level 7 later
+    // Pool portfolios already shown, as "pool:id", so the two pools cannot be
+    // confused. Level 7's first question leaves out every guessPool id in here:
+    // asking a player the portfolio they already saw on level 2 would measure
+    // their memory of that reveal rather than what they learned. In memory only,
+    // by design for now, so a reload starts it empty and the draw is uniform over
+    // all 20 again - the exclusion is best-effort and never blocks play.
+    drawnPoolIds: new Set(),
   };
+}
+
+/**
+ * Which guessPool portfolios this browser has been shown, for level 7's draw.
+ *
+ * ONLY guessPool IDS. The capstone pool is not part of the registered
+ * comparison, and mixing the two would let a capstone portfolio silently shrink
+ * the pool of 20 that Hypothesis 3 depends on.
+ */
+export function seenPoolIds(session) {
+  return [...session.drawnPoolIds]
+    .filter((key) => key.startsWith('guessPool:'))
+    .map((key) => key.slice('guessPool:'.length));
 }
 
 /** Record a finished round. The best score for a level stands. */
 export function recordResult(session, levelId, result) {
   const best = Math.max(session.stars.get(levelId) ?? 0, result.stars);
   session.stars.set(levelId, best);
-  if (result.drawnId) session.drawnPoolIds.add(result.drawnId);
+  if (result.drawnId) {
+    session.drawnPoolIds.add(`${result.drawnPool ?? 'guessPool'}:${result.drawnId}`);
+  }
   return session;
 }
 
@@ -126,8 +147,16 @@ function levelCard(ctx, level) {
   card.append(head);
   card.append(h('p', 'level-concept', level.concept));
   card.append(h('p', 'level-challenge', level.challenge));
-  card.append(button(stars ? 'Play again' : 'Play', 'btn btn-primary btn-wide',
-    () => ctx.startRound(level.id)));
+  // A LEVEL THE SCREENS CANNOT RUN YET IS NOT OFFERED. Level 7's rules, its two
+  // pools and its draw are in place and under test, but the three-question
+  // screens are the next session's work, and a "Play" button that threw would be
+  // worse than a card that says so plainly.
+  if (isSeries(level)) {
+    card.append(h('p', 'note', 'Being built - its three portfolios are drawn and its rules are set, but the screens are not finished.'));
+  } else {
+    card.append(button(stars ? 'Play again' : 'Play', 'btn btn-primary btn-wide',
+      () => ctx.startRound(level.id)));
+  }
   return card;
 }
 
@@ -138,7 +167,7 @@ function renderMenu(ctx) {
   const list = h('div', 'level-list');
   for (const level of ctx.levels.levels) list.append(levelCard(ctx, level));
   view.append(list);
-  view.append(h('p', 'note', 'Levels 6 and 7 are still being built. Returns never score anything here, and there is no leaderboard.'));
+  view.append(h('p', 'note', "Level 7's screens are still being built - its rules, its portfolios and its draw are in levels.json and under test. Returns never score anything here, and there is no leaderboard."));
   view.append(footNotes(ctx.game));
   return view;
 }
