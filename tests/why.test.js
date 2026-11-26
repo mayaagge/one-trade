@@ -152,7 +152,7 @@ test('every template in why.json uses only placeholders the code can fill', () =
   assert.deepEqual(Object.keys(PLACEHOLDERS).sort(),
     ['bucketCard', 'crashCushion', 'crashCushionElsewhere', 'crashDrag', 'fallback', 'fewBets',
       'groupRisk', 'hiddenAi', 'hiddenAiAll', 'overRiskLimit', 'pair', 'pairLowRisk',
-      'quietNotABet', 'riskGapOver', 'riskGapUnder'].sort());
+      'manyBets', 'quietNotABet', 'riskGapOver', 'riskGapUnder'].sort());
 });
 
 test('validateWhy rejects a template with a placeholder the code cannot fill', () => {
@@ -226,10 +226,16 @@ test('the two pair rules are exact complements, so no pair falls between them', 
   assert.equal(checked > 0, true, 'no pool portfolio had a pair correlated enough to check');
 });
 
-test('pairLowRisk runs last, or it would undo the condition on the pair rule', () => {
-  // If it ran before the risk-gap rules it would simply hand back every card
-  // pairRiskAtLeast took away, and the condition would have been for nothing.
-  assert.equal(WHY.order[WHY.order.length - 1], 'pairLowRisk');
+test('pairLowRisk runs after the risk-gap rules, or it would undo the pair rule', () => {
+  // If it ran before them it would simply hand back every card pairRiskAtLeast
+  // took away, and the condition would have been for nothing. It used to be
+  // last; manyBets now sits below it, which changes nothing about this - what
+  // matters is that the gap rules get their turn first.
+  const at = (key) => WHY.order.indexOf(key);
+  assert.ok(at('pairLowRisk') > at('riskGapOver'));
+  assert.ok(at('pairLowRisk') > at('riskGapUnder'));
+  // And manyBets is below it, because it speaks only where nothing else does.
+  assert.ok(at('manyBets') > at('pairLowRisk'));
 });
 
 test('a tight pair carrying little risk is demoted, not dropped', () => {
@@ -375,7 +381,7 @@ test('the group rule fires when one group holds most of the risk', () => {
 test('the order in why.json settles a portfolio where several rules fire', () => {
   assert.deepEqual(WHY.order,
     ['hiddenAiAll', 'hiddenAi', 'groupRisk', 'fewBets', 'pair', 'riskGapOver', 'riskGapUnder',
-      'pairLowRisk']);
+      'pairLowRisk', 'manyBets']);
   // p01 fires the group rule and the pair rule (QQQ and VOO correlate at 0.95);
   // the group card is the one shown.
   const { result } = play(2, [], 2, { random: () => 0 });
@@ -1123,4 +1129,67 @@ test('the quiet card speaks on the weekly challenge and nowhere else', () => {
   assert.notEqual(pickWhy(cardFor(GAME, GROUPS, WHY, barbell).facts, WHY).key, 'quietNotABet');
   assert.ok(!WHY.order.includes('quietNotABet'), 'a leading rule must not also sit in the order');
   assert.deepEqual(WHY.rules.find((r) => r.key === 'quietNotABet').leads, { mode: 'weekly' });
+});
+
+// ------------------------------- several bets, and the group card standing down
+
+test('manyBets speaks for a portfolio that really is several separate bets', () => {
+  // The mirror of fewBets: that card says "your holdings are spread evenly and
+  // still make one bet", and until now nothing said the opposite.
+  const spread = { GLD: 2500, TLT: 2500, XOM: 2500, KO: 2500 };
+  const { facts } = cardFor(GAME, GROUPS, WHY, spread);
+  const card = pickWhy(facts, WHY);
+  assert.equal(card.key, 'manyBets');
+  assert.match(card.text, /4 holdings make 3\.\d\d separate bets/);
+  assert.equal(card.values.total, '4');
+  // The threshold is level 3's own pass rule, not a number invented here.
+  const rule = WHY.rules.find((r) => r.key === 'manyBets');
+  assert.equal(rule.when.betsAtLeast, levelById(LEVELS, 3).pass.threshold);
+  assert.equal(rule.when.minHoldings, WHY.rules.find((r) => r.key === 'fewBets').when.minHoldings);
+});
+
+test('manyBets is last, so it displaces nothing that says something specific', () => {
+  // Placed where fewBets sits it would take over nine of the twenty capstone
+  // portfolios, replacing pair and risk-gap cards. Last, it speaks only where
+  // the fallback used to.
+  assert.equal(WHY.order[WHY.order.length - 1], 'manyBets');
+  // A portfolio with plenty of bets AND a close pair keeps the pair card.
+  const withPair = { TLT: 3000, LQD: 2500, GLD: 2000, KO: 1200, UNH: 800, NVDA: 500 };
+  assert.equal(pickWhy(cardFor(GAME, GROUPS, WHY, withPair).facts, WHY).key, 'pair');
+});
+
+test('manyBets stands down below three bets, however many holdings there are', () => {
+  // Five AI stocks are five holdings and about one bet.
+  const oneBet = { NVDA: 2000, AMD: 2000, AVGO: 2000, MU: 2000, ANET: 2000 };
+  assert.notEqual(pickWhy(cardFor(GAME, GROUPS, WHY, oneBet).facts, WHY).key, 'manyBets');
+  // And two holdings never reach it, whatever they are.
+  const two = { GLD: 5000, TLT: 5000 };
+  assert.notEqual(pickWhy(cardFor(GAME, GROUPS, WHY, two).facts, WHY).key, 'manyBets');
+});
+
+test('the group card stands down on a portfolio that makes several bets', () => {
+  // THE CARD READS AS CONCENTRATION - "that is where this portfolio's fortunes
+  // are decided" - and on a portfolio making four separate bets that is the
+  // wrong thing to say, however much of the risk one group happens to hold.
+  const spread = { TLT: 3000, LQD: 2500, GLD: 2000, KO: 1200, UNH: 800, NVDA: 500 };
+  const { facts } = cardFor(GAME, GROUPS, WHY, spread);
+  const groupRule = WHY.rules.find((r) => r.key === 'groupRisk');
+  const candidate = ruleCandidate(facts, groupRule, {});
+  assert.equal(candidate.fires, false, 'the group card fired on a portfolio making several bets');
+  // The gate is the same threshold manyBets uses, and the mirror of fewBets'.
+  assert.equal(groupRule.when.betsBelow, 3);
+});
+
+test('the group card still fires on the AI lesson, which is the point of it', () => {
+  // The AI holdings in these portfolios correlate about 0.4 to 0.6 with each
+  // other - a correlation floor on the group would take this card away, which
+  // is why the gate is on the PORTFOLIO's bets instead.
+  for (const dollars of [
+    { NVDA: 2000, AMD: 2000, AVGO: 2000, MU: 2000, ANET: 2000 },
+    { NVDA: 3000, MSFT: 3000, AVGO: 2000, BND: 2000 },
+    { AAPL: 2000, MSFT: 2000, GOOGL: 2000, AMZN: 2000, META: 2000 },
+  ]) {
+    const card = pickWhy(cardFor(GAME, GROUPS, WHY, dollars).facts, WHY);
+    assert.equal(card.key, 'groupRisk', `${Object.keys(dollars).join('/')} lost the group card`);
+  }
 });

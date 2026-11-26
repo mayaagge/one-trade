@@ -31,7 +31,7 @@ const REFRESH = readFileSync(path('.github/workflows/refresh.yml'), 'utf8');
 const TESTS_WORKFLOW = readFileSync(path('.github/workflows/test.yml'), 'utf8');
 
 /** The steps that may fail on data and must therefore not stop the job. */
-const DATA_STEPS = ['stale', 'rebuild', 'puzzle', 'levelcheck', 'poolcheck', 'crossfetch'];
+const DATA_STEPS = ['stale', 'rebuild', 'puzzle', 'levelcheck', 'poolcheck', 'weeklycheck', 'crossfetch'];
 
 /** The gate's `if:` expression, as written in the file. */
 function gateExpression() {

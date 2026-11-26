@@ -717,12 +717,16 @@
       },
       {
         "id": "w05",
-        "name": "One stock, one bond fund",
-        "bets": 1.52,
-        "lesson": "The same shape as the barbell, a different answer: what you hold beside the bonds decides it.",
+        "name": "Five groups, one bet",
+        "bets": 1.55,
+        "lesson": "Five holdings in five different groups, no holding carrying more than a quarter of the risk - and still barely more than one bet. Spreading the money is not spreading the risk.",
+        "replacesNote": "It replaced a two-holding portfolio (KO and TLT) that no rule could explain, so its reveal showed the fallback card. A rule for it would have fired on one portfolio in the whole game: of the 62 the game deals or writes down, four hold exactly two things, and the other three already have cards. See BUILD_LOG.md, session 2.18.",
         "dollars": {
-          "KO": 5000,
-          "TLT": 5000
+          "VOO": 2000,
+          "VXUS": 2000,
+          "TLT": 2000,
+          "XOM": 2000,
+          "WMT": 2000
         }
       },
       {

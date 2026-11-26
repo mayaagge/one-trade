@@ -66,6 +66,7 @@ export const PLACEHOLDERS = {
   riskGapOver: ['ticker', 'dollarPct', 'riskPct'],
   riskGapUnder: ['ticker', 'dollarPct', 'riskPct'],
   quietNotABet: ['ticker', 'dollarPct', 'riskPct'],
+  manyBets: ['total', 'bets'],
   hiddenAi: ['ticker', 'dollarPct', 'portfolioBeta', 'contribution'],
   hiddenAiAll: ['ticker', 'dollarPct', 'portfolioBeta'],
   overRiskLimit: ['ticker', 'riskPct', 'dollarPct', 'limitPct'],
@@ -82,7 +83,7 @@ export const PLACEHOLDERS = {
 export const RULE_KEYS = [
   'overRiskLimit', 'crashCushionElsewhere', 'crashCushion', 'crashDrag',
   'hiddenAiAll', 'hiddenAi', 'groupRisk', 'fewBets', 'pair', 'pairLowRisk',
-  'riskGapOver', 'riskGapUnder', 'quietNotABet',
+  'riskGapOver', 'riskGapUnder', 'quietNotABet', 'manyBets',
 ];
 
 /**
@@ -686,6 +687,18 @@ export function ruleCandidate(facts, rule, { pairThreshold = null, pairPlaces = 
     };
   }
 
+  if (rule.key === 'manyBets') {
+    // THE MIRROR OF fewBets, and the card the fallback used to cover. "Nothing
+    // stands out here" is true of a portfolio making four separate bets, and it
+    // is not the most useful true thing to say about one.
+    if (!Number.isFinite(facts.bets)) return none;
+    return {
+      key: rule.key,
+      fires: facts.total >= when.minHoldings && facts.bets >= when.betsAtLeast,
+      values: { total: String(facts.total), bets: facts.bets.toFixed(2) },
+    };
+  }
+
   if (rule.key === 'pair') {
     if (!facts.pair) return none;
     // Two conditions, and both are about whether the card is worth a player's
@@ -710,7 +723,12 @@ export function ruleCandidate(facts, rule, { pairThreshold = null, pairPlaces = 
       // A group of one holding is a holding, not a group: it reads as "1 of your
       // 4 holdings are AI stocks" and says less than the risk-gap card would.
       && top.count >= (when.minHoldingsInGroup ?? 1)
-      && top.riskShare >= when.groupRiskAtLeast;
+      && top.riskShare >= when.groupRiskAtLeast
+      // AND THE PORTFOLIO HAS TO BE CONCENTRATED, which is what this card says
+      // about it. One group can hold most of the risk in a portfolio that still
+      // makes four separate bets, and "that is where its fortunes are decided"
+      // is the wrong sentence about that portfolio. See why.json's betsNote.
+      && (!Number.isFinite(when.betsBelow) || facts.bets < when.betsBelow);
     return {
       key: rule.key,
       fires,

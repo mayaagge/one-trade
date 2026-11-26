@@ -3303,3 +3303,89 @@ rebuild, the committed file is still 756 rows and every screen works.
 887 tests pass.
 
 Educational, not investment advice.
+
+## Three cards the weekly needed, 26 November 2026 (session 2.18)
+
+Three of the ten weekly portfolios showed the fallback card - "nothing stands
+out here" - and one showed a card that was actively wrong about it. New:
+manyBets in why.json, a condition on groupRisk, a replacement for w05, and
+scripts/check_weekly.mjs.
+
+### manyBets, and why its POSITION was the whole decision
+
+fewBets says "your holdings are spread evenly and still make one bet". Nothing
+said the opposite, so a portfolio making four separate bets got "nothing stands
+out here" - true, and not the most useful true thing to say about it.
+
+Put where its mirror sits, straight after fewBets, it would have taken over
+NINE of the twenty capstone portfolios, replacing pair, pairLowRisk and the two
+risk-gap cards that each name something specific. Placed last, above the
+fallback, it speaks only where the fallback used to: three cards change in the
+whole game - weeklies w04 and w08, and capstone f20 - all of them fallback to
+manyBets, and nothing specific is displaced anywhere.
+
+Its thresholds are level 3's own pass rule (3 effective bets) and fewBets' own
+minimum (3 holdings). No new numbers.
+
+### The group card was wrong about the most diversified week
+
+w10 holds 73% of its risk in bonds and gold and makes 4.4 separate bets, and
+the group card said "that is where this portfolio's fortunes are decided - and
+where the damage lands on a bad day". That reads as concentration, about a
+portfolio that is the opposite of concentrated.
+
+**The obvious fix does not work, and the numbers say why.** A floor on how
+closely the GROUP moves - a minimum average correlation inside it - looks right
+until you measure the AI stocks this card exists to explain: they correlate
+0.26 to 0.63 inside these portfolios, and w10's bonds and gold correlate 0.42,
+right in the middle of that range. A floor at 0.5 would drop w10 and also take
+the card off the ai-held-in-the-open lesson (0.44) and off w01 (0.47), the week
+built to teach exactly this. A floor at 0.7 would drop 14 of the 19 portfolios
+the card speaks for.
+
+What separates w10 is not its group but its PORTFOLIO: 4.4 bets. So groupRisk
+gained `betsBelow: 3` - the mirror of fewBets' own betsBelow, and the same
+threshold manyBets uses. It drops exactly two of nineteen: w10 and capstone
+f19. Every AI lesson keeps its card. w10 now gets the pair card, which notices
+that TLT and LQD correlate at 0.91 even inside a portfolio making four bets,
+and f19 gets riskGapUnder.
+
+### A rule that would have fired once, so the portfolio changed instead
+
+w05 was KO and TLT: two holdings, correlation 0.17, 1.52 bets, and no rule to
+explain it. A rule for it - two holdings that barely move together and still
+fall short of two bets - would have fired on ONE portfolio in the whole game.
+Of the 62 the game deals or writes down, four hold exactly two things: w03
+(quietNotABet), w05, and two lesson portfolios that already have cards. Level 1
+builds pairs, but its reveal takes a bucket card, not the rule path.
+
+So w05 is now "Five groups, one bet": VOO, VXUS, TLT, XOM and WMT at $2,000
+each. Five holdings in five groups, nothing carrying more than a quarter of the
+risk, and 1.55 bets. It earns fewBets - the card nothing else in the ten gets -
+and it is the exact counterpart of w04 and w08. The order survives untouched:
+1.55 sits where 1.52 did, the tightest step between weeks is still 1.28.
+
+### A property that must not block a commit
+
+"Every week says something specific" is a fact about the PRICES. w04 answers
+3.22 against manyBets' threshold of 3, and w05 answers 1.55 against fewBets'
+2 - a market that moved either across its threshold would change that week's
+card, and a unit test reading data/game.json would have turned red on a morning
+when nobody had touched the repository, blocking a commit that was correct.
+
+So the property is tested on the FROZEN snapshot, which never moves, and
+reported on the live file by scripts/check_weekly.mjs, which the refresh runs
+after the commit with continue-on-error - the bargain scripts/build_puzzles.mjs
+--check and scripts/check_levels.mjs already make. All ten portfolios earn the
+same card on the frozen snapshot as on today's live prices, which is what makes
+the fixture a fair stand-in rather than a convenient one.
+
+The check reports three things and colours the run if any fails: a week with
+nothing specific to say, two weeks in a row within a bet of each other (the
+wrap from week 10 to week 1 included), and a constant guess that would score.
+tests/checkWeekly.test.js feeds it made-up week lists, because the point is the
+reporting logic rather than today's market.
+
+905 tests pass.
+
+Educational, not investment advice.

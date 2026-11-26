@@ -34,12 +34,16 @@ import {
 import { validateLevels, weightsFromDollars, starsFor, STARTING_DOLLARS } from '../js/levels.js';
 import { gameWindow, windowEndingOn, windowMatrix } from '../js/gameView.js';
 import { covariance, effectiveBets } from '../js/math.js';
+import { groupIndex, pickWhy, validateWhy, whyFacts } from '../js/why.js';
+import { frozenGameDoc } from '../scripts/check_why_cards.mjs';
 
 const root = new URL('..', import.meta.url);
 const readJson = (name) => JSON.parse(readFileSync(fileURLToPath(new URL(name, root)), 'utf8'));
 const LEVELS = validateLevels(readJson('levels.json'));
 const GAME = readJson('data/game.json');
 const WEEKLY = LEVELS.weekly;
+const WHY = validateWhy(readJson('why.json'));
+const GROUPS = groupIndex(readJson('tickers.json'));
 
 const copy = () => JSON.parse(JSON.stringify(LEVELS));
 
@@ -358,4 +362,70 @@ test('the weekly scores like level 2: a star for guessing, then the two bands', 
   assert.equal(starsFor(WEEKLY, { guess: 2.0, actual: 2.3, passed: true }), 3);
   assert.equal(starsFor(WEEKLY, { guess: 2.0, actual: 2.9, passed: true }), 2);
   assert.equal(starsFor(WEEKLY, { guess: 2.0, actual: 4.0, passed: true }), 1);
+});
+
+// ------------------------------------------------- the card each week shows
+
+// ON THE FROZEN SNAPSHOT, NOT ON THE LIVE FILE, and that is the whole point.
+// Which card a portfolio earns depends on thresholds - 3 bets for manyBets, 2
+// for fewBets - and a weekly answer sitting near one of them would flip card
+// when the market moved, turning a correct commit red for a reason nobody
+// introduced. data/prices.json never moves, so this test never does either.
+// What the LIVE prices are doing is reported by scripts/check_weekly.mjs,
+// which the refresh runs after the commit and which colours the run instead of
+// blocking it - the same bargain scripts/build_puzzles.mjs --check already makes.
+const FROZEN = frozenGameDoc(readJson('data/prices.json'));
+
+/** The card a weekly portfolio earns, over whichever prices are handed in. */
+function weeklyCard(doc, dollars) {
+  const { tickers, weights } = weightsFromDollars(dollars);
+  const window = gameWindow(doc, tickers, WEEKLY.window.days);
+  const facts = whyFacts({ tickers, weights, matrix: windowMatrix(window, tickers), groups: GROUPS });
+  return pickWhy(facts, WHY, {
+    outcome: { mode: 'weekly', measure: 'effectiveBets', passed: true },
+  });
+}
+
+test('every week says something specific, and none of them falls back', () => {
+  for (const portfolio of WEEKLY.portfolios) {
+    const card = weeklyCard(FROZEN, portfolio.dollars);
+    assert.notEqual(
+      card.key, 'fallback',
+      `${portfolio.id} "${portfolio.name}" has nothing specific to say about itself`,
+    );
+    assert.ok(card.text.length > 0);
+  }
+});
+
+test('each week earns the card its portfolio was built for', () => {
+  // Written down so that a change to a rule, a threshold or a portfolio shows
+  // up here as the week whose lesson it altered.
+  const expected = {
+    w01: 'groupRisk',        // five big names, four of them AI
+    w02: 'riskGapOver',      // NVDA: 13% of the money, 41% of the risk
+    w03: 'quietNotABet',     // TLT: half the money, a twentieth of the risk
+    w04: 'manyBets',         // four holdings, more than three bets
+    w05: 'fewBets',          // five groups, risk spread evenly, one bet
+    w06: 'quietNotABet',     // BND, quiet beside a tech fund
+    w07: 'riskGapUnder',     // VXUS, quieter than what it sits with
+    w08: 'manyBets',         // five holdings, nearly four bets
+    w09: 'riskGapUnder',     // JNJ, the steady one of the three
+    w10: 'pair',             // TLT and LQD at 0.91, inside a six-bet portfolio
+  };
+  for (const portfolio of WEEKLY.portfolios) {
+    assert.equal(
+      weeklyCard(FROZEN, portfolio.dollars).key, expected[portfolio.id],
+      `${portfolio.id} "${portfolio.name}"`,
+    );
+  }
+  assert.deepEqual(Object.keys(expected).sort(), WEEKLY.portfolios.map((p) => p.id).sort());
+  // Six different cards across ten weeks: the series does not repeat itself.
+  assert.ok(new Set(Object.values(expected)).size >= 5, 'the ten weeks say too few different things');
+});
+
+test('the week built around a bond fund says what bonds do to the count', () => {
+  const barbell = WEEKLY.portfolios.find((p) => p.name === 'The barbell');
+  const card = weeklyCard(FROZEN, barbell.dollars);
+  assert.equal(card.key, 'quietNotABet');
+  assert.match(card.text, /counts risk, not money/i);
 });

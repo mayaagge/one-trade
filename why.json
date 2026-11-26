@@ -37,7 +37,8 @@
     "pair",
     "riskGapOver",
     "riskGapUnder",
-    "pairLowRisk"
+    "pairLowRisk",
+    "manyBets"
   ],
   "orderNote": "The first rule in this list whose test passes is the card that gets shown. One card, not a list: on a phone, one cause a player can carry away beats three they skim. hiddenAi answers first because the exposure it names is the one a player cannot see on their own screen - the AI inside a fund they chose for being broad - and its own conditions stand it down whenever the AI is held in the open, where the group card says it better. Group concentration comes next because it is the fullest version of the lesson: five AI stocks is both 'your closest pair moves together' and 'one group holds the risk', and the second says more. fewBets comes after it and before pair, which is the placement that lets it win on four funds that each carry a quarter of the risk and still make one bet: the top group holds about half, so groupRisk is silent, and the 0.99 pair inside it would otherwise take the card and say the smaller thing. The risk-gap rules come last because they are about the split rather than about what a player picked.",
   "rules": [
@@ -131,14 +132,16 @@
         "groupRiskAtLeast": 0.7,
         "minHoldings": 3,
         "minHoldingsInGroup": 2,
-        "minGroups": 1
+        "minGroups": 1,
+        "betsBelow": 3
       },
       "whenNote": "Below 3 holdings, 'one group holds most of the risk' is true by arithmetic and teaches nothing: two Core US funds are 100% of their own risk. That is why minHoldings is 3.",
       "minGroupsNote": "minGroups was 2 in the first draft, to keep the card off a portfolio that is all one group. That was wrong, and a browser check caught it: five AI stocks make 1.03 bets, the lesson this whole game is named after, and the card read 'nothing stands out here'. A portfolio that is ALL one group is the most concentrated one a player can build, not the least worth mentioning. The case the guard was written for - two holdings from one group - is level 1, and level 1 takes the bucket path and never reaches these rules at all.",
       "thresholdNote": "70% of the risk, chosen on real prices rather than guessed. At the 50% first drafted, this card won 73% of 420 test portfolios - a player would read very nearly the same sentence every round, and 'most of the risk' is a weak claim when a 5-holding portfolio spans only two or three groups. At 70% it wins 38%, and the claim is one a player can see in the numbers. BUILD_LOG.md carries the table.",
       "template": "{count} of your {total} holdings are {group}. They are {dollarPct} of your money and {riskPct} of your risk, so that is where this portfolio's fortunes are decided - and where the damage lands on a bad day.",
       "templateNote": "The tail has to read as well at 100% as at 71%, because a portfolio that is all one group now reaches this card. An earlier draft ended 'they are doing most of the work', which understates it when the answer is all of it.",
-      "minHoldingsInGroupNote": "A group of ONE holding is not a group, it is a holding. Without this, three bond funds beside NVDA read '1 of your 4 holdings are AI stocks. They are 25% of your money and 82% of your risk' - bad grammar, and a weaker claim than the truth, which is that one holding carries four fifths of the risk. riskGapOver already has the template for that, so a one-holding group falls through to it. Found by the lesson portfolio added for level 5's failing build, which is the first case in the set where a single holding dominates a 3-or-more-holding portfolio."
+      "minHoldingsInGroupNote": "A group of ONE holding is not a group, it is a holding. Without this, three bond funds beside NVDA read '1 of your 4 holdings are AI stocks. They are 25% of your money and 82% of your risk' - bad grammar, and a weaker claim than the truth, which is that one holding carries four fifths of the risk. riskGapOver already has the template for that, so a one-holding group falls through to it. Found by the lesson portfolio added for level 5's failing build, which is the first case in the set where a single holding dominates a 3-or-more-holding portfolio.",
+      "betsNote": "THE CARD READS AS CONCENTRATION - \"that is where this portfolio's fortunes are decided, and where the damage lands on a bad day\" - so it stands down on a portfolio that makes several separate bets, however much of the risk one group happens to hold. The weekly challenge's most diversified week had 73% of its risk in bonds and gold and made 4.4 bets; the sentence was wrong about it. 3 is the mirror of fewBets' own betsBelow, and level 3's pass threshold. A floor on how closely the GROUP moves was the other candidate and does not work: the AI stocks this card exists to explain correlate 0.26 to 0.63 inside these portfolios, so any floor that caught the diversified week would take the card off the AI lesson as well."
     },
     {
       "key": "fewBets",
@@ -214,6 +217,17 @@
         "mode": "weekly"
       },
       "leadsNote": "It LEADS on the weekly challenge and nowhere else. Several of the ten weekly portfolios are built around a bond fund that holds a big share of the money and almost none of the risk, and that is the lesson they exist to teach. On a level the same shape is usually a lesson about the holding carrying the risk, so here the card keeps its ordinary place below riskGapOver - see the two lesson portfolios in scripts/check_why_cards.mjs that say exactly that."
+    },
+    {
+      "key": "manyBets",
+      "says": "the holdings really are several separate bets",
+      "when": {
+        "betsAtLeast": 3,
+        "minHoldings": 3
+      },
+      "whenNote": "3 bets is level 3's own pass threshold - \"at least 3 effective bets\" - and 3 holdings is the minimum fewBets uses. Neither is a new number.",
+      "template": "Your {total} holdings make {bets} separate bets - nearly one each. Nothing here moves much with anything else, which is what spreading risk actually looks like.",
+      "orderNote": "LAST, above the fallback, and that placement is the whole decision. Put where its mirror fewBets sits it would take over nine of the twenty capstone portfolios, replacing the pair and risk-gap cards that each name something specific about them. Last, it speaks only where the fallback used to - \"nothing stands out here\" is true of a portfolio making four separate bets, but it is not the most useful true thing to say about one."
     }
   ],
   "rulesTail": "pairLowRisk is the pair card demoted rather than dropped. A pair correlated 0.70 or more that carries less than a fifth of the risk is still the same bet, and still worth naming - but it is not what decided the number, and it says so. It sits LAST in the order on purpose: if it ran before the risk-gap rules it would simply hand back the cards pairRiskAtLeast took away, and the condition would have been for nothing. Last means it speaks only when nothing else had anything to say.",

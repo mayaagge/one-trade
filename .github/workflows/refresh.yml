@@ -207,6 +207,16 @@ jobs:
         continue-on-error: true
         run: node scripts/build_puzzles.mjs --check --days 60
 
+      # Also after the commit. Which "Why?" card a weekly portfolio earns, and
+      # whether a returning player can guess this week from last week, are facts
+      # about the prices rather than about any commit. tests/weekly.test.js
+      # checks the same properties on the frozen snapshot, where they cannot
+      # move; this one reports on today's.
+      - name: Is the weekly challenge still a challenge?
+        id: weeklycheck
+        continue-on-error: true
+        run: node scripts/check_weekly.mjs
+
       # The tests held back above, now that the data is safely committed. These
       # compare two downloads of the same prices, so they report on Yahoo's
       # re-adjustment rather than on this repository's code.
@@ -230,6 +240,7 @@ jobs:
           steps.puzzle.outcome == 'failure' ||
           steps.levelcheck.outcome == 'failure' ||
           steps.poolcheck.outcome == 'failure' ||
+          steps.weeklycheck.outcome == 'failure' ||
           steps.crossfetch.outcome == 'failure'
         run: |
           echo "The data was committed if there was any to commit. These steps failed:"
@@ -239,6 +250,7 @@ jobs:
             "puzzle:${{ steps.puzzle.outcome }}" \
             "levelcheck:${{ steps.levelcheck.outcome }}" \
             "poolcheck:${{ steps.poolcheck.outcome }}" \
+            "weeklycheck:${{ steps.weeklycheck.outcome }}" \
             "crossfetch:${{ steps.crossfetch.outcome }}"; do
             name=${step%%:*}
             outcome=${step#*:}
