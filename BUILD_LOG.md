@@ -2034,19 +2034,35 @@ two rules it was exactly what four bond funds got - both facts in it true, and
 neither of them the problem. The message now names the rule that was missed, and
 the test for four bond funds asserts the wording, not just the refusal.
 
-### The threshold is one ulp wide
+### The threshold was one ulp wide, so the pass check now has slack
 
 20% against 40% is half as much in arithmetic and *not* in binary floating point:
-8000/10000 - 1 is -0.19999999999999996, so the share comes out at
-0.4999999999999999 and **passes** a `<` check. Python and JavaScript land on the
-same bit, which is why the fixture carries the case rather than hiding it. 25%
-against 50% is the honest boundary and gives exactly 0.5, which the `<` refuses.
-Both are in tests/fixtures/known_answers.json as named cases.
+8000/10000 - 1 is -0.19999999999999996, so the share came out at
+0.4999999999999999 and **passed** a `<` check, while 25% against 50% gave exactly
+0.5 and missed. Python and JavaScript land on the same bit, which is why the
+fixtures carry both cases rather than hiding either.
 
-The display rule already covers the consequence: a result within 0.005 of its
-threshold is shown to 4 decimals, so the screen reads "0.5000" and not "0.50",
-and docs/PRD.md's "a displayed number never disagrees with the pass check" holds
-without a new rule. Level 4's `<` against 0.50 has the same shape.
+The display rule covers half of the consequence: a result within 0.005 of its
+threshold is shown to 4 decimals, so the screen reads "0.5000" and not "0.50".
+But that is the problem rather than the cure - it means two portfolios that fell
+the same half were shown the *same* number and given different verdicts.
+
+**`passes()` now counts a measure within 1e-9 of its threshold as equal to it**,
+which is BAND_TOLERANCE, the slack the star bands already give a guess, reused
+for the same reason. The slack passes an inclusive comparison and fails a strict
+one, so both of these builds miss: a portfolio that fell exactly half as much as
+the index did not fall *less* than half as much. docs/PRD.md's scoring section
+says so now, beside the display rule it follows from.
+
+Nothing else moved, and that was checked rather than assumed:
+scripts/check_levels.mjs's output is byte-identical before and after, the "Why?"
+card frequency table and all twelve lesson cards are unchanged, and the closest
+any sampled design comes to its own threshold is 6.2e-5 - on level 5, five orders
+of magnitude outside the band. A test asserts that last fact for levels 1, 4, 5
+and 6, so the slack cannot quietly start deciding a real round. Two pre-existing
+assertions did change, both of them cases built to sit 1e-10 from a threshold:
+`passes(level1, 0.7999999999)` and `passes(level3, 2.9999999999)` now pass, and
+the test says why and checks 1e-8 out instead.
 
 ### Level 6 does not read data/game.json at all
 

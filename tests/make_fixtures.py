@@ -435,7 +435,8 @@ def build_fall_share_cases():
             "name": "fall_share_at_the_threshold",
             "description": (
                 "The portfolio falls exactly half as much as the index - 25% against 50% - "
-                "so the share is exactly 0.5 and level 6's '<' refuses it. The boundary is "
+                "so the share is exactly 0.5 and level 6 refuses it: a portfolio that fell "
+                "exactly half as much did not fall LESS than half as much. The boundary is "
                 "a real build, not a limit."
             ),
             "hand_derivable": True,
@@ -447,11 +448,14 @@ def build_fall_share_cases():
         {
             "name": "fall_share_one_ulp_under_the_threshold",
             "description": (
-                "20% against 40% is half as much in arithmetic but not in binary floating "
-                "point: 8000/10000 - 1 is -0.19999999999999996, so the share comes out at "
-                "0.4999999999999999 and PASSES a '<' check. Python and JavaScript land on "
-                "the same bit, which is the point of carrying it: the boundary is one ulp "
-                "wide and the display rule has to cover it."
+                "20% against 40% is the same half as the case above in arithmetic, and not "
+                "in binary floating point: 8000/10000 - 1 is -0.19999999999999996, so the "
+                "share comes out at 0.4999999999999999 rather than at 0.5. Python and "
+                "JavaScript land on the same bit, which is the point of carrying it. Both "
+                "builds display as 0.5000 and both miss, because js/levels.js's passes() "
+                "counts a measure within 1e-9 of its threshold as equal to it - the slack "
+                "the star bands already give a guess. Without it, these two portfolios got "
+                "different verdicts off the same number on screen."
             ),
             "hand_derivable": True,
             "dollars": [10000.0],

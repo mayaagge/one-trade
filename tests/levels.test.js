@@ -36,7 +36,8 @@ import {
 import { buildReturns } from '../js/returns.js';
 import { betsFor, FUNDS, MIN_HOLDINGS, MAX_HOLDINGS } from '../scripts/make_pool.mjs';
 import {
-  checkLevel4, checkLevel5, checkLevel6, checkLevel6Builds, LEVEL6_BUILDS, REQUIRED_DESIGNS,
+  checkLevel1, checkLevel4, checkLevel5, checkLevel6, checkLevel6Builds, LEVEL6_BUILDS,
+  REQUIRED_DESIGNS,
 } from '../scripts/check_levels.mjs';
 import { validateCrashes } from '../js/crash.js';
 
@@ -197,10 +198,14 @@ test('weightsFromDollars() turns the pretend money into weights that sum to 1', 
 
 test('passes() compares the unrounded measure, and the threshold itself passes', () => {
   assert.equal(passes(level1, 0.8), true, 'exactly the threshold is a pass');
-  assert.equal(passes(level1, 0.7999999999), false);
+  // A billionth under the threshold counts AS the threshold, which is the same
+  // slack the star bands give a guess - see the tolerance tests further down.
+  // Anything further out than that is still measured as it is: 1e-8 under fails.
+  assert.equal(passes(level1, 0.8 - BAND_TOLERANCE / 10), true);
+  assert.equal(passes(level1, 0.79999999), false);
   assert.equal(passes(level1, 0.95), true);
   assert.equal(passes(level3, 3), true);
-  assert.equal(passes(level3, 2.9999999999), false);
+  assert.equal(passes(level3, 2.99999999), false);
   assert.equal(passes(level1, Number.NaN), false);
   assert.equal(passes(level2, undefined), true, 'level 2 passes on making a guess');
 });
@@ -588,16 +593,75 @@ test("level 6's slider puts the index in the middle and reaches both buckets", (
   assert.deepEqual([...reachable].sort(), ['harder', 'heldUp', 'withIt']);
 });
 
-test('a fall share on the threshold is shown to 4 decimals, not rounded onto it', () => {
-  // docs/PRD.md: "A displayed number never disagrees with the pass check." The
-  // boundary here is one ulp wide - 20% against 40% comes out at
-  // 0.4999999999999999 and passes - so the screen has to show the digits that
-  // say which side of 0.50 it is on.
+test('two builds that both display 0.5000 get the same verdict', () => {
+  // docs/PRD.md: "A displayed number never disagrees with the pass check", and
+  // the stronger thing it implies - two builds the screen cannot tell apart
+  // cannot be told apart by the check either. A portfolio that fell 20% against
+  // the index's 40% and one that fell 25% against 50% both fell half as much;
+  // the first comes out at 0.4999999999999999 only because 8000/10000 - 1 is not
+  // exactly -0.2. Both show as "0.5000" and both miss.
   assert.equal(formatMeasure(0.4999999999999999, { threshold: 0.5 }), '0.5000');
   assert.equal(formatMeasure(0.5, { threshold: 0.5 }), '0.5000');
-  assert.equal(formatMeasure(0.4325032943352791, { threshold: 0.5 }), '0.43');
-  assert.equal(passes(level6, 0.4999999999999999), true);
+  assert.equal(passes(level6, 0.4999999999999999), false);
   assert.equal(passes(level6, 0.5), false, 'exactly half as much is not less than half as much');
+  assert.equal(resultLine(level6, 0.4999999999999999), resultLine(level6, 0.5),
+    'the same number on screen reads the same way');
+  assert.match(resultLine(level6, 0.5), /^0.5000 misses the 0.5000 needed$/);
+  // A result that is not within a billionth of the threshold is untouched, and
+  // reads at the level's ordinary two decimals.
+  assert.equal(formatMeasure(0.4325032943352791, { threshold: 0.5 }), '0.43');
+  assert.equal(passes(level6, 0.4325032943352791), true);
+  assert.equal(passes(level6, 0.49), true);
+});
+
+test('the pass check gives the same 1e-9 slack the star bands give a guess', () => {
+  // It cuts the player's way on an inclusive comparison and against them on a
+  // strict one, which is what "counts as equal to the threshold" means.
+  const nudge = BAND_TOLERANCE / 2;
+
+  // Level 6, "< 0.50": a hair under the threshold counts as on it, and misses.
+  assert.equal(passes(level6, 0.5 - nudge), false);
+  assert.equal(passes(level6, 0.5 - 1e-6), true, 'and a hair further out still passes');
+
+  // Level 4, "< 0.50" on a beta: the same rule, unchanged in every real case.
+  const level4Rule = levelById(LEVELS, 4);
+  assert.equal(passes(level4Rule, 0.5 - nudge), false);
+  assert.equal(passes(level4Rule, 0.4998), true);
+
+  // Level 5, "<= 35%": inclusive, so a hair over counts as on it and passes.
+  assert.equal(passes(level5, 0.35 + nudge), true);
+  assert.equal(passes(level5, 0.3501), false);
+
+  // Level 1, "correlation >= 0.80": a hair under counts as 0.80 and passes; the
+  // real near miss in the pool, VTI with VXUS at 0.7997, is nowhere near it.
+  assert.equal(passes(level1, 0.8 - nudge), true);
+  assert.equal(passes(level1, 0.7997), false);
+
+  // Level 3, "at least 3 bets".
+  assert.equal(passes(level3, 3 - nudge), true);
+  assert.equal(passes(level3, 2.99), false);
+});
+
+test('no design in any level sits inside the slack, so no existing result moved', () => {
+  // The check that the tolerance is inert everywhere it was not needed: the
+  // closest any sampled design comes to its own threshold is 6.2e-5, on level 5,
+  // which is five orders of magnitude outside the band. This test is the reason
+  // the change could be made at all.
+  const built = buildReturns(read('../data/prices.json'));
+  const universe = [...KNOWN_TICKERS];
+  const basket = read('../basket.json').stocks.map((s) => s.ticker);
+  const crashes = validateCrashes(read('../data/crashes.json'));
+  const runs = [
+    [level1, checkLevel1(built, level1)],
+    [level4, checkLevel4(built, level4, universe, basket)],
+    [level5, checkLevel5(built, level5, universe)],
+    [level6, checkLevel6(crashes, level6, LEVELS, universe)],
+  ];
+  for (const [level, run] of runs) {
+    const closest = Math.min(...run.all.map((r) => Math.abs(r.value - level.pass.threshold)));
+    assert.ok(closest > BAND_TOLERANCE * 1000,
+      `a level ${level.id} design is ${closest} from its threshold, inside the slack`);
+  }
 });
 
 test('a level that replays a crash has to name its window and its file', () => {

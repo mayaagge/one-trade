@@ -411,16 +411,34 @@ export function weightsFromDollars(dollars) {
  *
  * The comparison is against the UNROUNDED measure. Nothing here rounds, and
  * nothing that rounds is allowed upstream of it.
+ *
+ * A MEASURE WITHIN BAND_TOLERANCE OF THE THRESHOLD COUNTS AS EQUAL TO IT, which
+ * is the same 1e-9 slack the star bands already give a guess, and for the same
+ * reason: binary floating point should not decide a level.
+ *
+ * Level 6 is where this stopped being theoretical. Two portfolios that both fell
+ * half as far as the index - 20% against the index's 40%, and 25% against 50% -
+ * come out at 0.4999999999999999 and 0.5, because 8000/10000 - 1 is not exactly
+ * -0.2. Both are shown as "0.5000" by formatMeasure(), as docs/PRD.md's display
+ * rule requires, and without this slack one of them would have passed "< 0.50"
+ * and the other missed it while the screen said the same number. Now both miss:
+ * a portfolio that fell exactly half as much did not fall LESS than half as much.
+ *
+ * The slack cuts the player's way on an inclusive comparison and against them on
+ * a strict one, which is what "counts as equal" means. It cannot change a result
+ * that is not within a billionth of its threshold, and no real measure in this
+ * game sits there by anything but arithmetic.
  */
 export function passes(level, measured) {
   const rule = level.pass;
   if (rule.measure === 'guess') return true;        // level 2 passes on making a guess
   if (!Number.isFinite(measured)) return false;
+  const equal = Math.abs(measured - rule.threshold) <= BAND_TOLERANCE;
   switch (rule.comparison) {
-    case '>=': return measured >= rule.threshold;
-    case '>': return measured > rule.threshold;
-    case '<=': return measured <= rule.threshold;
-    case '<': return measured < rule.threshold;
+    case '>=': return equal || measured >= rule.threshold;
+    case '>': return !equal && measured > rule.threshold;
+    case '<=': return equal || measured <= rule.threshold;
+    case '<': return !equal && measured < rule.threshold;
     default: throw new Error(`passes: unknown comparison ${rule.comparison}`);
   }
 }

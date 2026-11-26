@@ -345,15 +345,21 @@ test("level 6's threshold sits on a real build, not on a limit", () => {
   assert.equal(shareOf(c) < 0.5, false, 'exactly half as much is not less than half as much');
 });
 
-test('the threshold is one ulp wide, and both languages land on the same bit', () => {
-  // 20% against 40% is half as much in arithmetic but not in binary floating
-  // point: it comes out at 0.4999999999999999 and PASSES. Nothing is rounded to
-  // hide that - the number is what it is, and the display rule is what keeps the
-  // screen from reading "0.50 clears the 0.50 needed" (see js/levels.js).
+test('the same half comes out one ulp apart, and both languages land on the same bit', () => {
+  // 20% against 40% and 25% against 50% are the same half in arithmetic. In
+  // binary floating point they are not: 8000/10000 - 1 is -0.19999999999999996,
+  // so one comes out at 0.4999999999999999 and the other at 0.5. NOTHING HERE
+  // ROUNDS - the numbers are what they are. What keeps two portfolios that both
+  // display "0.5000" from getting different verdicts is js/levels.js's passes(),
+  // which counts a measure within 1e-9 of its threshold as equal to it;
+  // tests/levels.test.js checks that both of these miss.
   const c = fixtures.fall_share_cases.find((x) => x.name === 'fall_share_one_ulp_under_the_threshold');
   const share = shareOf(c);
   assert.equal(share, 0.4999999999999999);
   assert.equal(share, c.expected.fall_share, 'numpy produced the same bit');
-  assert.ok(share < 0.5, 'so this build clears a "<" check');
-  assert.notEqual(share, 0.5);
+  assert.notEqual(share, 0.5, 'the bare arithmetic really does differ');
+  assert.ok(share < 0.5, 'and a bare "<" would have let this one through');
+  // The two are a billionth of a billionth apart, far inside the slack.
+  const exact = shareOf(fixtures.fall_share_cases.find((x) => x.name === 'fall_share_at_the_threshold'));
+  assert.ok(Math.abs(share - exact) < 1e-15);
 });

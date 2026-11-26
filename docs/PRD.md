@@ -98,6 +98,10 @@ Levels 2, 3 and 7 answer with a number of bets and keep the bands of 1 and 0.5 a
 
 **A displayed number never disagrees with the pass check.** The pass check compares the unrounded measure against the threshold. A result within 0.005 of its threshold, where a rounded display could read as the other side of it, is shown to 4 decimals instead: a correlation of 0.7996 against a 0.8 threshold is shown as 0.7996 and fails, never as "0.80" and fails.
 
+**And two results the screen cannot tell apart get the same verdict.** A measure within 1e-9 of its threshold counts as equal to it, which is the same slack the star bands already give a guess, and for the same reason: binary floating point should not decide a level. So the slack passes an inclusive comparison and fails a strict one — a portfolio that fell exactly half as much as the index did not fall *less* than half as much.
+
+Level 6 is why this is written down. A portfolio that fell 20% while the index fell 40% and one that fell 25% while the index fell 50% both fell half as much, but the first works out to 0.4999999999999999 rather than 0.5, because 8000/10000 − 1 is not exactly −0.2 in binary. Both are shown as "0.5000" under the rule above, and without this one they would have been given different verdicts off the same number on screen. No measure in this game sits within a billionth of a threshold for any reason but arithmetic: across every design the level checks sample, the closest any portfolio comes to its own threshold is 6.2e-5.
+
 **The guess comes first.** Every level asks the player to predict the answer before the reveal. Predicting and then being corrected is the main learning moment.
 
 ## Game modes
