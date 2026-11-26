@@ -326,10 +326,25 @@ test('liveTailState() turns a broken game file into a status, not a throw', () =
 // -------------------------------------------------- the real committed data
 
 test('the live half joins the frozen half at the freeze date', () => {
-  // BUILD_LOG.md, session 2.3a: Yahoo's adjusted closes move by about 1e-6
-  // between fetches for dividend payers, and game.json stores returns to 10
-  // decimals, so the halves will not join perfectly. Measured on the committed
-  // files on 2026-11-25: 2.4e-10. Anything above 1e-4 is a real fault.
+  // The guard is JOIN_TOLERANCE, and it is the only bound this comparison can
+  // honestly have. The two halves come from TWO DIFFERENT FETCHES: the frozen
+  // half from data/prices.json, the live half from whatever the refresh job
+  // downloaded this evening. docs/PRD.md records what that costs - Yahoo's
+  // adjusted closes for dividend payers move by up to 1.2e-6 relative between
+  // fetches, and correlations by up to 4e-6 - so a gap in that range is Yahoo's
+  // rounding, not this project's arithmetic.
+  //
+  // This test used to pin the gap at 1e-9 as well, because the committed files
+  // measured 2.4e-10 the day it was written. That bar was wrong, and the
+  // scheduled refresh of 26 November 2026 proved it: a fresh fetch moved the gap
+  // to 1.3e-7 - 1,000 times inside the tolerance the chart actually enforces -
+  // and the job went red over data that was fine. CLAUDE.md rule 3 holds the
+  // BROWSER MATHS to 1e-9 against numpy, which tests/math.test.js does; it does
+  // not promise that two downloads of the same price agree, and this is the one
+  // comparison in the project that spans two of them.
+  //
+  // The measured gap is printed on every run instead, so a drift that is growing
+  // is visible in the log before it reaches the tolerance.
   const live = computeLiveRolling(GAME, {
     members: MEMBERS,
     benchmark: RESULTS.hypothesis2.registered.benchmark,
@@ -339,8 +354,9 @@ test('the live half joins the frozen half at the freeze date', () => {
   assert.equal(live.joinDate, FREEZE);
   const frozenLast = FROZEN.values[FROZEN.values.length - 1];
   const gap = Math.abs(live.joinValue - frozenLast);
+  console.log(`    the halves differ by ${gap.toExponential(2)} at ${FREEZE} `
+    + `(refused above ${JOIN_TOLERANCE})`);
   assert.ok(gap <= JOIN_TOLERANCE, `the halves differ by ${gap} at ${FREEZE}`);
-  assert.ok(gap <= 1e-9, `drifted to ${gap}: above the 1e-9 this project holds its maths to`);
 });
 
 test('the committed files produce a tail that starts after the freeze date', () => {

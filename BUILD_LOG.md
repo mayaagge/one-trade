@@ -753,6 +753,11 @@ test also holds today's figure to the project's 1e-9. A wrong basket, a wrong
 benchmark or a misaligned calendar all show up here as a gap far above either
 bound, and the chart then stops at the freeze date and says why.
 
+**The 1e-9 half of that was wrong, and was removed in session 2.5a below.** It
+held a two-fetch comparison to a one-fetch bar.
+
+
+
 ### Why one live day gets a sentence and not a band
 
 The freeze date was yesterday, so there is exactly one trading day after it. A
@@ -1448,5 +1453,57 @@ VEA/VXUS pair at 0.99 would otherwise take the card.
   the window ever reaches back past a member's listing, every level 4 round gets
   shorter rather than the member being dropped, and under 252 days the round
   refuses to be measured at all.
+
+Educational, not investment advice.
+
+## The join test held two fetches to a one-fetch bar, 26 November 2026 (session 2.5a)
+
+The scheduled refresh went red on data that was fine, and the test was the fault.
+
+`tests/liveRolling.test.js` checked the gap where the live and frozen halves of
+the rolling chart meet, against two bounds: `JOIN_TOLERANCE` at 1e-4, which is
+what the page itself enforces, and a second assertion pinning the gap at **1e-9**
+because the committed files measured 2.4e-10 on the day it was written. A fresh
+fetch on the evening of 25 November moved the gap to **1.3e-7** and the job
+failed.
+
+Nothing was wrong with the data. The two halves come from two different
+downloads - the frozen half from `data/prices.json`, the live half from that
+evening's fetch - and `docs/PRD.md` already records what that costs: Yahoo's
+adjusted closes for dividend payers move by up to 1.2e-6 relative between
+fetches, and correlations by up to 4e-6. A gap of 1.3e-7 is Yahoo's rounding,
+sitting 1,000 times inside the tolerance the chart actually refuses on.
+
+**CLAUDE.md rule 3 holds the browser maths to 1e-9 against numpy.** That is
+`tests/math.test.js`, and it is a claim about one calculation done two ways in
+two languages on the same numbers. It is not a promise that two downloads of the
+same price agree, and this join is the only comparison in the project that spans
+two of them. Applying the rule here read as rigour and was really a tripwire on
+Yahoo's rounding.
+
+So the 1e-9 assertion is gone, the 1e-4 guard stays, and **the measured gap is
+printed on every run**:
+
+```
+    the halves differ by 2.08e-12 at 2026-11-24 (refused above 0.0001)
+```
+
+2.08e-12 on today's committed files, down from the 2.4e-10 of session 2.3b
+because `data/game.json` carries 12 decimals now rather than 10. Printing it
+keeps the number in front of a reader on every run, so a drift that is growing is
+visible in the log long before it reaches the tolerance - which a pass/fail
+assertion at a fixed bar never showed, it only went off.
+
+The guard that matters is untouched: a wrong basket, a wrong benchmark or a
+misaligned calendar still shows up as a gap far above 1e-4, and the chart then
+stops at the freeze date and says why. A test elsewhere in the same file moves
+the join by `10 * JOIN_TOLERANCE` and checks exactly that.
+
+### What to watch
+
+- **The printed gap is now the early warning, and nothing reads it automatically.**
+  If it climbs towards 1e-4 the job will stay green until it crosses. That is the
+  right trade for a number whose floor is set by someone else's rounding, but it
+  does mean the line is worth a glance when the refresh log is open.
 
 Educational, not investment advice.
