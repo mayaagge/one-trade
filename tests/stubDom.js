@@ -28,6 +28,31 @@ export class StubNode {
     this.listeners = {};
     this._text = '';
     this.disabled = false;
+    // Text boxes. My real portfolio is the first screen in this game a player
+    // types into - every other mode is taps - so the stub needs a value and an
+    // input event, and nothing more than that.
+    this.value = '';
+  }
+
+  /**
+   * Type into a box, as a player does: set the value and let the screen hear
+   * about it.
+   *
+   * ONE METHOD FOR BOTH EVENTS, because a real browser fires `input` on every
+   * keystroke and `change` when the box is left, and a screen may listen for
+   * either. A test that only fired one would pass against a view listening for
+   * the other while a real player typed into a screen that never updated.
+   *
+   * NOT CALLED type(). `input.type` is a real DOM property - every text box in
+   * js/myPortfolio.js sets it to "text" - so a method of that name is overwritten
+   * by the first view that behaves like a browser, and the test then fails on
+   * the stub rather than on the code.
+   */
+  typeText(text) {
+    this.value = String(text);
+    for (const name of ['input', 'change']) {
+      for (const fn of this.listeners[name] ?? []) fn({ target: this });
+    }
   }
 
   /**

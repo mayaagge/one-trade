@@ -3675,3 +3675,212 @@ message against the box that caused it, and is counted and shown, never dropped.
 977 tests pass.
 
 Educational, not investment advice.
+
+## My real portfolio, 26 November 2026 (session 2.21)
+
+The second half of docs/PRD.md milestone 2 step 9, and the end of it. Somebody
+types what they actually hold, in dollars, and sees the same six measures
+Sandbox shows. New: js/holdings.js, js/myPortfolio.js, js/measuresView.js,
+tests/holdings.test.js, tests/myPortfolio.test.js, tests/app.test.js.
+
+### One copy of the panels, because of the wording
+
+The measures panels moved out of js/sandbox.js into js/measuresView.js, and
+js/sandbox.js now imports them - the same move js/build.js made for the build
+screen, for a sharper reason. This mode may not sound like advice, which is a
+property of particular sentences; sentences copied into two files drift apart one
+edit at a time, and an audit that passed last month would then be passing on half
+the game. One copy, one audit.
+
+What stayed behind in each mode is what genuinely differs: the headings, the
+buttons, and anything about pretend money. A difference belongs in the mode
+rather than behind a flag in the shared file.
+
+### Typing, not tapping
+
+Every other mode is taps on chips the screen chose, where the only input possible
+is one the game already approved. Here two text boxes accept anything, so
+js/holdings.js is the rules about what cannot be used, and it has one rule above
+all: **nothing is dropped quietly.** Every line that cannot be used comes back as
+a plain message naming the box it belongs to, and the row is not added.
+
+A try/catch that skipped what it could not parse would mean a player's $4,000 in
+a misspelled ticker silently missing from a total they are reading as their own
+portfolio - and every measure below it computed on a portfolio that is not
+theirs. A wrong total is worse than a refused row.
+
+**What a dollar box should accept** turned out to be a real question. Accepted:
+`5000`, `5,000`, `$5,000`, ` 5000 `, and `12,500.37` - cents rounded to the
+nearest dollar, because a real balance usually has them.
+
+Cents were refused at first, on the principle that rounding changes a number the
+player typed and then shows them the result as theirs. That principle is right
+and the conclusion was wrong: a real balance is `$4,212.50` far more often than
+it is `$4,212`, so a screen inviting somebody's actual holdings and then refusing
+the form they come in is a screen that argues with its own invitation. What the
+principle actually demands is that the rounding be VISIBLE, so the row shows what
+was recorded - `$4,213` - rather than echoing what was typed. A cent either way
+moves no measure here: the biggest holding would have to shift by about $50 in
+$10,000 to move a share of risk by a tenth of a point.
+
+Still refused, each with a message rather than a guess:
+
+* `1,25` - a misgrouped comma is a slip for either 125 or 1,250, and picking one
+  would put a number on the screen the player never typed;
+* `5k`, `1e5` - a box that reads `1e5` as $100,000 is a box that will one day
+  read a typo as a fortune;
+* `0` and anything negative;
+* `0.37` - more than nothing and yet nothing once rounded, so it is refused by a
+  message naming both numbers rather than added as a holding of $0 that could
+  carry no weight and no risk.
+
+**The ticker box is checked first**, so one bad row reports one problem. Both
+boxes can be wrong at once, and two messages at the same time is two things to
+fix before anything happens.
+
+**A refused row keeps what was typed.** A one-character typo should be a
+one-character fix, not the whole row again. A row that went in empties the boxes.
+
+**Fifteen is the most**, which is a limit of the screen rather than of the
+arithmetic - the measures would take forty. A full list keeps its boxes on screen,
+disabled, with the reason beside them; boxes that vanish at fifteen look like a
+broken screen.
+
+### The real total, not $10,000
+
+docs/PRD.md's loss is "portfolio value x beta x shock size", and on this screen
+the value is the player's own. `measureAll()` already took any positive dollars
+and converted them to weights, so this needed no new arithmetic - but it is the
+one number in the mode that would have been silently wrong if the $10,000 had
+been left in, and tests/myPortfolio.test.js checks a $50,000 portfolio loses
+about five times what a $10,000 one does.
+
+The shares are exact on the way in and rounded only for display: $3,333 and
+$6,667 are measured at 0.3333 and 0.6667, never at a rounded third.
+
+### What was left out stays on the screen
+
+A refused row leaves money outside the total, and the screen now says so:
+
+```
+Not included in the total: TSLA ($600). That amount is not part of any
+measure on this screen.
+```
+
+**It outlives the message that caused it, and that is the point.** The problem
+beside the box is cleared by the next good row - a stale complaint next to a box
+somebody has since fixed is worse than none - but the MONEY is still missing. A
+player who typed TSLA $600, read the refusal, shrugged and carried on would
+otherwise reach a measures screen reading $8,063 of a portfolio that is really
+$8,663, with nothing on it saying which. That is the one way this screen could
+mislead somebody about their own savings, so the line is carried through to the
+measures screen too.
+
+Two rules keep it from becoming noise. An amount stops being reported once the
+SAME AMOUNT goes in under another ticker, because the common fix for a refused
+row is retyping the same money under a name this game does carry - "NVDAA
+$1,850" becoming "NVDA $1,850" - and reporting NVDAA as missing afterwards would
+be reporting money that is now in the total. And an empty ticker box records
+nothing: somebody who has not finished typing has not left a holding out.
+
+### The privacy test watches every route, not just fetch
+
+docs/PRD.md: "Prices come in; holdings never go out." A test watching only
+`fetch` would pass while an `<img src>` carried a ticker list to a server in a
+query string, or a beacon did it on unload. So the browser in
+tests/myPortfolio.test.js watches `fetch`, `XMLHttpRequest`, `navigator.sendBeacon`,
+`Image`, `WebSocket`, `EventSource`, `navigator.share`, the clipboard, both
+storages, and every way the URL can change - `assign`, `replace`, `pushState`,
+`replaceState` - and asserts that **none of them is touched from the moment the
+first holding is entered**.
+
+**Why "after the first holding" rather than never.** The four data files are read
+when the mode opens, before anything has been typed, and they are the "prices
+come in" half of the promise. What must never happen is a request AFTER there is
+something private to put in one. The test records how many requests the way in
+took and asserts nothing is added to that list afterwards.
+
+There is no share card here, and that is not an oversight: a card is a thing that
+leaves. The test checks for the canvas as well as for the button, because a card
+drawn and then not shared is still a card drawn from somebody's holdings.
+
+### No advice, as data rather than as a reviewer's memory
+
+`BANNED_PHRASES` is exported from js/myPortfolio.js and the test scans every
+screen against it: the entry screen, the refused-row screen, a filled list and
+the measures. The line it draws is between describing and prescribing - telling
+somebody what to do ("you should", "consider selling"), telling them what is
+better ("better off", "we recommend"), or grading what they hold ("too much",
+"too risky"). A measure with a number beside it is none of those.
+
+A second test goes the other way and feeds the list seven sentences that WOULD be
+advice, checking each is caught: a banned list nobody tests is a list that
+quietly stops matching. And a third builds the most concentrated portfolio this
+screen can show - 90% in one AI stock - and checks the screen still describes it
+rather than grading it.
+
+The disclaimer is the one place "advice" belongs, so the audit removes that exact
+line before scanning rather than carving an exception into the pattern.
+
+### The router had never been tested, and could not have been
+
+**js/app.js could not be imported at all.** It called `window.addEventListener`
+at module scope, which throws anywhere there is no window, so no test had ever
+loaded the file - and the router and the nav had therefore never been checked
+against each other. The bootstrap is guarded now and tests/app.test.js reads
+both lists out of the files and holds them together.
+
+**Why it matters more than an untested branch usually would: the failure is
+silent.** `modeFromHash()` falls back to the default for anything it does not
+recognise, which is right for a junk hash somebody typed and wrong for a nav
+link the router has not been told about. A mode missing from MODES does not
+throw, does not warn and does not show an empty screen - it shows Research, with
+"My real portfolio" highlighted as the current page. Nothing anywhere would say
+so; it would have to be noticed by a person clicking the link.
+
+`#mine` was in exactly that state for about a minute while this session's two
+edits went in, which is how the gap was found. tests/app.test.js now checks that
+the nav and MODES are the same set, that each link's href matches its data-mode,
+that every mode is reachable by its own hash, that junk falls back to a real
+mode, and that no link in the nav carries anything but a mode name - the last
+one because the hash is the only thing this mode ever puts in the URL.
+
+### What else the tests caught
+
+**A name collision I introduced.** tests/stubDom.js grew a `type()` method for
+typing into a box, and `input.type` is a real DOM property - the first view that
+set it to "text" overwrote the method, and the test then failed on the stub
+rather than on the code. It is `typeText()` now.
+
+### What it says
+
+A plausible first-year's portfolio, typed in, one ticker of which this game does
+not carry:
+
+```
+  add VOO   $4,212.50 -> added
+  add NVDA  1,850.37  -> added
+  add BND   900       -> added
+  add TSLA  600       -> REFUSED: TSLA is not one of the tickers this game
+                         carries. The list on the Sandbox screen is all of them.
+  add QQQ   1,100     -> added
+
+  VOO  $4,213  52%        effective bets   1.31
+  NVDA $1,850  23%        closest pair     VOO + QQQ  0.950
+  BND  $900    11%        beta all/stress  0.52 / 0.45
+  QQQ  $1,100  14%        a 20% basket fall  $732 to $846
+  4 holdings $8,063 100%
+
+  Not included in the total: TSLA ($600). That amount is not part of any
+  measure on this screen.
+```
+
+Three things worth looking at. The cents are rounded and the rows show the
+rounded figures, so $4,212.50 is recorded and displayed as $4,213. TSLA is named
+and refused, and the other four still go in. And the total is $8,063 rather than
+$8,663, with the line underneath saying which $600 is missing - so nothing on the
+screen can be read as a measure of money the player did not confirm.
+
+1,042 tests pass.
+
+Educational, not investment advice.

@@ -28,7 +28,8 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { StubNode, textOf, withDocument } from './stubDom.js';
-import { mountSandbox, rankedPairs } from '../js/sandbox.js';
+import { mountSandbox } from '../js/sandbox.js';
+import { rankedPairs } from '../js/measuresView.js';
 import { BETS_NOTE } from '../js/measures.js';
 import { validateLevels } from '../js/levels.js';
 
