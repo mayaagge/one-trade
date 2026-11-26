@@ -35,6 +35,7 @@ import { WINDOW_DAYS } from '../scripts/make_pool.mjs';
 import { makeRng } from '../js/rng.js';
 import {
   GAME_DAYS,
+  FILE_DAYS,
   DECIMALS,
   MAX_DAILY_MOVE,
   STALE_WEEKDAYS,
@@ -75,6 +76,14 @@ const copy = (doc) => JSON.parse(JSON.stringify(doc));
 test('the game window is 756 days, the same window the pool and the levels use', () => {
   assert.equal(GAME_DAYS, 756, 'docs/PRD.md: the covariance matrix uses the most recent 756 trading days');
   assert.equal(GAME_DAYS, WINDOW_DAYS, 'the game must score on the same window length as scripts/make_pool.mjs');
+});
+
+test('the file keeps a spare week, so a week-long anchored window never shortens', () => {
+  // The weekly challenge measures to the Friday before its Monday. The file is
+  // rebuilt every weekday evening, so without the spare days that window loses
+  // one trading day per rebuild and the answer moves under the players.
+  assert.equal(FILE_DAYS, GAME_DAYS + 10);
+  assert.ok(FILE_DAYS - GAME_DAYS >= 5, 'a week has five trading days, and the anchor is five back by Friday');
 });
 
 test('returns are stored to 12 decimal places', () => {
@@ -193,24 +202,26 @@ test('10 decimals would NOT be inside 1e-9, which is why the format is not short
 
 // --- 3. the builder calls js/returns.js, and agrees with it exactly ----------
 
-test('buildGameData takes the last 756 return dates from js/returns.js', () => {
+test('buildGameData takes the last FILE_DAYS return dates from js/returns.js', () => {
   const doc = goodDoc();
-  const expected = BUILT.dates.slice(-GAME_DAYS);
-  assert.equal(doc.rows.length, GAME_DAYS);
+  const expected = BUILT.dates.slice(-FILE_DAYS);
+  assert.equal(doc.rows.length, FILE_DAYS);
   assert.deepEqual(doc.rows.map((row) => row[0]), expected);
   assert.equal(doc.meta.firstDate, expected[0]);
   assert.equal(doc.meta.liveThrough, expected[expected.length - 1]);
-  assert.equal(doc.meta.days, GAME_DAYS);
+  assert.equal(doc.meta.days, FILE_DAYS);
+  // And the game's own window is still the most recent 756 of them.
+  assert.deepEqual(doc.rows.slice(-GAME_DAYS).map((row) => row[0]), BUILT.dates.slice(-GAME_DAYS));
 });
 
 test('every value in every row is js/returns.js\'s own value, rounded - no second implementation', () => {
   const doc = goodDoc();
-  const from = BUILT.dates.length - GAME_DAYS;
+  const from = BUILT.dates.length - FILE_DAYS;
   let checked = 0;
   for (const [t, ticker] of doc.tickers.entries()) {
     const mine = BUILT.byTicker[ticker];
     assert.ok(mine, `${ticker} is in game.json but not in the snapshot`);
-    for (let i = 0; i < GAME_DAYS; i += 1) {
+    for (let i = 0; i < FILE_DAYS; i += 1) {
       assert.equal(
         doc.rows[i][t + 1],
         roundReturn(mine[from + i]),
@@ -219,7 +230,7 @@ test('every value in every row is js/returns.js\'s own value, rounded - no secon
       checked += 1;
     }
   }
-  assert.equal(checked, GAME_DAYS * doc.tickers.length);
+  assert.equal(checked, FILE_DAYS * doc.tickers.length);
 });
 
 test('game.json carries every ticker in tickers.json, including both benchmarks', () => {
@@ -258,7 +269,7 @@ test('the file is one line per trading day, so a daily rebuild is a two-line dif
   const rowLines = text.split('\n').filter((line) => /^\s*\["\d{4}-\d{2}-\d{2}"/.test(line));
   assert.equal(
     rowLines.length,
-    GAME_DAYS,
+    FILE_DAYS,
     'every trading day must be on its own line: a ticker-major layout rewrites every line every day',
   );
 });
@@ -300,11 +311,23 @@ test('checkGameData refuses a missing ticker', () => {
   assert.throws(() => checkGameData(doc, { tickers: TICKERS }), /NVDA/);
 });
 
-test('checkGameData refuses a short window', () => {
+test('checkGameData refuses a file too short for the game window', () => {
   const doc = copy(goodDoc());
-  doc.rows.pop();
+  doc.rows = doc.rows.slice(FILE_DAYS - GAME_DAYS + 1);        // one day under the window
   doc.meta.days = doc.rows.length;
-  assert.throws(() => checkGameData(doc, { tickers: TICKERS }), /755/);
+  doc.meta.firstDate = doc.rows[0][0];
+  assert.throws(() => checkGameData(doc, { tickers: TICKERS }), /755|fewer than/);
+});
+
+test('checkGameData refuses a file that has stopped being trimmed', () => {
+  // The other end of the range: a builder that kept appending would grow the
+  // download every day, which is a slow leak rather than a broken file.
+  const doc = copy(goodDoc());
+  doc.rows.unshift([...doc.rows[0]]);
+  doc.rows[0][0] = '2000-01-03';
+  doc.meta.days = doc.rows.length;
+  doc.meta.firstDate = doc.rows[0][0];
+  assert.throws(() => checkGameData(doc, { tickers: TICKERS }), /more than/);
 });
 
 test('checkGameData refuses dates out of order or repeated', () => {

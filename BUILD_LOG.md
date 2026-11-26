@@ -3277,6 +3277,29 @@ a reveal, which moved into ctx.afterReveal(). Learn still offers the next level
 and a replay; the weekly offers neither, because its next portfolio comes on
 Monday and playing again would be a second go at the week.
 
-885 tests pass.
+### Keeping a spare week in game.json, 26 November 2026 (session 2.17b)
+
+The weekly challenge's window ends on the Friday before its Monday, and the
+file is rebuilt every weekday evening keeping only the most recent days - so
+that anchored window lost one trading day per rebuild and the answer moved by
+up to 0.022 bets across a week. FILE_DAYS is now GAME_DAYS + 10: the file keeps
+766 trading days, the game's window is still the most recent 756 of them, and
+the anchored window is the same 756 rows every day of a week.
+
+**Every reader takes its own window, which is what made this safe.** js/round.js
+asks for levels.json's 756 (or the weekly's anchored 756); scripts/
+build_puzzles.mjs asks for the daily puzzle's 252; scripts/check_why_cards.mjs
+passes its own; js/liveRolling.js anchors on the freeze date and only ever
+complains that the file reaches back too LITTLE. The one place coupled to the
+row count was the builder's own check, which is this change.
+
+checkGameData() now takes a RANGE rather than a number, and the two ends mean
+different things: fewer days than the game window is a broken file, more days
+than the file keeps is a builder that has stopped trimming - a slow leak rather
+than a fault. Between them sits the case that is neither, and the reason the
+range is not a match: between raising the retention and the next weekday
+rebuild, the committed file is still 756 rows and every screen works.
+
+887 tests pass.
 
 Educational, not investment advice.

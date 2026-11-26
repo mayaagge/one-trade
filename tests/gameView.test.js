@@ -32,7 +32,7 @@ import { fileURLToPath } from 'node:url';
 
 import { buildReturns } from '../js/returns.js';
 import { covariance, correlation, effectiveBets } from '../js/math.js';
-import { buildGameData, GAME_DAYS } from '../scripts/build_game_data.mjs';
+import { buildGameData, GAME_DAYS, FILE_DAYS } from '../scripts/build_game_data.mjs';
 import {
   DISCLAIMER,
   gameDates,
@@ -212,7 +212,17 @@ test('the committed file and a freshly built one agree, so the game plays on wha
   // failed refresh. The committed file is built from the live prices, so only its
   // shape and ticker list are compared, not its values.
   assert.deepEqual(COMMITTED.tickers, ROUNDED.tickers);
-  assert.equal(COMMITTED.rows.length, ROUNDED.rows.length);
+  // The LENGTH is a range, not a match. The file keeps FILE_DAYS, which is the
+  // game's window plus a spare week so that the weekly challenge's anchored
+  // window is the same length every day of a week. Between the day that
+  // retention was raised and the next weekday rebuild, the committed file is
+  // still the old length and every screen works - so what is checked is that
+  // it carries the window the game needs and no more than the file keeps.
+  assert.ok(COMMITTED.rows.length >= GAME_DAYS,
+    `the committed game.json has ${COMMITTED.rows.length} days, fewer than the window's ${GAME_DAYS}`);
+  assert.ok(COMMITTED.rows.length <= FILE_DAYS,
+    `the committed game.json has ${COMMITTED.rows.length} days, more than the ${FILE_DAYS} it keeps`);
+  assert.equal(ROUNDED.rows.length, FILE_DAYS);
 });
 
 // ------------------------------------------------------------ late listings

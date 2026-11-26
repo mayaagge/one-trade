@@ -56,6 +56,25 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const GAME_DAYS = WINDOW_DAYS;
 
 /**
+ * How many trading days the FILE keeps, which is more than the game window.
+ *
+ * WHY THE TWO DIFFER. The weekly challenge measures over the window ending on
+ * the Friday before its Monday, so that every player in a week gets the same
+ * answer however many refreshes land while the week runs. The file is rebuilt
+ * every weekday evening and keeps the most recent days, so by Friday a window
+ * anchored on the previous Friday has had five days fall off its far end - and
+ * the answer moves, by up to 0.022 bets across the ten weekly portfolios.
+ *
+ * Ten spare days - a trading week, and a day - make the anchored window the
+ * same 756 rows every day of the week, so the drift is not reduced but
+ * removed. Nothing else changes: every reader of this file asks for its own
+ * window (js/round.js for levels.json's 756, scripts/build_puzzles.mjs for the
+ * daily puzzle's 252, js/liveRolling.js from the freeze date), and gameWindow()
+ * takes the most recent N of whatever the file holds.
+ */
+export const FILE_DAYS = GAME_DAYS + 10;
+
+/**
  * Returns are stored to 12 decimal places.
  *
  * Measured, not guessed, and measured twice. Session 2.3a chose 10 decimals on a
@@ -226,7 +245,7 @@ export function trimIncompleteTail(snapshot, { maxDropped = MAX_TRIMMED_DAYS } =
   return { snapshot: { ...snapshot, prices: trimmed }, cutDate, dropped };
 }
 
-export function buildGameData(snapshot, { days = GAME_DAYS, source = LIVE_PRICES_PATH } = {}) {
+export function buildGameData(snapshot, { days = FILE_DAYS, source = LIVE_PRICES_PATH } = {}) {
   const built = buildReturns(snapshot);
   if (built.dates.length < days) {
     throw new Error(
@@ -280,7 +299,9 @@ export function buildGameData(snapshot, { days = GAME_DAYS, source = LIVE_PRICES
  * Every fault names the ticker or the date, because the run that trips it will
  * be an unattended one on a random Tuesday and the log is all there will be.
  */
-export function checkGameData(doc, { tickers, days = GAME_DAYS, minDays = MIN_DAYS } = {}) {
+export function checkGameData(doc, {
+  tickers, days = FILE_DAYS, windowDays = GAME_DAYS, minDays = MIN_DAYS,
+} = {}) {
   if (!doc || typeof doc !== 'object') throw new Error('game.json: expected an object');
   if (!doc.meta || typeof doc.meta !== 'object') throw new Error('game.json: meta is missing');
   if (!Array.isArray(doc.tickers) || doc.tickers.length === 0) {
@@ -309,10 +330,23 @@ export function checkGameData(doc, { tickers, days = GAME_DAYS, minDays = MIN_DA
     }
   }
 
-  // 2. The window is the whole window.
-  if (doc.rows.length !== days) {
+  // 2. Enough days for the game's window, and no more than the file keeps.
+  //
+  // A RANGE RATHER THAN A NUMBER, because the two ends mean different things.
+  // Too few days is a broken file: a level could not be scored over the window
+  // levels.json asks for. Too many is a file that has stopped being trimmed,
+  // which is a slow leak rather than a fault, and is caught here before it
+  // doubles. Between them sits the one case that is neither: the days after
+  // the retention is raised and before the next weekday rebuild has run, when
+  // the committed file is still the old length and every screen works.
+  if (doc.rows.length < windowDays) {
     throw new Error(
-      `game.json has ${doc.rows.length} trading days, not the ${days} the game window needs`,
+      `game.json has ${doc.rows.length} trading days, fewer than the ${windowDays} the game window needs`,
+    );
+  }
+  if (doc.rows.length > days) {
+    throw new Error(
+      `game.json has ${doc.rows.length} trading days, more than the ${days} this file keeps`,
     );
   }
 
