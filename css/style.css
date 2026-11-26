@@ -126,11 +126,20 @@ a { color: var(--series-1); }
   position: absolute;
   left: -9999px;
 }
+/* A FOCUSED SKIP LINK HAS TO BE OBVIOUS. It was --surface-1 on --plane, which is
+   a 1.05:1 edge: the one control a keyboard user meets first, drawn as a card
+   that is almost exactly the colour of the page behind it. */
 .skip-link:focus {
   left: 8px; top: 8px; z-index: 10;
-  background: var(--surface-1);
-  padding: 8px 12px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  background: var(--accent);
+  color: var(--accent-on);
+  padding: 8px 14px;
   border-radius: 6px;
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
 }
 
 /* ------------------------------------------------------------- chrome */
@@ -1073,7 +1082,9 @@ main { outline: none; }
   font-size: 1rem;                       /* 16px, so iOS does not zoom on focus */
   color: var(--text);
   background: var(--surface-1);
-  border: 1px solid var(--border);
+  /* A control's boundary, not a card's: this was var(--border), at 1.27:1 in
+     light and 1.43:1 in dark against the 3:1 a control needs. */
+  border: 1px solid var(--control-edge);
   border-radius: 8px;
 }
 .text-box:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }

@@ -180,6 +180,11 @@ const AUDIT = () => {
 
   // --- a control's own boundary, 3:1 ------------------------------------
   for (const node of controls) {
+    // NOT A RANGE INPUT. Its affordance is the track and thumb the browser draws
+    // from accent-color, and neither is reachable from getComputedStyle: the
+    // "background" of the element is a colour nobody sees, so measuring it
+    // reported 1.07:1 for a slider whose thumb is actually at 8.5:1.
+    if (node.tagName === 'INPUT' && node.getAttribute('type') === 'range') continue;
     const style = getComputedStyle(node);
     const border = parse(style.borderTopColor);
     const width = parseFloat(style.borderTopWidth);
@@ -264,7 +269,16 @@ async function main() {
   try {
     for (const scene of chosen) {
       const context = await browser.newContext({
-        viewport: VIEWPORT, deviceScaleFactor: 1, colorScheme: scheme,
+        viewport: VIEWPORT,
+        deviceScaleFactor: 1,
+        colorScheme: scheme,
+        // MOTION OFF, for two reasons. An audit has to measure the SETTLED
+        // screen: with animation on, the reveal's gap sentence was caught
+        // part-way through its 520ms fade and reported at 1.16:1, which looks
+        // exactly like a contrast failure and is not one. And measuring the
+        // reduced-motion path is itself worth doing - it is the path that has to
+        // be complete and readable with nothing moving.
+        reducedMotion: 'reduce',
       });
       if (scene.blockStorage) await blockStorageIn(context);
       if (scene.seed) await seedInto(context, scene.seed);

@@ -196,14 +196,17 @@ export const scenes = [
   },
   {
     id: 'learn-15-l3-build-moved',
-    note: 'Level 3, money moved off the even split',
+    note: 'Level 3 with money still to spend - the state "Money left" exists for',
     seed: ALL_PLAYED,
     async run(page) {
       await open(page, '#learn');
       await startLevel(page, 3);
       await pick(page, ['NVDA', 'VOO', 'BND', 'GLD', 'JNJ']);
-      const plus = page.locator('.alloc-row').first().locator('button').nth(1);
-      for (let i = 0; i < 7; i += 1) await plus.click();
+      // THE MINUS, not the plus. One slider moves one holding now, so a fresh
+      // build has nothing left to raise anything with: taking $700 off the first
+      // holding is what puts money on the table and disables the check button.
+      const minus = page.locator('.alloc-row').first().locator('button').first();
+      for (let i = 0; i < 7; i += 1) await minus.click();
     },
   },
   {
@@ -324,8 +327,12 @@ export const scenes = [
       await open(page, '#learn');
       await startLevel(page, 5);
       await pick(page, ['NVDA', 'AMD', 'AVGO', 'BND']);
-      const plus = page.locator('.alloc-row').first().locator('button').nth(1);
-      for (let i = 0; i < 40; i += 1) await plus.click();
+      // Empty the other three to their floors with their sliders, then put
+      // everything that frees into the first holding.
+      for (let row = 1; row < 4; row += 1) {
+        await page.locator('.alloc-slider').nth(row).fill('100');
+      }
+      await page.locator('.alloc-slider').first().fill('9700');
       await btn(page, 'Next: your guess').click();
       await slide(page, 0.9);
       await btn(page, 'Reveal the answer').click();
