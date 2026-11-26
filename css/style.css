@@ -732,6 +732,37 @@ main { outline: none; }
 .why-card-lead { margin: 0 0 6px; font-weight: 600; }
 .why-card-text { margin: 0; }
 
+/* Level 7's summary: the three guesses laid out together. A row is marked by a
+   bar down its left edge rather than by colour alone, so which guesses landed is
+   readable without relying on seeing a difference between two greens. */
+.series-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.series-row {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: 0 8px 8px 0;
+  background: var(--surface-1);
+}
+.series-hit { border-left-color: var(--series-1); }
+.series-miss { border-left-color: var(--text-secondary); }
+.series-row-head {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.series-row-guess {
+  margin: 2px 0 6px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.series-row .note { margin: 0; }
+
 /* --- what every round screen carries ------------------------------------- */
 
 .game-foot {

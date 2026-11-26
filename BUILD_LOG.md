@@ -2549,3 +2549,108 @@ pass rule and the pool of 20 are all untouched; only the range a guess is typed
 on moves, and it moves on both levels at once.
 
 Educational, not investment advice.
+
+## Level 7, the screens and the card, 26 November 2026 (sessions 2.11 and 2.12)
+
+Sessions B and C together: the three-portfolio screens and the "Why?" card for a
+finished series. Session 2.10 fixed the draws and the rules; this puts them on a
+screen. Level 7 is now playable, and the menu offers it.
+
+### The shape of a three-question level
+
+Each portfolio gets the ordinary build, guess and reveal screens - the same three
+functions levels 1 to 6 use, with no copy of them - and a progress marker,
+`Level 7 · Portfolio 2 of 3 · Guess`, in the line that used to read `Level 7 ·
+Guess`. That marker is the only thing on those screens saying the level is not
+over; without it the second portfolio reads as a replay of the first.
+
+**A part's reveal stops at the answer.** It shows the number, the guess, the
+holdings and the window, and then the way on - no stars, no card, no verdict.
+Level 7 is decided by three guesses and two of them may not be in yet, so a
+verdict there would be one the level's own rule could contradict two questions
+later. `js/round.js` already returns `passed: null` and `stars: null` for a
+series part, and the screen is that decision honoured rather than repeated:
+`renderReveal` branches on the null, not on the level's id.
+
+**The summary is its own screen**, and it exists because a player who has just
+been told about portfolio 3 cannot see the shape of their own three errors, which
+is the thing worth seeing on a capstone. The three answers are laid out together
+with what each held, what it answered and what was guessed, each row marked by a
+bar down its left edge - a bar rather than colour alone, so which guesses landed
+is readable without telling two greens apart.
+
+**`ctx.round` is kept in step with the live question**, so `renderBuild`,
+`renderGuess` and `renderReveal` need to know nothing about series at all. One
+`startRound()` still starts every level: it asks `isSeries()` and builds a series
+or a round, so a menu button, a "Next level" button and a replay all reach the
+right one without any of them knowing which levels are which.
+
+### Three things the screens got wrong, found by playing them
+
+None of these came from a test. They came from driving the level at 390px.
+
+| What it read | What it reads now |
+| --- | --- |
+| "Your starter portfolio" on all three | "Mystery portfolio 2 of 3" - nothing about the seventh level is a start |
+| "drawn at random from a pool of 20" under all three | Only under the first, which is the only one it is true of; the other two say "from the capstone pool" |
+| "Portfolio 1: 1.2 bets" on the summary, after the reveal had said "1.20" | Both say 1.20. A revealed answer is worth two decimals; `guess.places` describes the slider, which moves in tenths |
+
+The third one is the rule `resultLine()` already wrote down, applied in a second
+place that had quietly read the slider's places instead.
+
+### A true 390px viewport, which is not what a 390px window gives you
+
+Headless Chrome clamps its window to 500px wide on macOS, so `--window-size=390`
+renders at 500 and the screenshot is a 500px layout cropped to 390 - which looks
+exactly like a page overflowing its viewport, and was read as one for a few
+minutes. An iframe has a viewport of its own: inside a 390px frame,
+`innerWidth` really is 390 and width media queries match 390. Measured rather
+than eyeballed: `documentElement.scrollWidth` is 390 against a `clientWidth` of
+390 on every screen of the level, so there is no horizontal overflow at that
+width.
+
+### The card for three guesses
+
+Every card above this one names something inside ONE portfolio - a pair that
+moves together, a group holding most of the risk. A capstone card has a better
+thing to name: the shape of a player's three errors, which on this level is the
+misconception itself rather than a symptom of it.
+
+| Card | Fires on | What it names |
+| --- | --- | --- |
+| `readThePortfolios` | worst error at most 0.5 | The level's own three-star band, so this card fires on exactly the rounds that earned three stars |
+| `sameNumberThrice` | all three guesses identical | The likeliest way to fail: one number, which the strata make certain to fail |
+| `oneNumberThrice` | all three within 0.5 of each other | A hedge that was not quite flat |
+| `countedHoldings` | a full bet high, on 5+ holdings | Holdings counted instead of bets - the mistake the game is named after |
+| `missedTheSpread` | a full bet low, on 3+ real bets | The same mistake from the other side: not every long list is one trade |
+| `mixedThree` | nothing else | Close on some, wide on another |
+
+**The order was wrong first, and playing it is what showed that.** A hedge also
+looks like `missedTheSpread` - typing 2.00 three times is a full bet low on the
+4-bet portfolio - so with the directional cards first, a hedged player was told
+about the spread rather than about the hedge. The narrowest diagnosis has to
+speak first or it never speaks at all.
+
+**`sameNumberThrice` is a separate card from `oneNumberThrice` for the same
+reason.** One card for both read "Your three guesses ran from 2.00 to 2.00 - 0.00
+bets apart", which is what a spread-shaped sentence does when the spread is zero.
+Two cards, two templates, no prose assembled from parts.
+
+**No lead-in.** The lead-ins are verdicts about one guess - "that was close" -
+and the summary states its verdict and its stars directly above the card, worked
+out from all three. A fourth verdict in a fifth voice is the same news again.
+
+### What is not covered where you would look for it
+
+`scripts/check_why_cards.mjs` samples which card a PORTFOLIO gets, and a series
+card is chosen from three guesses, so none of the six can appear in its table.
+The script now says so rather than leaving a silent absence, and names where the
+cover actually is: tests/series.test.js holds one named guess pattern per card to
+the card it must get - the same discipline as that script's lesson portfolios,
+which exist because a random sample once missed five AI stocks reading "nothing
+stands out here".
+
+712 tests pass, both check scripts are green, and level 7 plays end to end in the
+browser at 390px: a pass at three stars, a pass at two, and a miss that hedged.
+
+Educational, not investment advice.

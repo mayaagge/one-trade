@@ -150,6 +150,41 @@ export function validateWhy(data) {
     checkCard(card, PLACEHOLDERS.bucketCard, `why: bucketCards.${key}`);
   }
 
+  // The series block, when the file carries one. A file without it is valid -
+  // level 7 simply gets no card - but a file WITH a broken one must fail here
+  // rather than three screens into a capstone.
+  if (data.seriesCards !== undefined) {
+    const block = data.seriesCards;
+    if (!block || !Array.isArray(block.rules) || !Array.isArray(block.order)) {
+      throw new Error('why: seriesCards needs a rules array and an order');
+    }
+    const seriesKeys = new Set();
+    for (const rule of block.rules) {
+      if (!SERIES_RULE_KEYS.includes(rule.key)) {
+        throw new Error(`why: series rule "${rule.key}" is not one this code can apply (${SERIES_RULE_KEYS.join(', ')})`);
+      }
+      if (seriesKeys.has(rule.key)) throw new Error(`why: duplicate series rule ${rule.key}`);
+      seriesKeys.add(rule.key);
+      if (!rule.when || typeof rule.when !== 'object') {
+        throw new Error(`why: series rule ${rule.key} has no "when"`);
+      }
+      checkCard(rule, SERIES_PLACEHOLDERS[rule.key], `why: seriesCards.${rule.key}`);
+    }
+    for (const key of block.order) {
+      if (!seriesKeys.has(key)) {
+        throw new Error(`why: the series order names ${key}, which has no rule`);
+      }
+    }
+    // EVERY RULE IS IN THE ORDER, or it could never fire. A rule left out of the
+    // order is dead text that reads like a live card.
+    for (const key of seriesKeys) {
+      if (!block.order.includes(key)) {
+        throw new Error(`why: series rule ${key} is in no order, so it could never be chosen`);
+      }
+    }
+    checkCard(block.fallback, SERIES_PLACEHOLDERS.mixedThree, 'why: seriesCards.fallback');
+  }
+
   if (!Array.isArray(data.rules) || data.rules.length === 0) {
     throw new Error('why: a non-empty rules array is missing');
   }
@@ -769,6 +804,145 @@ export function pickWhy(facts, why, {
     if (candidate.fires) return asCard(rule.key, rule, candidate.values, leadInLine);
   }
   return asCard(why.fallback.key ?? 'fallback', why.fallback, {}, leadInLine);
+}
+
+// ------------------------------------------------------- the series card
+//
+// Level 7's card is about THREE PORTFOLIOS TOGETHER, which is a different kind
+// of question from every card above it. Those name something inside one
+// portfolio - a pair that moves together, a group holding most of the risk. A
+// capstone card has a better thing to name: the shape of a player's three
+// errors, which is the misconception itself rather than a symptom of it.
+//
+// Guessing high on the portfolio with the most holdings is the error the whole
+// game is built against: eight holdings read as eight bets. Guessing low on the
+// one that really is spread is the same mistake from the other side. Hedging one
+// number across all three is a third thing again, and worth naming because the
+// strata make it certain to fail.
+
+/** The series rule keys this file knows how to apply. why.json may not invent one. */
+export const SERIES_RULE_KEYS = [
+  'readThePortfolios', 'sameNumberThrice', 'countedHoldings', 'missedTheSpread',
+  'oneNumberThrice',
+];
+
+export const SERIES_PLACEHOLDERS = {
+  readThePortfolios: ['worst'],
+  sameNumberThrice: ['guess'],
+  countedHoldings: ['holdings', 'bets', 'guess'],
+  missedTheSpread: ['holdings', 'bets', 'guess', 'groups'],
+  oneNumberThrice: ['spread', 'low', 'high'],
+  mixedThree: [],
+};
+
+/**
+ * What a finished series says about the three guesses, as facts a card may
+ * match on.
+ *
+ * `parts` is one entry per portfolio, in play order:
+ * {guess, actual, holdings, groups, stratum}.
+ */
+export function seriesFacts(parts) {
+  if (!Array.isArray(parts) || parts.length === 0) {
+    throw new Error('seriesFacts: a series has no parts to read');
+  }
+  for (const part of parts) {
+    if (!Number.isFinite(part.guess) || !Number.isFinite(part.actual)) {
+      throw new Error('seriesFacts: every part needs a guess and an actual value');
+    }
+  }
+  const signed = parts.map((part) => ({ ...part, by: part.guess - part.actual }));
+  const guesses = parts.map((part) => part.guess);
+
+  return {
+    parts: signed,
+    worstError: Math.max(...signed.map((part) => Math.abs(part.by))),
+    /** How far apart the three GUESSES were - a hedge is a narrow spread. */
+    guessSpread: Math.max(...guesses) - Math.min(...guesses),
+    lowestGuess: Math.min(...guesses),
+    highestGuess: Math.max(...guesses),
+    /** The portfolio whose bets were most overestimated, and the most underestimated. */
+    over: signed.reduce((a, b) => (b.by > a.by ? b : a)),
+    under: signed.reduce((a, b) => (b.by < a.by ? b : a)),
+  };
+}
+
+/** Does one series rule fire on these facts, and with what to fill its template? */
+function seriesCandidate(facts, rule) {
+  const when = rule.when ?? {};
+  const pct = (value) => `${Math.round(100 * value)}%`;
+  const bets = (value) => value.toFixed(2);
+
+  if (rule.key === 'readThePortfolios') {
+    if (!(facts.worstError <= when.worstErrorAtMost)) return { fires: false };
+    return { fires: true, values: { worst: bets(facts.worstError) } };
+  }
+  if (rule.key === 'countedHoldings') {
+    const part = facts.over;
+    if (!(part.by >= when.overByAtLeast) || !(part.holdings >= when.minHoldings)) {
+      return { fires: false };
+    }
+    return {
+      fires: true,
+      values: { holdings: String(part.holdings), bets: bets(part.actual), guess: bets(part.guess) },
+    };
+  }
+  if (rule.key === 'missedTheSpread') {
+    const part = facts.under;
+    if (!(-part.by >= when.underByAtLeast) || !(part.actual >= when.betsAtLeast)) {
+      return { fires: false };
+    }
+    return {
+      fires: true,
+      values: {
+        holdings: String(part.holdings),
+        bets: bets(part.actual),
+        guess: bets(part.guess),
+        groups: String(part.groups),
+      },
+    };
+  }
+  // THE SAME NUMBER THREE TIMES IS ITS OWN CARD, and not a special case of the
+  // one below it. "Your three guesses ran from 2.00 to 2.00 - 0.00 bets apart"
+  // is what one card for both reads like, and typing one number three times is
+  // the single likeliest way to fail this level. Found by playing it.
+  if (rule.key === 'sameNumberThrice') {
+    if (facts.guessSpread > (when.guessSpreadAtMost ?? 0)) return { fires: false };
+    return { fires: true, values: { guess: bets(facts.lowestGuess) } };
+  }
+  if (rule.key === 'oneNumberThrice') {
+    if (!(facts.guessSpread <= when.guessSpreadAtMost)) return { fires: false };
+    return {
+      fires: true,
+      values: {
+        spread: bets(facts.guessSpread),
+        low: bets(facts.lowestGuess),
+        high: bets(facts.highestGuess),
+      },
+    };
+  }
+  throw new Error(`seriesCandidate: no rule named ${rule.key}`);
+}
+
+/**
+ * The card for a finished series: the first rule in why.json's series order that
+ * fires, or the fallback.
+ *
+ * NO LEAD-IN. The lead-ins are verdicts about one guess - "that was close" -
+ * and the series screen already states its verdict and its stars above the card,
+ * worked out from all three. A fourth verdict in a fifth voice would be the same
+ * news again.
+ */
+export function pickSeriesWhy(facts, why) {
+  const block = why.seriesCards;
+  if (!block) throw new Error('pickSeriesWhy: why.json has no seriesCards block');
+  for (const key of block.order) {
+    const rule = block.rules.find((r) => r.key === key);
+    if (!rule) throw new Error(`pickSeriesWhy: the series order names ${key}, which has no rule`);
+    const candidate = seriesCandidate(facts, rule);
+    if (candidate.fires) return asCard(rule.key, rule, candidate.values, null);
+  }
+  return asCard(block.fallback.key ?? 'mixedThree', block.fallback, {}, null);
 }
 
 /** One card, with its text already filled in, so no screen has to word anything. */

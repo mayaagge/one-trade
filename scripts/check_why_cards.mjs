@@ -499,6 +499,19 @@ function main() {
       + `(${Object.entries(rule.leads).map(([k, v]) => `${k} ${v}`).join(', ')}), and these `
       + 'portfolios are measured without a round. Its lesson portfolio is what holds it.');
   }
+  // Level 7's cards are chosen from THREE GUESSES, not from a portfolio, so they
+  // cannot be sampled here at all: no portfolio has a card of its own in this
+  // family. Said out loud rather than left as an absence, because an absence
+  // reads like an oversight. Their lesson cases - one named guess pattern per
+  // card, with the card each must get - are in tests/series.test.js, which is the
+  // same discipline as the lesson portfolios below.
+  const seriesKeys = (why.seriesCards?.rules ?? []).map((rule) => rule.key);
+  if (seriesKeys.length > 0) {
+    console.log(`\n  ${seriesKeys.length + 1} series cards are not in this table either `
+      + `(${[...seriesKeys, why.seriesCards.fallback.key].join(', ')}): they are chosen from a `
+      + "player's three guesses rather than from a portfolio. tests/series.test.js names one "
+      + 'guess pattern per card and holds each to the card it must get.');
+  }
   if (table.skipped > 0) {
     console.log(`\n  ${table.skipped} draws skipped: a late listing left fewer than ${MIN_DAYS} overlapping days.`);
   }

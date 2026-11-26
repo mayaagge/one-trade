@@ -23,9 +23,9 @@
 // Educational, not investment advice.
 
 import { loadGameData, DISCLAIMER } from './gameView.js';
-import { validateLevels, displayFor, formatGuess, LEVELS_URL } from './levels.js';
-import { BUILD, GUESS, REVEAL, createRound, isSeries } from './round.js';
-import { WHY_URL, groupIndex, validateWhy } from './why.js';
+import { validateLevels, displayFor, formatGuess, levelById, LEVELS_URL } from './levels.js';
+import { BUILD, GUESS, REVEAL, createRound, createSeries, isSeries } from './round.js';
+import { WHY_URL, groupIndex, pickSeriesWhy, seriesFacts, validateWhy } from './why.js';
 import { CRASHES_URL, loadCrashes } from './crash.js';
 // Level 6 replays a crash window, so its reveal draws the two lines Crash
 // replay draws, from the same spec and with the same refusal wording for a
@@ -151,12 +151,8 @@ function levelCard(ctx, level) {
   // pools and its draw are in place and under test, but the three-question
   // screens are the next session's work, and a "Play" button that threw would be
   // worse than a card that says so plainly.
-  if (isSeries(level)) {
-    card.append(h('p', 'note', 'Being built - its three portfolios are drawn and its rules are set, but the screens are not finished.'));
-  } else {
-    card.append(button(stars ? 'Play again' : 'Play', 'btn btn-primary btn-wide',
-      () => ctx.startRound(level.id)));
-  }
+  card.append(button(stars ? 'Play again' : 'Play', 'btn btn-primary btn-wide',
+    () => ctx.startRound(level.id)));
   return card;
 }
 
@@ -167,7 +163,7 @@ function renderMenu(ctx) {
   const list = h('div', 'level-list');
   for (const level of ctx.levels.levels) list.append(levelCard(ctx, level));
   view.append(list);
-  view.append(h('p', 'note', "Level 7's screens are still being built - its rules, its portfolios and its draw are in levels.json and under test. Returns never score anything here, and there is no leaderboard."));
+  view.append(h('p', 'note', 'Returns never score anything here, and there is no leaderboard.'));
   view.append(footNotes(ctx.game));
   return view;
 }
@@ -214,7 +210,12 @@ function renderBuild(ctx, round) {
   view.append(h('p', 'lede', round.level.challenge));
 
   if (round.fixed) {
-    view.append(h('h3', 'allocator-head', 'Your starter portfolio'));
+    // "Your starter portfolio" is level 2's phrase and is wrong on a capstone:
+    // nothing about the seventh level is a start. The series says which of the
+    // three this is, which is also what the player needs to know here.
+    view.append(h('h3', 'allocator-head', ctx.series
+      ? `Mystery portfolio ${ctx.series.at + 1} of ${ctx.series.count}`
+      : 'Your starter portfolio'));
     const list = h('ul', 'holding-list');
     for (const ticker of round.picks) {
       const item = h('li', 'holding');
@@ -223,7 +224,13 @@ function renderBuild(ctx, round) {
       list.append(item);
     }
     view.append(list);
-    view.append(h('p', 'note', 'This one is dealt to you, drawn at random from a pool of 20. Guessing comes next.'));
+    // The pool of 20 is named only where it IS the pool of 20. Level 7's second
+    // and third portfolios come from the capstone pool, and saying "a pool of
+    // 20" under all three would be telling a player something untrue about two
+    // of them.
+    view.append(h('p', 'note', round.drawnPool === 'finalPool'
+      ? 'This one is dealt to you too, from the capstone pool. Guessing comes next.'
+      : 'This one is dealt to you, drawn at random from a pool of 20. Guessing comes next.'));
   } else {
     const count = round.wanted === null
       ? `${round.picks.length} picked`
@@ -401,6 +408,31 @@ function renderReveal(ctx, round) {
   }
   view.append(panel);
 
+  // A SERIES PART STOPS HERE. It has the answer and the guess, which is the
+  // correction the player came for, and nothing else: no stars, no "Why?" card
+  // and no verdict, because level 7 is decided by three guesses and two of them
+  // may not be in yet. All of that is on the summary screen, once.
+  if (ctx.series && result.passed === null) {
+    const series = ctx.series;
+    const last = !series.hasNext();
+    // WHAT THE NUMBER IS ABOUT. The full reveal carries this below its stars; the
+    // early return above skips that, and without it a player reading "4.15" has
+    // the portfolio only on the screen before. The summary lists all three again.
+    view.append(h('p', 'note', result.tickers
+      .map((ticker) => `${ticker} ${money(result.dollars[ticker])}`).join(' · ')));
+    view.append(h('p', 'note', `Measured over ${result.days} trading days, ${result.startDate} to ${result.endDate}.`));
+    view.append(h('p', 'note', last
+      ? 'That is the third. Next you will see all three together.'
+      : `Portfolio ${series.at + 1} of ${series.count} answered. The next one comes with no hints from this one.`));
+    view.append(button(last ? 'See how you did' : 'Next portfolio', 'btn btn-primary btn-wide', () => {
+      if (last) ctx.finishSeries();
+      else ctx.nextPortfolio();
+    }));
+    view.append(button('Back to the levels', 'btn btn-quiet btn-wide', () => ctx.toMenu()));
+    view.append(footNotes(ctx.game));
+    return view;
+  }
+
   const stars = h('div', 'stars-panel');
   stars.append(h('p', 'stars-row', starText(result.stars)));
   stars.append(h('p', 'stars-why', starsExplanation(level, result)));
@@ -465,9 +497,130 @@ export function starsExplanation(level, result) {
 
 // --------------------------------------------------------------- the frame
 
+/**
+ * Level 7's last screen: the three portfolios together, the verdict and the stars.
+ *
+ * WHY THERE IS A SCREEN HERE AT ALL, and not just a verdict on the third reveal.
+ * Each portfolio gets its own reveal, because a guess followed by its answer is
+ * the learning moment and three of them are three moments. But the level is
+ * decided by all three, and a player who has just been told about portfolio 3
+ * cannot see the shape of their own three errors - which is the thing worth
+ * seeing on a capstone. So the three answers are laid out side by side here,
+ * once, with the card that names what they have in common.
+ */
+export function renderSeriesSummary(ctx, series) {
+  const level = series.level;
+  const verdict = series.verdict();
+  const view = h('div', 'view view-round');
+
+  const head = h('header', 'round-head');
+  head.append(h('p', 'round-step', `Level ${level.id} · All ${series.count} portfolios`));
+  head.append(h('h1', null, level.title));
+  view.append(head);
+
+  const panel = h('div', 'reveal-panel');
+  panel.append(h('p', 'reveal-label', level.pass.says));
+  panel.append(h('p', 'reveal-value', `${verdict.withinPassBand} of ${series.count}`));
+  panel.append(h('p', verdict.passed ? 'reveal-line reveal-pass' : 'reveal-line reveal-fail',
+    seriesLine(series, verdict)));
+  view.append(panel);
+
+  const stars = h('div', 'stars-panel');
+  stars.append(h('p', 'stars-row', starText(verdict.stars)));
+  stars.append(h('p', 'stars-why', seriesStarsExplanation(level, verdict)));
+  view.append(stars);
+
+  // The three, in the order they were played, each with what it held, what it
+  // answered and what was guessed. This is the table a player reads to find
+  // their own mistake, so the holdings are here and not only on the reveal.
+  view.append(h('h3', null, 'Your three guesses'));
+  const list = h('ol', 'series-list');
+  series.answers.forEach((answerRow, index) => {
+    const result = series.rounds[index].result;
+    const item = h('li', verdict.parts[index].within ? 'series-row series-hit' : 'series-row series-miss');
+    // THE ANSWER TO 2 DECIMALS, THE GUESS TO 1, which is the rule the one-guess
+    // reveal already follows: guess.places describes the slider, which moves in
+    // tenths, while a revealed answer is worth two decimals. Reading both off the
+    // slider's places made this screen say "1.2" where the reveal before it said
+    // "1.20" about the same portfolio.
+    item.append(h('p', 'series-row-head',
+      `Portfolio ${answerRow.part}: ${result.shown} bets`));
+    item.append(h('p', 'series-row-guess',
+      `You guessed ${formatGuess(level, answerRow.guess)} — out by ${verdict.parts[index].error.toFixed(2)}`));
+    item.append(h('p', 'note', result.tickers.map((t) => `${t} ${money(result.dollars[t])}`).join(' · ')));
+    list.append(item);
+  });
+  view.append(list);
+
+  if (series.whyCard) {
+    const card = h('section', 'why-card');
+    card.append(h('h3', 'why-card-head', 'Why?'));
+    card.append(h('p', 'why-card-text', series.whyCard.text));
+    view.append(card);
+  }
+
+  view.append(h('h3', null, 'The idea'));
+  view.append(h('p', 'explain', level.explain));
+  view.append(h('p', 'explain', level.why));
+
+  const days = series.rounds[0].result.days;
+  const first = series.rounds[0].result;
+  view.append(h('p', 'note', `Each portfolio measured over ${days} trading days, ${first.startDate} to ${first.endDate}.`));
+
+  view.append(button('Play this level again', 'btn btn-primary btn-wide', () => ctx.startRound(level.id)));
+  view.append(button('Back to the levels', 'btn btn-quiet btn-wide', () => ctx.toMenu()));
+  view.append(footNotes(ctx.game));
+  return view;
+}
+
+/**
+ * The verdict in the level's own words.
+ *
+ * It names the WORST guess on a miss, because that is the one that decided the
+ * level: "two of three" reads like a near miss when the third was out by 3 bets.
+ */
+export function seriesLine(series, verdict) {
+  if (verdict.passed) {
+    return `Every guess was within ${series.level.pass.of}, so the level is passed.`;
+  }
+  const missed = verdict.parts.filter((part) => !part.within).length;
+  return `${missed === 1 ? 'One guess was' : `${missed} guesses were`} out by more than `
+    + `${series.level.pass.of} — the worst by ${verdict.worstError.toFixed(2)} — `
+    + `and this level needs all ${series.count} inside it.`;
+}
+
+/**
+ * Why those stars, in levels.json's own words.
+ *
+ * The bands are counts here rather than distances, so the wording comes from the
+ * level's own `says` lines - the same way starsExplanation() reads the one-guess
+ * bands - and no number in this sentence is written twice.
+ */
+export function seriesStarsExplanation(level, verdict) {
+  if (!verdict.passed) {
+    return `No stars this time: ${level.pass.says} is what this level needs. `
+      + 'The guesses still count - look at the three answers below.';
+  }
+  const parts = [`1 star for ${level.pass.says}`];
+  if (verdict.stars >= 2) parts.push(`2 for ${level.stars.two.says}`);
+  if (verdict.stars >= 3) parts.push(`3 for ${level.stars.three.says}`);
+  if (verdict.stars < 3) {
+    const needed = verdict.stars < 2 ? level.stars.two : level.stars.three;
+    parts.push(`${verdict.stars + 1} needs ${needed.says}`);
+  }
+  return `${parts.join('; ')}.`;
+}
+
 function roundHead(ctx, round, step) {
   const head = h('header', 'round-head');
-  head.append(h('p', 'round-step', `Level ${round.level.id} · ${step}`));
+  // ON A SERIES, WHERE THE PLAYER IS. "Portfolio 2 of 3" is the only thing on
+  // these screens that says the level is not over, and without it the second
+  // portfolio reads as a replay of the first.
+  const series = ctx.series;
+  const inSeries = series && series.rounds[series.at] === round;
+  head.append(h('p', 'round-step', inSeries
+    ? `Level ${round.level.id} · Portfolio ${series.at + 1} of ${series.count} · ${step}`
+    : `Level ${round.level.id} · ${step}`));
   head.append(h('h1', null, round.level.title));
   return head;
 }
@@ -531,6 +684,16 @@ export async function mountLearn(root, { session = newSession() } = {}) {
     game,
     session,
     round: null,
+    /** The live series, on a level that asks three questions. Null on every other. */
+    series: null,
+    /** Is the series over and its summary on screen? */
+    showSummary: false,
+    /**
+     * The anonymous records this play has produced, in the order they were sent.
+     * Kept so the Worker session has somewhere to attach and so a test can read
+     * them; nothing leaves the browser today.
+     */
+    records: [],
     nextLevelId(id) {
       const ids = levels.levels.map((l) => l.id);
       const at = ids.indexOf(id);
@@ -540,13 +703,71 @@ export async function mountLearn(root, { session = newSession() } = {}) {
     /** Set by a reveal that draws a chart, and only once the view is attached. */
     redrawChart: null,
     startRound(levelId) {
+      // A LEVEL THAT ASKS THREE QUESTIONS STARTS A SERIES, not a round. One
+      // entry point, so a menu button, a "Next level" button and a replay all
+      // reach the right one without any of them knowing which levels are which.
+      const level = levelById(levels, levelId);
+      if (isSeries(level)) {
+        ctx.round = null;
+        ctx.series = createSeries({
+          levels,
+          levelId,
+          game,
+          universe,
+          groups,
+          why,
+          basket,
+          crashes,
+          // The portfolios this browser has already been shown. Level 7's first
+          // question leaves out the one level 2 dealt: see BUILD_LOG.md 2.10.
+          seenPoolIds: seenPoolIds(session),
+          // Each record goes the moment its guess is locked, never batched, so
+          // that arrival order matches portfolio order - which is the only thing
+          // that tells three level-7 records apart. Nothing is sent anywhere yet:
+          // the Worker is a later session, and this is where it will attach.
+          emit: (record) => ctx.records.push(record),
+        });
+        ctx.showSummary = false;
+        ctx.draw();
+        return;
+      }
+      ctx.series = null;
       ctx.round = createRound({
         levels, levelId, game, universe, groups, why, basket, crashes,
       });
       ctx.draw();
     },
+    /** Move the series on, once the live guess is locked and its record is sent. */
+    nextPortfolio() {
+      ctx.series.advance();
+      ctx.draw();
+    },
+    /** All three answered: score them together and show the summary. */
+    finishSeries() {
+      const series = ctx.series;
+      // The card is worked out ONCE, here, and kept on the series. Rebuilding it
+      // on every redraw would let a resize change which card a player is reading.
+      series.whyCard = why ? pickSeriesWhy(seriesFacts(series.answers.map((answerRow, i) => {
+        const result = series.rounds[i].result;
+        return {
+          guess: answerRow.guess,
+          actual: result.value,
+          holdings: result.tickers.length,
+          groups: new Set(result.tickers.map((ticker) => groups.get(ticker)?.key)).size,
+        };
+      })), why) : null;
+      for (const shown of series.shownIds()) {
+        recordResult(session, series.levelId, {
+          stars: series.verdict().stars, drawnId: shown.id, drawnPool: shown.pool,
+        });
+      }
+      ctx.showSummary = true;
+      ctx.draw();
+    },
     toMenu() {
       ctx.round = null;
+      ctx.series = null;
+      ctx.showSummary = false;
       ctx.draw();
     },
     finish(round) {
@@ -554,12 +775,18 @@ export async function mountLearn(root, { session = newSession() } = {}) {
       ctx.draw();
     },
     draw() {
+      // A SERIES RENDERS ITS LIVE QUESTION through the same three screens every
+      // other level uses; only the summary is its own. ctx.round is kept in step
+      // so that renderBuild, renderGuess and renderReveal need to know nothing
+      // about series at all.
+      if (ctx.series) ctx.round = ctx.showSummary ? null : ctx.series.current();
       const round = ctx.round;
       // Cleared before every screen: only a reveal with a replay in it sets one,
       // so a resize on any other screen has nothing to redraw.
       ctx.redrawChart = null;
       let view;
-      if (!round) view = renderMenu(ctx);
+      if (ctx.series && ctx.showSummary) view = renderSeriesSummary(ctx, ctx.series);
+      else if (!round) view = renderMenu(ctx);
       else if (round.state === BUILD) view = renderBuild(ctx, round);
       else if (round.state === GUESS) view = renderGuess(ctx, round);
       else if (round.state === REVEAL) view = renderReveal(ctx, round);

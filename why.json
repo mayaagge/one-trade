@@ -43,7 +43,7 @@
   "rules": [
     {
       "key": "overRiskLimit",
-      "says": "one holding is over the level’s risk limit",
+      "says": "one holding is over the level\u2019s risk limit",
       "leads": {
         "measure": "maxRiskShare",
         "passed": false
@@ -201,5 +201,70 @@
     "key": "fallback",
     "says": "nothing stands out",
     "template": "Nothing stands out here. No pair you hold moves closely together, no holding carries much more risk than money, and no one group holds most of the risk. That is what a spread-out portfolio looks like from the inside."
+  },
+  "seriesCards": {
+    "note": "Level 7's card. Every card above names something inside ONE portfolio; this one names the shape of a player's three errors, because on the capstone that shape is the misconception itself rather than a symptom of it. No lead-in: the series screen already states its verdict and its stars above the card, worked out from all three.",
+    "order": [
+      "readThePortfolios",
+      "sameNumberThrice",
+      "oneNumberThrice",
+      "countedHoldings",
+      "missedTheSpread"
+    ],
+    "orderNote": "Reading all three well is named first, because a player who did that has earned the card that says so. Hedging comes next: it is the NARROWEST diagnosis here - all three guesses inside half a bet of each other - and a hedge also looks like one of the two directional errors below, so whichever is more specific has to speak first or it never speaks at all. Found by driving the four cases rather than by reading the order.",
+    "rules": [
+      {
+        "key": "readThePortfolios",
+        "says": "all three guesses were close",
+        "when": {
+          "worstErrorAtMost": 0.5
+        },
+        "whenNote": "Half a bet is the level's own three-star band, so this card fires on exactly the rounds that earned three stars.",
+        "template": "Three portfolios, three different answers, and your worst guess was out by only {worst} bets. That is the whole lesson working: you read what the holdings do, not how many there are."
+      },
+      {
+        "key": "countedHoldings",
+        "says": "the holdings were counted, not the bets",
+        "when": {
+          "overByAtLeast": 1.0,
+          "minHoldings": 5
+        },
+        "whenNote": "A full bet too high, on a portfolio of 5 or more holdings. The level passes within 1, so a miss of a full bet is a miss, and this is the error the game exists to correct.",
+        "template": "One portfolio held {holdings} things and made {bets} bets, and you guessed {guess}. That is the mistake this game is named after: holdings that move together are one bet however many lines they take up."
+      },
+      {
+        "key": "missedTheSpread",
+        "says": "a genuinely spread portfolio was read as one bet",
+        "when": {
+          "underByAtLeast": 1.0,
+          "betsAtLeast": 3.0
+        },
+        "whenNote": "A full bet too low, on a portfolio that really does make 3 or more. The same misconception from the other side: not every long list is one trade.",
+        "template": "One portfolio spread {holdings} holdings across {groups} groups and made {bets} bets - you guessed {guess}. Things that really do behave differently really do count separately, and that is what diversifying buys."
+      },
+      {
+        "key": "sameNumberThrice",
+        "says": "the same number was given three times",
+        "when": {
+          "guessSpreadAtMost": 0
+        },
+        "whenNote": "All three guesses identical. Its own card rather than a special case of oneNumberThrice, which would read \"ran from 2.00 to 2.00 - 0.00 bets apart\".",
+        "template": "You gave all three portfolios the same answer: {guess} bets. These three are drawn from bands more than 2 bets apart, so one number can never be within 1 of all of them - whichever number it is. The only way through is to read each portfolio."
+      },
+      {
+        "key": "oneNumberThrice",
+        "says": "one number was used for all three",
+        "when": {
+          "guessSpreadAtMost": 0.5
+        },
+        "whenNote": "All three guesses inside half a bet of each other. The two strata are more than 2 bets apart, so one number can never be within 1 of all three - a hedge cannot pass this level, by construction.",
+        "template": "Your three guesses ran from {low} to {high} - {spread} bets apart - but the three portfolios do not. These three are drawn from bands far enough apart that no single number is within 1 of all of them, so the only way through is to read each one."
+      }
+    ],
+    "fallback": {
+      "key": "mixedThree",
+      "says": "the three went different ways",
+      "template": "Your three guesses went different ways: close on some of these portfolios and wide on another. That is usually a sign of reading the holdings on one and the count on the other - the number of lines is never the answer on its own."
+    }
   }
 }

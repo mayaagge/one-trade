@@ -42,6 +42,12 @@ import {
   weightsFromDollars,
 } from '../js/levels.js';
 import {
+  pickSeriesWhy,
+  seriesFacts,
+  validateWhy,
+} from '../js/why.js';
+import { seriesLine, seriesStarsExplanation } from '../js/game.js';
+import {
   REVEAL,
   createRound,
   createSeries,
@@ -564,4 +570,147 @@ test('a capstone portfolio over the cap is refused', () => {
 test('a file with no capstone pool is still a valid file', () => {
   assert.equal(validateFinalPool(undefined), null);
   assert.equal(validateFinalPool(null), null);
+});
+
+// ------------------------------------------------- the screens and the card
+
+const WHY = validateWhy(readJson('why.json'));
+
+/** A finished series' verdict, from three errors, without playing a round. */
+function verdictFrom(errors) {
+  return seriesVerdict(LEVEL7, errors.map((error) => ({ guess: 2 + error, actual: 2 })));
+}
+
+/** A stand-in series, for the two wording functions, which read only these. */
+function fakeSeries(errors) {
+  return { level: LEVEL7, count: 3, verdict: () => verdictFrom(errors) };
+}
+
+test('the verdict line names the worst guess on a miss, not just the count', () => {
+  // "Two of three" reads like a near miss when the third was out by 3 bets, so
+  // the number that decided the level is in the sentence.
+  const passed = seriesLine(fakeSeries([0.2, 0.3, 0.4]), verdictFrom([0.2, 0.3, 0.4]));
+  assert.match(passed, /Every guess was within 1, so the level is passed\./);
+
+  const one = seriesLine(fakeSeries([0.2, 0.3, 3.0]), verdictFrom([0.2, 0.3, 3.0]));
+  assert.match(one, /^One guess was out by more than 1/);
+  assert.match(one, /the worst by 3\.00/);
+  assert.match(one, /all 3 inside it/);
+
+  const two = seriesLine(fakeSeries([0.2, 2.0, 3.0]), verdictFrom([0.2, 2.0, 3.0]));
+  assert.match(two, /^2 guesses were out by more than 1/, 'two misses read as plural');
+});
+
+test('the stars line reads the level\'s own words, and says what the next star needs', () => {
+  const three = seriesStarsExplanation(LEVEL7, verdictFrom([0.2, 0.3, 0.4]));
+  assert.match(three, /1 star for all 3 guesses within 1 bet/);
+  assert.match(three, /3 for all three within half a bet/);
+  assert.ok(!/needs/.test(three), 'three stars has nothing left to ask for');
+
+  const two = seriesStarsExplanation(LEVEL7, verdictFrom([0.2, 0.3, 0.9]));
+  assert.match(two, /2 for two of your three guesses within half a bet/);
+  assert.match(two, /3 needs all three within half a bet/);
+
+  const one = seriesStarsExplanation(LEVEL7, verdictFrom([0.2, 0.9, 0.9]));
+  assert.match(one, /2 needs two of your three guesses within half a bet/);
+
+  const none = seriesStarsExplanation(LEVEL7, verdictFrom([0.2, 0.3, 1.4]));
+  assert.match(none, /No stars this time/);
+  assert.match(none, /all 3 guesses within 1 bet is what this level needs/);
+});
+
+test('every wording in those two lines comes from levels.json, not from the code', () => {
+  // The pass rule and both bands are quoted, so changing levels.json changes the
+  // screen and no number in these sentences is written twice.
+  const line = seriesStarsExplanation(LEVEL7, verdictFrom([0.2, 0.3, 0.9]));
+  assert.ok(line.includes(LEVEL7.pass.says), "the pass rule's own words");
+  assert.ok(line.includes(LEVEL7.stars.two.says), "the two-star band's own words");
+  assert.ok(line.includes(LEVEL7.stars.three.says), "the three-star band's own words");
+});
+
+test('the series card names the shape of the three errors', () => {
+  const parts = (guesses, actuals, holdings = [5, 8, 8], groups = [4, 6, 5]) => guesses
+    .map((guess, i) => ({ guess, actual: actuals[i], holdings: holdings[i], groups: groups[i] }));
+  const cardFor = (...args) => pickSeriesWhy(seriesFacts(parts(...args)), WHY).key;
+
+  assert.equal(cardFor([1.2, 4.1, 1.3], [1.2, 4.15, 1.22]), 'readThePortfolios');
+  assert.equal(cardFor([2.0, 2.0, 2.0], [1.2, 4.15, 1.22]), 'sameNumberThrice');
+  assert.equal(cardFor([2.0, 2.1, 2.0], [1.2, 4.15, 1.22]), 'oneNumberThrice');
+  // Guessed a full bet high on a portfolio of 8 that makes 1.2: the error the
+  // game is named after.
+  assert.equal(cardFor([1.2, 4.1, 3.0], [1.2, 4.15, 1.22]), 'countedHoldings');
+  // Guessed a full bet low on one that really does make 4.
+  assert.equal(cardFor([1.2, 2.0, 1.3], [1.2, 4.15, 1.22]), 'missedTheSpread');
+  // Wide on one, close on the others, and in neither direction far enough.
+  assert.equal(cardFor([1.2, 4.1, 2.0], [1.2, 4.15, 1.22]), 'mixedThree');
+});
+
+test('the same number three times is its own card, not a 0.00-bet spread', () => {
+  // One card for both read "ran from 2.00 to 2.00 - 0.00 bets apart", which is
+  // what playing the level turned up.
+  const facts = seriesFacts([
+    { guess: 2, actual: 1.2, holdings: 5, groups: 4 },
+    { guess: 2, actual: 4.15, holdings: 8, groups: 6 },
+    { guess: 2, actual: 1.22, holdings: 8, groups: 5 },
+  ]);
+  const card = pickSeriesWhy(facts, WHY);
+  assert.equal(card.key, 'sameNumberThrice');
+  assert.match(card.text, /all three portfolios the same answer: 2\.00 bets/);
+  assert.ok(!card.text.includes('0.00 bets apart'));
+});
+
+test('the series card is filled in from its own template, with no prose generated', () => {
+  const facts = seriesFacts([
+    { guess: 1.2, actual: 1.2, holdings: 5, groups: 4 },
+    { guess: 4.1, actual: 4.15, holdings: 8, groups: 6 },
+    { guess: 1.3, actual: 1.22, holdings: 8, groups: 5 },
+  ]);
+  const card = pickSeriesWhy(facts, WHY);
+  const rule = WHY.seriesCards.rules.find((r) => r.key === card.key);
+  assert.equal(card.template, rule.template, 'the card keeps the template it came from');
+  let rebuilt = rule.template;
+  for (const [name, value] of Object.entries(card.values)) {
+    rebuilt = rebuilt.replaceAll(`{${name}}`, value);
+  }
+  assert.equal(card.text, rebuilt, 'the text is the template filled in and nothing else');
+});
+
+test('a series card carries no lead-in: the screen above it already gave the verdict', () => {
+  const facts = seriesFacts([
+    { guess: 2, actual: 1.2, holdings: 5, groups: 4 },
+    { guess: 2, actual: 4.15, holdings: 8, groups: 6 },
+    { guess: 2, actual: 1.22, holdings: 8, groups: 5 },
+  ]);
+  assert.equal(pickSeriesWhy(facts, WHY).leadIn, null);
+});
+
+test('seriesFacts refuses a part with no guess to read', () => {
+  assert.throws(() => seriesFacts([]), /no parts to read/);
+  assert.throws(
+    () => seriesFacts([{ guess: null, actual: 2, holdings: 3, groups: 2 }]),
+    /needs a guess and an actual value/,
+  );
+});
+
+test('why.json refuses a series rule that could never be chosen', () => {
+  const copy = () => JSON.parse(JSON.stringify(WHY));
+
+  const unordered = copy();
+  unordered.seriesCards.order = unordered.seriesCards.order.filter((k) => k !== 'oneNumberThrice');
+  assert.throws(() => validateWhy(unordered), /oneNumberThrice is in no order/);
+
+  const unknown = copy();
+  unknown.seriesCards.rules[0].key = 'vibes';
+  assert.throws(() => validateWhy(unknown), /series rule "vibes" is not one this code can apply/);
+
+  const badPlaceholder = copy();
+  const rule = badPlaceholder.seriesCards.rules.find((r) => r.key === 'sameNumberThrice');
+  rule.template = 'You guessed {nonsense} three times.';
+  assert.throws(() => validateWhy(badPlaceholder), /uses \{nonsense\}, which nothing can fill/);
+
+  const noOrderRule = copy();
+  noOrderRule.seriesCards.order.push('readThePortfolios');
+  noOrderRule.seriesCards.rules = noOrderRule.seriesCards.rules
+    .filter((r) => r.key !== 'readThePortfolios');
+  assert.throws(() => validateWhy(noOrderRule), /names readThePortfolios, which has no rule/);
 });
