@@ -429,7 +429,12 @@ export function formatLedger(ledger) {
  * Today is included, not just the days ahead: a player who opens the page in
  * the morning needs today's puzzle, and the evening build is what wrote it.
  */
-export function dailyFile(ledger, today, { days = DAILY_DAYS, meta = {} } = {}) {
+// A REST PARAMETER, not a `meta` option. It was `{ days, meta = {} }`, and the
+// caller passes the meta fields at the top level, so liveThrough, timeZone,
+// windowDays and answersFrom were all quietly dropped on the floor: the file
+// still validated, because every key the tests looked at is set below. Anything
+// that is not `days` is meta, which is the shape the caller already uses.
+export function dailyFile(ledger, today, { days = DAILY_DAYS, ...meta } = {}) {
   const last = addDays(today, days);
   const entries = (ledger.entries ?? [])
     .filter((entry) => entry.date >= today && entry.date <= last)
@@ -446,6 +451,11 @@ export function dailyFile(ledger, today, { days = DAILY_DAYS, meta = {} } = {}) 
         + 'rebuilt. The ledger is the full record and keeps every day ever played; this is '
         + 'the only puzzle file the game loads, so that opening the page does not download '
         + 'a year of past answers.',
+      wordsNote:
+        'The answers and surprise lines below are copied from levels.json at build time. An '
+        + 'entry stores only keys - "same", "A" - and the screen loads this file and '
+        + 'tickers.json and nothing else, so the words have to travel with the keys. '
+        + 'levels.json stays the one place they are written.',
       disclaimer: DISCLAIMER,
     },
     entries,
@@ -728,6 +738,9 @@ function main(argv) {
     timeZone: puzzle.timeZone,
     windowDays: puzzle.days,
     answersFrom: `levels.json, level ${bucketLevel.id} buckets`,
+    // The words for the keys an entry stores, so the screen needs no third file.
+    answers: bucketLevel.buckets.map((bucket) => ({ key: bucket.key, label: bucket.label })),
+    surpriseKinds: puzzle.surprise.kinds.map((kind) => ({ key: kind.key, line: kind.line })),
   });
   const dailyText = formatLedger(daily);
   mkdirSync(dirname(dailyPath), { recursive: true });

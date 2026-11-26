@@ -776,3 +776,63 @@ main { outline: none; }
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
+
+/* ---------------------------------------------- the daily "Same bet?" puzzle */
+
+.daily-head h1 { margin-bottom: 0.2rem; }
+
+.daily-card {
+  border: 1px solid var(--line, #d5d5d5);
+  border-radius: 10px;
+  padding: 1rem;
+  margin: 1rem 0;
+}
+
+.daily-count { font-size: 0.85rem; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.7; margin: 0; }
+.daily-tickers { font-size: 1.6rem; font-weight: 700; margin: 0.3rem 0 0.2rem; }
+.daily-ask { margin: 0 0 0.8rem; }
+
+.daily-answers { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.daily-answer { flex: 1 1 10rem; padding: 0.7rem 0.9rem; font-size: 1rem; cursor: pointer; }
+.daily-answer:disabled { cursor: default; opacity: 0.55; }
+
+.daily-reveal {
+  border-left: 4px solid var(--line, #d5d5d5);
+  padding: 0.6rem 0 0.6rem 0.9rem;
+  margin: 1rem 0;
+}
+.daily-reveal.is-right { border-left-color: #2e7d4f; }
+.daily-reveal.is-wrong { border-left-color: #8a8a8a; }
+.daily-verdict { font-weight: 600; margin: 0 0 0.3rem; display: flex; gap: 0.45rem; align-items: baseline; }
+.daily-pair-line { margin: 0.2rem 0; }
+.daily-window, .daily-elsewhere { font-size: 0.85rem; opacity: 0.75; margin: 0.2rem 0; }
+.daily-surprise { font-weight: 600; margin: 0.45rem 0 0.2rem; }
+
+.daily-done-list { list-style: none; padding: 0; margin: 0.8rem 0; }
+.daily-done {
+  display: flex; gap: 0.5rem; align-items: baseline;
+  padding: 0.3rem 0; border-bottom: 1px solid var(--line-soft, #ececec);
+  font-size: 0.92rem;
+}
+.daily-done-pair { flex: 1; }
+.daily-done-mark { font-size: 0.8rem; opacity: 0.7; }
+
+.daily-summary { margin-top: 1.2rem; }
+.daily-summary h2 { font-size: 2rem; margin: 0 0 0.5rem; }
+
+.daily-grid { list-style: none; display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0; margin: 0 0 1rem; }
+.daily-square { display: flex; flex-direction: column; align-items: center; gap: 0.15rem; min-width: 3.2rem; }
+.daily-square-mark { font-size: 1.5rem; line-height: 1; }
+/* The text is not decoration: the squares must read without colour. */
+.daily-square-text { font-size: 0.72rem; opacity: 0.8; }
+
+.daily-share-status { font-size: 0.9rem; min-height: 1.2rem; margin: 0.4rem 0; }
+.daily-share-text { width: 100%; font-family: inherit; font-size: 0.9rem; }
+.daily-spoiler-note, .daily-again, .daily-carried { font-size: 0.85rem; opacity: 0.8; }
+
+.daily-waiting { margin: 1.2rem 0; }
+
+@media (max-width: 420px) {
+  .daily-answer { flex: 1 1 100%; }
+  .daily-tickers { font-size: 1.35rem; }
+}

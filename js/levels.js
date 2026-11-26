@@ -413,6 +413,11 @@ export function validateDailyPuzzle(data) {
     if (typeof kind.sameGroup !== 'boolean') {
       throw new Error(`dailyPuzzle: surprise kind ${kind.key} needs sameGroup true or false`);
     }
+    // The sentence the screen shows. It lives here, not in the view, because it
+    // is a claim about what the prices did over the puzzle's own window.
+    if (typeof kind.line !== 'string' || kind.line.length === 0) {
+      throw new Error(`dailyPuzzle: surprise kind ${kind.key} needs a "line" for the screen to show`);
+    }
   }
 
   if (typeof puzzle.timeZone !== 'string' || puzzle.timeZone.length === 0) {

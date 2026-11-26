@@ -24,8 +24,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { correlation } from '../js/math.js';
@@ -634,16 +635,148 @@ test('the committed daily.json matches the committed ledger', () => {
   assert.equal(daily.meta.slicedFrom, 'data/puzzles.json');
 });
 
-test('daily.json is the small file and the ledger is the big one', () => {
+test('daily.json stays small however long the ledger gets', () => {
   const daily = readFileSync(resolve(ROOT, 'data/daily.json'), 'utf8');
-  const ledger = readFileSync(resolve(ROOT, 'data/puzzles.json'), 'utf8');
-  assert.ok(daily.length <= ledger.length);
-  // The reason this file exists: a year of the ledger is above 500 KB, and the
-  // game must not have to download it to play one day.
+  const dailyDoc = read('data/daily.json');
+  const ledgerDoc = read('data/puzzles.json');
+
+  // NOT a comparison of the two file sizes. daily.json carries the labels the
+  // screen needs in its meta, so while the ledger is only a week long the
+  // small file is the bigger one; it is from about day 9 that the ledger
+  // overtakes it, and then never stops. What is bounded is the only thing that
+  // matters - the number of entries, which is what makes it bounded in bytes.
+  assert.ok(
+    dailyDoc.entries.length <= DAILY_DAYS + 1,
+    `data/daily.json carries ${dailyDoc.entries.length} entries, more than today plus ${DAILY_DAYS}`,
+  );
+  assert.ok(dailyDoc.entries.length <= ledgerDoc.entries.length);
+
+  // The reason this file exists at all: a year of the ledger is above 500 KB,
+  // and the game must not download it to play one morning.
   assert.ok(
     daily.length < 64 * 1024,
     `data/daily.json is ${(daily.length / 1024).toFixed(0)} KB; the game loads this on every visit`,
   );
+});
+
+test('daily.json carries the words the screen needs, so it loads no third file', () => {
+  const meta = read('data/daily.json').meta;
+  const levelOne = BUCKET_LEVEL.buckets;
+
+  // These were silently missing once: dailyFile() took a `meta` option and the
+  // caller passed the fields at the top level, so every one of them was
+  // dropped while the file still validated.
+  for (const field of ['liveThrough', 'timeZone', 'windowDays', 'answers', 'surpriseKinds']) {
+    assert.ok(meta[field] !== undefined, `data/daily.json meta has no ${field}`);
+  }
+  assert.equal(meta.timeZone, PUZZLE.timeZone);
+  assert.equal(meta.windowDays, PUZZLE.days);
+
+  // The labels are level 1's own, copied rather than retyped.
+  assert.deepEqual(
+    meta.answers,
+    levelOne.map((bucket) => ({ key: bucket.key, label: bucket.label })),
+  );
+  assert.deepEqual(
+    meta.surpriseKinds,
+    PUZZLE.surprise.kinds.map((kind) => ({ key: kind.key, line: kind.line })),
+  );
+  for (const kind of meta.surpriseKinds) {
+    assert.ok(kind.line.length > 0, `surprise kind ${kind.key} has no line`);
+  }
+});
+
+// ------------------------------------------- the script, actually run
+
+// WHY THIS IS HERE, AND WHY IT IS A CHILD PROCESS. dailyFile() took
+// `{ days, meta = {} }` while main() passed the meta fields at the top level,
+// so liveThrough, timeZone, windowDays and answersFrom were dropped on the
+// floor from the day they were written. Every test passed: they called
+// dailyFile() directly, and asserted on keys the function sets itself. The gap
+// was not in the coverage of the function, it was that NOTHING RAN THE SCRIPT
+// and read back what landed on disk.
+//
+// So this runs scripts/build_puzzles.mjs as the workflow runs it, into a
+// temporary directory, and checks the files it actually wrote.
+
+test('running the builder writes a daily.json the screen can use', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'one-trade-puzzles-'));
+  try {
+    const ledgerPath = join(dir, 'puzzles.json');
+    const dailyPath = join(dir, 'daily.json');
+    execFileSync('node', [
+      'scripts/build_puzzles.mjs',
+      '--out', ledgerPath,
+      '--daily', dailyPath,
+      '--today', '2026-11-26',
+      '--quiet',
+    ], { cwd: ROOT, encoding: 'utf8' });
+
+    const ledger = JSON.parse(readFileSync(ledgerPath, 'utf8'));
+    const daily = JSON.parse(readFileSync(dailyPath, 'utf8'));
+
+    // 1. Every meta field the screen reads is actually on disk. This is the
+    //    assertion the dropped-fields bug would have failed.
+    for (const field of ['liveThrough', 'timeZone', 'windowDays', 'answersFrom',
+      'answers', 'surpriseKinds', 'slicedFrom', 'from', 'to', 'disclaimer']) {
+      assert.ok(
+        daily.meta[field] !== undefined,
+        `the written data/daily.json has no meta.${field}; the screen reads it`,
+      );
+    }
+    assert.equal(daily.meta.timeZone, PUZZLE.timeZone);
+    assert.equal(daily.meta.windowDays, PUZZLE.days);
+    assert.equal(daily.meta.from, '2026-11-26');
+    assert.equal(daily.meta.to, addDays('2026-11-26', DAILY_DAYS));
+
+    // 2. The words are level 1's, carried through the script rather than
+    //    retyped in it.
+    assert.deepEqual(
+      daily.meta.answers,
+      BUCKET_LEVEL.buckets.map((bucket) => ({ key: bucket.key, label: bucket.label })),
+    );
+    assert.deepEqual(
+      daily.meta.surpriseKinds,
+      PUZZLE.surprise.kinds.map((kind) => ({ key: kind.key, line: kind.line })),
+    );
+
+    // 3. Every entry is the ledger's own, not a second build of the same day.
+    assert.ok(daily.entries.length > 0, 'the written daily.json has no entries');
+    const byDate = new Map(ledger.entries.map((entry) => [entry.date, entry]));
+    for (const entry of daily.entries) {
+      assert.deepEqual(
+        entry, byDate.get(entry.date),
+        `the two written files disagree about ${entry.date}`,
+      );
+    }
+    for (const entry of ledger.entries) {
+      const inRange = entry.date >= daily.meta.from && entry.date <= daily.meta.to;
+      assert.equal(daily.entries.some((e) => e.date === entry.date), inRange);
+    }
+
+    // 4. And a pair carries what a reveal needs to say anything at all.
+    for (const pair of daily.entries[0].pairs) {
+      for (const field of ['a', 'b', 'correlation', 'answer', 'groups']) {
+        assert.ok(pair[field] !== undefined, `a written pair has no ${field}`);
+      }
+      assert.ok(daily.meta.answers.some((answer) => answer.key === pair.answer));
+    }
+    assert.ok(daily.entries[0].window?.days, 'a written entry has no window for the reveal to name');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('the builder refuses to write its two files over each other', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'one-trade-puzzles-'));
+  try {
+    const same = join(dir, 'both.json');
+    assert.throws(() => execFileSync('node', [
+      'scripts/build_puzzles.mjs', '--out', same, '--daily', same, '--quiet',
+    ], { cwd: ROOT, encoding: 'utf8', stdio: 'pipe' }));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 // ---------------------------------------------------------------- dates

@@ -1,10 +1,39 @@
 {
  "meta": {
+  "liveThrough": "2026-11-25",
+  "timeZone": "America/New_York",
+  "windowDays": 252,
+  "answersFrom": "levels.json, level 1 buckets",
+  "answers": [
+   {
+    "key": "same",
+    "label": "the same bet"
+   },
+   {
+    "key": "partly",
+    "label": "partly the same bet"
+   },
+   {
+    "key": "different",
+    "label": "different bets"
+   }
+  ],
+  "surpriseKinds": [
+   {
+    "key": "A",
+    "line": "Different groups, same bet: these two moved together over the last year."
+   },
+   {
+    "key": "B",
+    "line": "Same group, different bets: these two moved mostly independently over the last year."
+   }
+  ],
   "builtBy": "scripts/build_puzzles.mjs",
   "slicedFrom": "data/puzzles.json",
   "from": "2026-11-26",
   "to": "2026-12-03",
   "sliceNote": "Today through today + 7 days, copied out of data/puzzles.json without being rebuilt. The ledger is the full record and keeps every day ever played; this is the only puzzle file the game loads, so that opening the page does not download a year of past answers.",
+  "wordsNote": "The answers and surprise lines below are copied from levels.json at build time. An entry stores only keys - \"same\", \"A\" - and the screen loads this file and tickers.json and nothing else, so the words have to travel with the keys. levels.json stays the one place they are written.",
   "disclaimer": "Educational, not investment advice."
  },
  "entries": [

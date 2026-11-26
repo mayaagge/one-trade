@@ -516,15 +516,18 @@
           "key": "A",
           "bucket": "same",
           "sameGroup": false,
-          "label": "the same bet, from different groups"
+          "label": "the same bet, from different groups",
+          "line": "Different groups, same bet: these two moved together over the last year."
         },
         {
           "key": "B",
           "bucket": "different",
           "sameGroup": true,
-          "label": "different bets, from the same group"
+          "label": "different bets, from the same group",
+          "line": "Same group, different bets: these two moved mostly independently over the last year."
         }
       ],
+      "lineNote": "The sentence the screen shows when a pair is a surprise. Written here rather than in js/dailyView.js because it is a claim about what the prices did, and it is tied to the window the puzzle measures - the last year - rather than stated as something permanent. Correlations change; a sentence that says they do not would be wrong by next year.",
       "note": "At least one pair a day where the answer disagrees with the group the two tickers sit in, which is the lesson the game is named after. Groups come from tickers.json. The day's seed chooses which kind, among the kinds that still have an unused pair. Kind A is scarce - all 10 of its pairs are also same-bet pairs - so it leads about a third of days and appears on about half."
     },
     "order": "surpriseLast",

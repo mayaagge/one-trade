@@ -2907,3 +2907,132 @@ Tomorrow is a half day. Nothing in the pipeline reads session length.
 768 tests pass.
 
 Educational, not investment advice.
+
+## The daily "Same bet?" screen, 26 November 2026 (session 2.15)
+
+The player's half of the puzzle: js/daily.js (pure logic), js/dailyView.js (the
+screen), js/storage.js and js/config.js. The builder was session 2.13.
+
+### The screen loads two files, and the reason is in each of the three it does not
+
+data/daily.json and tickers.json. Not data/puzzles.json, which keeps every day
+ever played and passes 500 KB inside a year. Not data/game.json, because a day's
+correlations were worked out the evening before and recomputing them here would
+let an answer move under somebody who had already answered it. Not levels.json,
+because the words for the keys an entry stores now travel in daily.json's meta,
+copied from levels.json by the builder - so levels.json is still the one place
+"the same bet" is written, and the screen still fetches two files.
+
+### A bug found by needing those words, and the test that was missing
+
+dailyFile() took `{ days, meta = {} }` and the caller passed the meta fields at
+the TOP level:
+
+    dailyFile(after, today, { days, liveThrough, timeZone, windowDays, ... })
+                             ^ `days` binds; everything else lands in nothing
+
+So liveThrough, timeZone, windowDays and answersFrom had been dropped on the
+floor since the day they were written. The written file was valid, the screen
+had not been built yet, and nothing was missing that anything asked for. It
+surfaced only when a fifth field had to arrive and did not.
+
+**Why every test passed.** They called dailyFile() directly and asserted on
+slicedFrom, from and to - keys the function sets ITSELF. A caller passing an
+option the callee never reads is invisible to a test that calls the callee. The
+coverage of the function was fine; what nothing did was RUN THE SCRIPT and read
+back what landed on disk.
+
+That test exists now: tests/puzzles.test.js runs scripts/build_puzzles.mjs as a
+child process into a temporary directory, the way the workflow runs it, and
+checks every meta field the screen reads, that the words are level 1's own, and
+that each written entry is byte-for-byte the ledger's. Reintroducing the old
+signature fails it with "the written data/daily.json has no meta.liveThrough;
+the screen reads it", which was checked by doing exactly that and putting it
+back.
+
+The lesson is narrower than "test more". A function and its one caller are a
+seam, and a seam between an options object and a destructuring parameter fails
+SILENTLY in JavaScript - no error, no undefined to trip over downstream, just a
+field that is not there. Where that seam is the only thing between a build and a
+file somebody else reads, something has to run the whole script.
+
+### Lock, then reveal, and the save goes first
+
+Three buttons; a click commits the answer, disables the lot and shows what the
+prices did. The write to storage happens BEFORE the reveal is drawn, so a reload
+at the wrong moment lands on the next pair rather than offering a second go at
+one already seen. lock() ignores any index that is not the one in front of the
+player, which is what makes a double click, a stale button and a second tab all
+do nothing.
+
+### Midnight, mid-puzzle
+
+A player who starts at 23:55 and answers their third pair at 00:02 has not
+finished yesterday and has not started today. Taking the half-finished puzzle
+away at midnight would delete work in progress, so an unfinished day keeps the
+screen until it is done and the new day is then OFFERED, with a button, rather
+than imposed. A finished day does not hold the screen: the next morning starts
+the new one. A half-finished day that has aged out of the eight-day file is gone
+and is not resumable, which is the one case where work is lost and the only
+honest answer, since the entry it was played against is no longer there.
+
+### lock() lost the document, and only one test could tell
+
+lock() rebuilt the next state from a document it made up on the spot - one
+entry, the day being played:
+
+    stateFor({ entries: [state.entry], meta: state.meta }, ...)
+
+Every question that state answers is about the day in hand - which pair is next,
+what the score is, whether it is finished - and a one-entry document answers all
+of them correctly. Exactly one question is about the OTHER days: "is there a new
+day waiting?", which that document can only ever answer no.
+
+So it was right everywhere except the end of a carried-over puzzle, where a
+player who finished yesterday's five pairs after midnight would be told nothing
+was ready and shown no way to today's. The state now carries the document and
+the date it was computed for.
+
+It was caught by the second half of the midnight test - the half that plays the
+carried-over day to its end and then looks for the button. A test that had
+stopped at "the player can resume" would have passed. The case worth testing was
+not the resume, it was what happens after it.
+
+### The share text is checked for what is NOT in it
+
+A spoiler-free grid is only spoiler-free if nothing else in the message gives
+the day away, so the test takes the entry apart and searches the share text for
+every ticker, every answer label, every answer key, every correlation and the
+word "surprise". Two different days with the same pattern of right and wrong
+produce the same grid, which is asserted rather than assumed.
+
+### Testing a screen in a project with no DOM library
+
+The other views are checked by being played, which leaves the first render
+happening for the first time in front of a player. tests/dailyView.test.js
+carries a sixty-line stub of the handful of DOM calls this screen makes -
+createElement, append, replaceChildren, querySelector by class, click - and
+renders the whole thing in node. It is not a browser and does not pretend to be;
+it catches the words not reaching the screen, which is what unit tests of pure
+functions cannot. Playing it in a real browser is still worth doing.
+
+### The share link is written down, not inferred
+
+GitHub Pages went live during this session, serving the site and data/daily.json
+from main, so ABOUT.url is set to https://mayaagge.github.io/one-trade/ rather
+than left to fall back to the page the code is running on. The fallback is
+correct in both places it normally matters and wrong in the one that bites: a
+share made while testing on localhost:8000 would post a link only that laptop
+can open.
+
+### Previewing a day that has not arrived
+
+mountDaily() takes `now` and `storageKey`, so another date can be rendered from
+the console without editing anything or writing over a real record. Today the
+ledger starts tomorrow, so the screen anybody opens says "Today's puzzle isn't
+ready yet. Come back tomorrow." - which is the first state the game will ever
+show, and is therefore the first one built and the first one tested.
+
+824 tests pass.
+
+Educational, not investment advice.
