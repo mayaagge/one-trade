@@ -864,3 +864,62 @@ main { outline: none; }
 
 .reset-row { margin: 1.4rem 0 0.4rem; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
 .reset-ask { font-size: 0.9rem; margin: 0; flex: 1 1 100%; }
+
+/* ---- Sandbox: the measures panels --------------------------------------
+
+   docs/PRD.md's phone-first rule forbids sideways scrolling, so the shares
+   table is four narrow columns rather than one column per holding, and the
+   correlations are a list of pairs instead of a grid. Both stay in one
+   column at any width. */
+
+.measure-table { margin: 1.4rem 0 0; }
+.measure-table h3 { margin: 0 0 0.4rem; }
+
+.shares-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+.shares-table th, .shares-table td {
+  text-align: right;
+  padding: 7px 6px;
+  border-bottom: 1px solid var(--grid);
+}
+.shares-table thead th { color: var(--text-secondary); font-weight: 600; font-size: 0.82rem; }
+/* The holding's own name reads as a label, so it keeps the left edge. */
+.shares-table tbody th, .shares-table thead th:first-child { text-align: left; }
+.shares-gap { color: var(--text-secondary); }
+
+.pair-list { list-style: none; margin: 8px 0 0; padding: 0; }
+.pair-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--grid);
+}
+.pair-names { font-weight: 600; }
+.pair-value { font-variant-numeric: tabular-nums; }
+
+/* One measure: its name, the number, and the sentence that explains it. The
+   number is big enough to read at arm's length but not the 3rem the single
+   headline measure of a reveal gets - there are three of these in a row. */
+.measure-row { padding: 0.7rem 0; border-bottom: 1px solid var(--grid); }
+.measure-row:last-child { border-bottom: 0; }
+.measure-label { margin: 0; color: var(--text-secondary); font-size: 0.9rem; }
+.measure-value {
+  margin: 2px 0 0;
+  font-size: 1.6rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.measure-note {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+  max-width: 52rem;
+}
+/* Inside the headline panel, which is centred, the note reads as prose. */
+.reveal-panel .measure-note { text-align: left; margin-top: 0.7rem; }

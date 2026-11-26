@@ -827,6 +827,303 @@ def build_puzzle_cases():
     }
 
 
+# --- the stress scenario Sandbox and My real portfolio show -----------------
+
+GAME_DAYS = 756           # levels.json window.days, the window every measure uses
+STRESS_FRACTION = 0.10    # levels.json stressTest.stressDays.fraction
+STRESS_SHOCK = -0.20      # levels.json stressTest.shock
+
+
+def stress_day_indices(index_returns, fraction=STRESS_FRACTION):
+    """The worst `floor(n x fraction)` days of an index series, by date.
+
+    A COUNT, NOT A PERCENTILE, and the difference is the whole reason this is
+    here. np.percentile would interpolate between two days' returns and hand
+    back a threshold that no day actually had; comparing against it then makes
+    the number of stress days depend on ties and on float rounding at the edge.
+    Counting fixes the set: rank by return, take the worst k, and that is k days
+    whatever the data does.
+
+    TIES ARE BROKEN BY DATE, earliest first. np.argsort(kind="stable") keeps
+    input order among equal returns, and the input is in date order, so two days
+    with identical returns at the cut are resolved by the earlier one being in.
+    Without a stated rule the set would depend on the sort's internals, and a
+    different sort in JavaScript would give a different beta.
+
+    Returned in DATE order, not worst-first: the caller slices days out of a
+    matrix with these, and reordering the rows would reorder nothing it needs.
+    """
+    series = np.asarray(index_returns, dtype=float)
+    count = int(np.floor(len(series) * fraction))
+    if count < 2:
+        raise ValueError(f"stress_day_indices: {count} days is too few for a beta")
+    worst = np.argsort(series, kind="stable")[:count]
+    return np.sort(worst)
+
+
+def beta_on_days(holding_returns, weights, basket_returns, day_indices):
+    """The portfolio's beta to the basket, over a chosen subset of days.
+
+    The subset's OWN means are used, which is what "the same beta, computed on
+    market stress days only" means: it is beta_to() applied to 75 days, not a
+    752-day beta with some days hidden. Both series are cut to the same days, so
+    the pairing of portfolio day to basket day is never disturbed.
+    """
+    rows = np.asarray(holding_returns, dtype=float)[day_indices]
+    basket = np.asarray(basket_returns, dtype=float)[day_indices]
+    portfolio = (rows * np.asarray(weights, dtype=float)).sum(axis=1)
+    return beta_to(portfolio, basket)
+
+
+def stress_loss(value, beta, shock=STRESS_SHOCK):
+    """docs/PRD.md: portfolio value x beta x shock size. Negative is a loss."""
+    return float(value) * float(beta) * float(shock)
+
+
+def build_stress_cases():
+    """Known answers for stress days, the two betas and the loss range.
+
+    A game.json-SHAPED document, as build_puzzle_cases() uses, rather than a
+    ready-made matrix. The window is the thing most likely to be wrong here: the
+    file keeps more rows than the window takes, so a fixture handed exactly 756
+    rows would never catch code that took the worst 10% of the FILE instead of
+    the worst 10% of the window. The file below is 800 rows and every case slices
+    756 of them, except the one whose holding lists late.
+
+    THE PORTFOLIOS ARE NAMED, not sampled. Random draws measure the average
+    portfolio and never build the one the game is named after - several AI names
+    that are really one bet - so that portfolio is case 2, by name.
+
+    A fresh generator at the registered seed, so nothing above moves.
+    """
+    rng = np.random.default_rng(SEED)
+    total = 800                               # longer than the 756-day window
+
+    dates, day = [], np.datetime64("2022-06-01")
+    while len(dates) < total:
+        if np.is_busday(day):
+            dates.append(str(day))
+        day = day + np.timedelta64(1, "D")
+
+    # An index, three AI-ish names that move with it and with each other, a quiet
+    # bond-like holding, and one that moves against the index.
+    index = rng.normal(0.0004, 0.011, total)
+    ai = {
+        name: 1.3 * index + rng.normal(0.0, scale, total)
+        for name, scale in [("AAA", 0.013), ("BBB", 0.014), ("CCC", 0.012)]
+    }
+    quiet = 0.05 * index + rng.normal(0.0, 0.002, total)
+    against = -0.35 * index + rng.normal(0.0, 0.006, total)
+    # A holding that lists late, as VRT and PLTR do in data/game.json. Its window
+    # is shorter than 756, so its stress-day COUNT is smaller - which is the point
+    # of carrying it: the 10% is of the window, never of the file.
+    late_start = 300
+    late = 1.1 * index + rng.normal(0.0, 0.015, total)
+
+    tickers = ["^GSPC", "AAA", "BBB", "CCC", "QUIET", "AGAINST", "LATE"]
+    columns = {
+        "^GSPC": [float(x) for x in index],
+        "AAA": [float(x) for x in ai["AAA"]],
+        "BBB": [float(x) for x in ai["BBB"]],
+        "CCC": [float(x) for x in ai["CCC"]],
+        "QUIET": [float(x) for x in quiet],
+        "AGAINST": [float(x) for x in against],
+        "LATE": [None] * late_start + [float(x) for x in late[late_start:]],
+    }
+    basket_members = ["AAA", "BBB", "CCC"]
+
+    named = [
+        {
+            "name": "stress_the_portfolio_the_game_is_named_after",
+            "description": (
+                "Three AI names, equally weighted - different tickers, one bet. The "
+                "portfolio One Trade is named after, built by name rather than drawn."
+            ),
+            "holdings": ["AAA", "BBB", "CCC"],
+            "dollars": [4000, 3000, 3000],
+        },
+        {
+            "name": "stress_is_the_basket",
+            "description": (
+                "The basket itself, equally weighted. Hand-derivable: the portfolio and "
+                "the basket are the same series day for day, so beta is exactly 1 on ALL "
+                "days and exactly 1 on the stress days too - subsetting cannot change an "
+                "identity - and the loss is exactly the shock on the whole value."
+            ),
+            "holdings": ["AAA", "BBB", "CCC"],
+            "dollars": [5000, 5000, 5000],
+            "expected_exact": {
+                "beta_all_days": 1.0,
+                "beta_stress_days": 1.0,
+                "loss_all_days": 15000.0 * STRESS_SHOCK,
+                "loss_stress_days": 15000.0 * STRESS_SHOCK,
+            },
+        },
+        {
+            "name": "stress_mostly_quiet",
+            "description": (
+                "80% in the quiet holding and 20% in one AI name: the case where the "
+                "share of the money and the share of the risk come apart, and the beta "
+                "is small."
+            ),
+            "holdings": ["QUIET", "AAA"],
+            "dollars": [8000, 2000],
+        },
+        {
+            "name": "stress_hedged",
+            "description": (
+                "An AI name against the holding that moves the other way. Its two betas "
+                "differ most, which is the instability the range is shown for."
+            ),
+            "holdings": ["AAA", "AGAINST"],
+            "dollars": [6000, 4000],
+        },
+        {
+            "name": "stress_window_cut_short_by_a_late_listing",
+            "description": (
+                "One holding listed 300 rows into an 800-row file, so the window is 500 "
+                "days rather than 756 and the stress days are the worst 50 of those 500. "
+                "The 10% is of the WINDOW, never of the file."
+            ),
+            "holdings": ["LATE", "QUIET"],
+            "dollars": [5000, 5000],
+        },
+    ]
+
+    cases = []
+    for case in named:
+        holdings = case["holdings"]
+        dollars = [float(d) for d in case["dollars"]]
+        value = sum(dollars)
+        weights = [d / value for d in dollars]
+
+        # The window: the most recent 756 rows every holding AND every basket
+        # member covers, exactly as js/gameView.js's gameWindow() walks it back.
+        needed = sorted(set(holdings) | set(basket_members))
+        first = max(
+            next((i for i, v in enumerate(columns[t]) if v is not None), 0)
+            for t in needed
+        )
+        available = total - first
+        days = min(GAME_DAYS, available)
+        start = total - days
+
+        matrix = np.column_stack([columns[t][start:] for t in holdings]).astype(float)
+        members = np.column_stack([columns[t][start:] for t in basket_members]).astype(float)
+        basket = equal_weight_basket(members)
+        index_window = np.asarray(columns["^GSPC"][start:], dtype=float)
+
+        stress = stress_day_indices(index_window)
+        portfolio = (matrix * np.asarray(weights)).sum(axis=1)
+        cov = covariance(matrix)
+        beta_all = beta_to(portfolio, basket)
+        beta_stress = beta_on_days(matrix, weights, basket, stress)
+
+        cases.append({
+            "name": case["name"],
+            "description": case["description"],
+            "holdings": holdings,
+            "dollars": dollars,
+            "weights": weights,
+            "value": value,
+            "expected": {
+                "days": days,
+                "available_days": available,
+                "start_date": dates[start],
+                "end_date": dates[-1],
+                "stress_day_count": len(stress),
+                "stress_day_indices": [int(i) for i in stress],
+                "stress_day_dates": [dates[start + int(i)] for i in stress],
+                "effective_bets": effective_bets(weights, cov),
+                "risk_shares": risk_shares(weights, cov).tolist(),
+                "correlation": correlation(matrix).tolist(),
+                "beta_all_days": beta_all,
+                "beta_stress_days": beta_stress,
+                "loss_all_days": stress_loss(value, beta_all),
+                "loss_stress_days": stress_loss(value, beta_stress),
+            },
+            "expected_exact": case.get("expected_exact"),
+        })
+
+    return {
+        "note": (
+            "A game.json-shaped document, the worst 10% of its index days inside the "
+            "756-day window, and both betas over them. Synthetic; no real price is here."
+        ),
+        "window_days": GAME_DAYS,
+        "fraction": STRESS_FRACTION,
+        "shock": STRESS_SHOCK,
+        "benchmark": "^GSPC",
+        "basket_members": basket_members,
+        "dates": dates,
+        "tickers": tickers,
+        "columns": columns,
+        "cases": cases,
+        "selection_cases": build_stress_selection_cases(),
+    }
+
+
+def build_stress_selection_cases():
+    """Which days are the stress days, on series small enough to count by eye.
+
+    The arithmetic above cannot show a tie or an off-by-one: 75 days out of 756
+    of synthetic noise all land where they should or all land wrong. These are
+    hand-checkable, and the tie case is the one that pins the rule down - two
+    days with the same return at the cut, where only one can be in.
+    """
+    return [
+        {
+            "name": "selection_ten_days_takes_one",
+            "description": "10 days, so floor(10 x 0.10) = 1 day - too few for a beta, which is an error, not a one-day beta.",
+            "returns": [0.01, -0.02, 0.03, -0.05, 0.00, 0.02, -0.01, 0.04, -0.03, 0.01],
+            "fraction": 0.10,
+            "expected_count": 1,
+            "expected_indices": None,
+            "expected_error": "too few",
+        },
+        {
+            "name": "selection_twenty_days",
+            "description": "20 days, so 2 stress days: the -0.07 on day 3 and the -0.06 on day 11.",
+            "returns": [
+                0.01, -0.02, 0.03, -0.07, 0.00, 0.02, -0.01, 0.04, -0.03, 0.01,
+                0.02, -0.06, 0.01, -0.04, 0.00, 0.03, -0.02, 0.01, -0.05, 0.02,
+            ],
+            "fraction": 0.10,
+            "expected_count": 2,
+            "expected_indices": [3, 11],
+            "expected_error": None,
+        },
+        {
+            "name": "selection_tie_at_the_cut",
+            "description": (
+                "30 days, so 3 stress days, and THREE days tie at -0.04 for the last two "
+                "places. Ties break by date, so days 5 and 12 are in and day 26 is out."
+            ),
+            "returns": [
+                0.01, 0.02, 0.01, -0.01, 0.00, -0.04, 0.03, 0.01, 0.02, -0.02,
+                0.01, 0.00, -0.04, 0.02, 0.01, -0.09, 0.03, 0.01, -0.01, 0.02,
+                0.00, 0.01, 0.02, -0.03, 0.01, 0.00, -0.04, 0.02, 0.01, 0.03,
+            ],
+            "fraction": 0.10,
+            "expected_count": 3,
+            "expected_indices": [5, 12, 15],
+            "expected_error": None,
+        },
+        {
+            "name": "selection_every_day_the_same",
+            "description": (
+                "40 flat days, so 4 stress days and nothing to choose between them. The "
+                "first four by date are in - a rule, not a coincidence of the sort."
+            ),
+            "returns": [0.0] * 40,
+            "fraction": 0.10,
+            "expected_count": 4,
+            "expected_indices": [0, 1, 2, 3],
+            "expected_error": None,
+        },
+    ]
+
+
 def main():
     cases, basket = build_cases()
     series_cases = build_series_cases()
@@ -834,6 +1131,7 @@ def main():
     replay_cases = build_replay_cases()
     fall_share_cases = build_fall_share_cases()
     puzzle_window = build_puzzle_cases()
+    stress_window = build_stress_cases()
     out = []
     for case in cases:
         returns = case["returns"]
@@ -888,6 +1186,7 @@ def main():
         "replay_cases": replay_cases,
         "fall_share_cases": fall_share_cases,
         "puzzle_window": puzzle_window,
+        "stress_window": stress_window,
     }
     with open(OUT, "w") as handle:
         json.dump(doc, handle, indent=1)
@@ -917,6 +1216,13 @@ def main():
     for case in puzzle_window["cases"]:
         print(f"  {case['name']:<32} {case['expected']['days']:>3} days, "
               f"r={case['expected']['correlation']:.12f}")
+    for case in stress_window["cases"]:
+        e = case["expected"]
+        print(f"  {case['name']:<48} {e['days']:>3} days, {e['stress_day_count']:>2} stress, "
+              f"beta={e['beta_all_days']:.6f} -> {e['beta_stress_days']:.6f}")
+    for case in stress_window["selection_cases"]:
+        print(f"  {case['name']:<48} {len(case['returns']):>3} days -> "
+              f"{case['expected_indices'] if case['expected_indices'] is not None else case['expected_error']}")
 
 
 if __name__ == "__main__":

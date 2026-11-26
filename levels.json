@@ -10,6 +10,17 @@
     "note": "About 3 years of daily returns, over each portfolio's own overlapping days, as docs/PRD.md asks for a single portfolio. The daily 'Same bet?' puzzle uses one year instead, by its own design. Level 6 does not use this window: it carries its own, a fixed stretch of 2020 that never moves.",
     "appliesTo": "Every level whose prices come from data/game.json, which is levels 1 to 5 and 7. Level 6 carries its own window, a fixed stretch of 2020."
   },
+  "stressTest": {
+    "note": "The stress scenario Sandbox and My real portfolio show, and the days the second beta is measured on. docs/PRD.md defines the loss as 'portfolio value x beta x shock size' and the days as 'worst 10% of daily S&P 500 returns in the window', but it fixes no shock size, so the size is fixed here - before any portfolio was ever measured with it - rather than in code.",
+    "shock": -0.2,
+    "shockOf": "basket",
+    "shockNote": "A round 20% fall in the AI basket. Round and memorable, chosen for being a plain number rather than for the loss it produces, and it does not move when data/game.json is refreshed - so a player who comes back to the same portfolio next week reads the same scenario. The RANGE on the screen comes from the two betas, all days and stress days, which is the instability docs/PRD.md says the range is there to show; a shock that moved with the data would mix a second kind of movement into it.",
+    "stressDays": {
+      "fraction": 0.1,
+      "benchmark": "^GSPC",
+      "note": "The worst 10% of the S&P 500's days in the SAME window every other measure uses - the 756 above, not however many rows data/game.json happens to keep - which comes to 75 days. A count, not a percentile: floor(days x fraction), ranked by return, ties broken by date, so the set is the same set every time and a numpy fixture can name it exactly. The benchmark is the index rather than the AI basket, as docs/PRD.md requires, so that stress is not defined by the stocks under study."
+    }
+  },
   "kinds": {
     "note": "What counts as a stock, for level 6's rule that at least 60% of the money sits in stocks. A stock fund is a stock: VOO, QQQ and VXUS are shares bought in one line. BND, TLT and LQD are loans, and GLD is metal, so none of the four is.",
     "stocks": [

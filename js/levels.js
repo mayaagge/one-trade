@@ -134,6 +134,7 @@ export function validateLevels(data) {
   }
 
   validateKinds(data);
+  validateStressTest(data);
   validateDailyPuzzle(data);
   validateWeekly(data);
   validateGuessPool(data.guessPool);
@@ -152,6 +153,61 @@ export function validateLevels(data) {
  * fail until a new ticker is classified. This function cannot do that itself: it
  * is handed levels.json and nothing else, and the universe lives in another file.
  */
+/**
+ * The stress scenario Sandbox and My real portfolio show.
+ *
+ * WHY IT IS DATA AND NOT A CONSTANT. docs/PRD.md defines the stress-test loss as
+ * "portfolio value x beta x shock size" and never fixes the shock size, so
+ * somebody had to. It is fixed in levels.json beside every other rule the game
+ * checks, with its reason written next to it, so that a reviewer reading the
+ * file can see the number was chosen before any portfolio was measured with it -
+ * which is exactly what a number buried in a .js file could not show.
+ *
+ * A FALL, NOT A RISE: the shock must be negative. A positive "shock" would turn
+ * the loss on the screen into a gain and the range into a reward for holding the
+ * most concentrated portfolio a player can build, which is the opposite of what
+ * the screen is for.
+ *
+ * THE BENCHMARK IS NAMED, and docs/PRD.md says why: market stress days are "an
+ * outside benchmark, so stress isn't defined by the AI stocks under study". The
+ * file names ^GSPC rather than leaving the code to assume it.
+ *
+ * Absent is allowed - a levels file for the Learn ladder alone needs no stress
+ * block, and every level validated above ignores it - but a block that is there
+ * and wrong is refused rather than half-used.
+ */
+export function validateStressTest(data) {
+  const stress = data.stressTest;
+  if (stress === undefined) return data;
+  if (typeof stress !== 'object' || stress === null) {
+    throw new Error('levels: stressTest must be an object');
+  }
+  if (!Number.isFinite(stress.shock) || !(stress.shock < 0)) {
+    throw new Error(
+      `levels: stressTest.shock must be a negative number - the scenario is a fall - got ${stress.shock}`,
+    );
+  }
+  if (!(stress.shock > -1)) {
+    throw new Error(
+      `levels: stressTest.shock of ${stress.shock} is a fall of ${Math.abs(stress.shock) * 100}% `
+      + 'or more, which would wipe out the whole portfolio and is not a scenario this screen explains',
+    );
+  }
+  const days = stress.stressDays;
+  if (typeof days !== 'object' || days === null) {
+    throw new Error('levels: stressTest.stressDays must be an object naming the fraction and the benchmark');
+  }
+  if (!Number.isFinite(days.fraction) || !(days.fraction > 0) || !(days.fraction < 1)) {
+    throw new Error(
+      `levels: stressTest.stressDays.fraction must be between 0 and 1, got ${days.fraction}`,
+    );
+  }
+  if (typeof days.benchmark !== 'string' || days.benchmark.length === 0) {
+    throw new Error('levels: stressTest.stressDays.benchmark must name the ticker stress is measured on');
+  }
+  return data;
+}
+
 export function validateKinds(data) {
   const kinds = data.kinds;
   if (kinds === undefined) return data;

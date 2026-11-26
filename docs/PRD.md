@@ -560,7 +560,7 @@ There are five milestones, in order, and each ends with a check you can verify. 
 
 8. Add the share card (an image with the stars and one headline, never holdings, and never the answer on the two pool levels) and the weekly challenge.
 
-9. Keep the previous portfolio checker as the Sandbox and My real portfolio modes.
+9. Build the Sandbox and My real portfolio modes.
 
 **Check:** a first-time player finishes levels 1 to 3 on a phone in under 10 minutes.
 

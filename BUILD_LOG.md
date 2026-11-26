@@ -3503,3 +3503,175 @@ never pair.
 935 tests pass.
 
 Educational, not investment advice.
+
+## Sandbox, 26 November 2026 (session 2.20)
+
+docs/PRD.md milestone 2 step 9 said "Keep the previous portfolio checker as the
+Sandbox and My real portfolio modes". There is no previous portfolio checker.
+Milestone 1 step 6 says so outright - "Nothing to remove. This is a fresh build,
+so the resilience score and the fixed-rule portfolio comparisons never existed
+here" - and `grep -i checker` over this log finds one unrelated hit. The word
+"keep" was written from the point of view of a predecessor project that was
+never ported into this repo. Step 9 now reads "Build the Sandbox and My real
+portfolio modes", which is what it always was.
+
+So nothing was salvaged. What was REUSED is everything the mode could be built
+out of: js/build.js's picker and allocator unchanged, js/crash.js's level-free
+`createBuild`, js/gameView.js's window, js/math.js's measures, and - the piece
+that saved the most - js/why.js's `whyFacts()`, which already returns in one
+call the dollar share beside the risk share, the gap between them, the closest
+pair, each group's share of the risk, effective bets and the beta. A risk share
+in Sandbox is therefore the same number Learn's "Why?" card explains, computed by
+the same line of code. New: js/measures.js, js/sandbox.js, tests/measures.test.js,
+tests/sandbox.test.js.
+
+### No round, and that is the design
+
+js/round.js refuses to reveal before a guess, by design - "predicting and then
+being corrected is the main learning moment" is the whole of Learn - and it
+computes the ONE measure its level asks about. Sandbox needs all of them and no
+guess. Bending `createRound()` into that would have meant a round with no level,
+no threshold, no stars and no guess, which is not a round. js/measures.js is the
+same arithmetic assembled the other way: one portfolio in, every measure out.
+
+### The shock is -20%, and it is in levels.json
+
+docs/PRD.md defines the stress-test loss as "portfolio value x beta x shock
+size" and never fixes the shock size. Somebody had to, so it is fixed as a round
+**20% fall in the AI basket**, in levels.json's new `stressTest` block with its
+reason beside it, next to every other rule the game checks.
+
+**Why round, and why not from the data.** Three candidates were weighed: a round
+20%, the basket's own worst day in the window, and the basket's fall in one of
+the three registered crash windows. The last two are real history, which is
+attractive, but both move - the worst day moves whenever data/game.json is
+refreshed, and either would put a second kind of movement into a number whose
+whole job is to show ONE kind. docs/PRD.md answers "stress estimates are noisy
+and look backward" with "a beta range is shown, not one number", so the range on
+the screen must come from the two betas and nothing else. A fixed shock keeps it
+that way, and a player who comes back to the same portfolio next week reads the
+same scenario. 20% was chosen for being a plain number rather than for the loss
+it produces, before any portfolio had been measured with it.
+
+**It is data because it was chosen.** A number docs/PRD.md does not fix is a
+number a reviewer should be able to find without reading code. `validateStressTest()`
+refuses a positive shock - a "shock" that was a rise would turn the loss into a
+gain and reward the most concentrated portfolio a player can build - and refuses
+a fall of 100% or more, which is not a scenario this screen explains.
+
+### Stress days: 75, of the window, by count
+
+docs/PRD.md defines them as the "worst 10% of daily S&P 500 returns in the
+window". Three things that leaves open, each settled the way that makes the
+answer reproducible:
+
+* **Of the WINDOW, not of the file.** The window is levels.json's 756 days;
+  data/game.json keeps 766, because a spare week of days is deliberately kept in
+  it. 10% of the file would be 76 days and 10% of the window is 75, and both
+  look equally plausible on a screen. The fixture is an 800-row document that
+  every case slices 756 rows out of, so code that took the worst 10% of the file
+  fails rather than passing with a number that is nearly right. One case holds a
+  holding that lists 300 rows in: its window is 500 days and its stress days are
+  50, which is the same rule stated twice.
+* **A count, not a percentile.** `floor(days x fraction)`, ranked by return.
+  np.percentile interpolates between two days and hands back a threshold no day
+  actually had; how many days then sit on the wrong side of it depends on ties
+  and on float rounding at the edge. Counting fixes the set.
+* **Ties break by date, earliest first,** and a tie is not hypothetical - a flat
+  day is a real day and two of them are equal to the last bit. The sort is on
+  (return, index), a total order, so nothing is left for a sort's internals to
+  decide; `tests/measures.test.js` holds it with a 30-day case where three days
+  tie for the last two places, and a 40-day case where every day is identical.
+
+Two days is the floor: `betaTo()` needs two to have a variance, and a one-day
+"beta" is a ratio dressed as a statistic. A 10-day window asks for one and is
+refused rather than shown.
+
+### What the tests caught
+
+**The loss range printed backwards.** `loss.worst` is the more negative of the
+two, so printing the pair in the order the object holds them read "$1,483 to
+$1,417" - a range running the wrong way, which a reader either trips over or
+silently corrects. The screen prints the smaller size first now; the object
+keeps worst and mildest, which are the right names for what they are.
+
+**An object that lied about its own state.** `measure()` read `levels` off the
+closure it was loaded into rather than off `ctx`, so a ctx that exposed `levels`
+measured with a different one. Harmless today and a trap tomorrow.
+
+**Two gaps in tests/stubDom.js**, both found by needing them rather than by
+review. `withDocument()` assigned its globals, and node defines `navigator` with
+a getter and no setter, so a test that wanted to watch `navigator.sendBeacon`
+could not start: it defines the properties now and restores the real descriptors.
+And `StubNode` had no `focus()`, which every mode's `draw()` calls on the root.
+
+### What the screen says
+
+Three named portfolios, over the live window, 2023-11-21 to 2026-11-25:
+
+| Portfolio | Bets | Beta all / stress | A 20% basket fall |
+| --- | --- | --- | --- |
+| NVDA + AMD + AVGO + MSFT | 1.11 | 0.98 / 0.94 | $1,881 to $1,966 |
+| VOO + QQQ + VTI | 1.01 | 0.43 / 0.32 | $638 to $870 |
+| VOO + BND + GLD + VXUS | 1.21 | 0.20 / 0.15 | $294 to $402 |
+| JNJ + TLT + GOOGL + LQD + COP | 3.56 | 0.08 / 0.03 | $68 to $169 |
+
+The first two are the lesson the game is named after: four AI stocks make 1.11
+bets, and three US index funds make 1.01. The measure is not stuck down there -
+level 3's own winning designs reach 3.56 on this data - so Sandbox shows the
+whole range rather than always saying "one bet".
+
+BND in the fourth row takes 25% of the money and 4% of the risk, which is why
+`BETS_NOTE` is one exported constant shown wherever the number appears, in the
+same words: docs/PRD.md requires "it counts risk, not money" on the page
+"wherever the number appears", and a sentence typed into two screens is a
+sentence that will eventually differ between them.
+
+### Three decisions worth seeing
+
+**The correlations are a ranked list, not a grid.** A 40-holding portfolio has
+780 pairs, and a 40-column table cannot be read on a phone without the sideways
+scrolling the phone-first rule forbids. The pairs are ranked closest first, which
+is also the order that answers the question the mode is for. The list shows ten
+and says "the 10 closest of the 66 pairs" rather than cutting itself off quietly.
+
+**No `window.scrollTo(0, 0)` in `draw()`.** js/crashReplay.js and js/game.js both
+call it and it is on the design review's list as a bug; it was not copied into a
+new mode on the way past.
+
+**`createBuild` still lives in js/crash.js.** It is the level-free build object
+and now has two callers outside Crash replay, so it arguably belongs beside
+js/build.js. Moving it touches js/round.js's import cycle and the build controls,
+which this session was told to leave alone.
+
+### Not built: an idea for after the playtest
+
+**A group-risk panel under the shares table.** Each group's share of the risk is
+already computed - `whyFacts()` returns it, and the weekly challenge's card is
+written from it - so the panel is a rendering job and not an arithmetic one.
+"Your five holdings are two groups, and one of them carries 80% of the risk" is
+the lesson of this whole game in one line, and Sandbox is where a player who has
+built something deliberately would read it.
+
+It is deliberately NOT on the screen. docs/PRD.md names group risk as a "Why?"
+card rule, not as a Sandbox panel, and rule 9 is not to add what the PRD does not
+ask for. **Revisit it after the playtest**, with the question the playtest can
+answer and this session cannot: do players reading the shares table work out the
+group story for themselves, or does the table leave them counting percentages
+holding by holding? If it is the second, this panel is the fix and the PRD gains
+a line. If it is the first, the screen is already long enough.
+
+### For the My real portfolio session
+
+The entry screen is settled: a ticker box with type-ahead from tickers.json and a
+dollar box, one row at a time, whole dollars with commas allowed, `inputmode`
+set so a phone offers the number keyboard, 2 to 15 holdings, and "Nothing is
+saved or sent. Leaving this page clears it." on the screen. js/build.js's
+allocator cannot be reused there - it moves a fixed $10,000 in $100 steps - but
+js/measures.js takes any positive dollars and converts them to weights, so the
+whole measures panel is already done. A ticker not in tickers.json gets a plain
+message against the box that caused it, and is counted and shown, never dropped.
+
+977 tests pass.
+
+Educational, not investment advice.

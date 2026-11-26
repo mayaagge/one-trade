@@ -72,6 +72,14 @@ export class StubNode {
     for (const fn of this.listeners.click ?? []) fn();
   }
 
+  /**
+   * Taking focus, which every mode's draw() does to the root so a screen change
+   * is announced to a screen reader. Nothing to do here but exist: the stub has
+   * no focus ring and no active element, and a view that called it would
+   * otherwise fail on a method a real <main tabindex="-1"> has.
+   */
+  focus() {}
+
   /** Every node in the tree, this one first. */
   all() { return [this, ...this.children.flatMap((child) => child.all())]; }
 
@@ -93,16 +101,29 @@ export const textOf = (node) => node.all().map((n) => n._text).filter(Boolean).j
  *
  * Returns the restore function, which a test calls in a finally: a global left
  * behind would leak into whatever file node runs next.
+ *
+ * WRITTEN WITH defineProperty, NOT ASSIGNMENT, and node is the reason. Some of
+ * the globals a screen reaches for are defined on globalThis with a getter and
+ * no setter - `navigator` is one - so `globalThis.navigator = stub` throws
+ * "Cannot set property navigator of #<Object> which has only a getter" and a
+ * test that wanted to watch navigator.sendBeacon cannot even start. Defining the
+ * property replaces it outright, and the descriptor is kept so the restore puts
+ * the real one back exactly as it was, getter and all.
  */
 export function withDocument(extra = {}) {
-  const keys = ['document', ...Object.keys(extra)];
-  const previous = Object.fromEntries(keys.map((key) => [key, globalThis[key]]));
-  globalThis.document = { createElement: (tag) => new StubNode(tag) };
-  Object.assign(globalThis, extra);
+  const all = { document: { createElement: (tag) => new StubNode(tag) }, ...extra };
+  const previous = Object.fromEntries(
+    Object.keys(all).map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)]),
+  );
+  for (const [key, value] of Object.entries(all)) {
+    Object.defineProperty(globalThis, key, {
+      value, writable: true, configurable: true, enumerable: true,
+    });
+  }
   return () => {
-    for (const [key, value] of Object.entries(previous)) {
-      if (value === undefined) delete globalThis[key];
-      else globalThis[key] = value;
+    for (const [key, descriptor] of Object.entries(previous)) {
+      if (descriptor === undefined) delete globalThis[key];
+      else Object.defineProperty(globalThis, key, descriptor);
     }
   };
 }

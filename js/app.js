@@ -1,10 +1,11 @@
 // js/app.js - picks a view from the URL hash. Nothing else lives here.
 
-import { mountResearch, DISCLAIMER } from './research.js';
+import { mountResearch } from './research.js';
 import { mountLearn } from './game.js';
 import { mountCrash } from './crashReplay.js';
 import { mountDaily } from './dailyView.js';
 import { mountWeekly } from './weeklyView.js';
+import { mountSandbox } from './sandbox.js';
 
 const DEFAULT_MODE = 'research';
 const MODES = ['learn', 'daily', 'weekly', 'crash', 'sandbox', 'research'];
@@ -13,22 +14,6 @@ const MODES = ['learn', 'daily', 'weekly', 'crash', 'sandbox', 'research'];
 export function modeFromHash(hash) {
   const name = String(hash || '').replace(/^#/, '');
   return MODES.includes(name) ? name : DEFAULT_MODE;
-}
-
-function stub(root, title, text) {
-  root.replaceChildren();
-  const view = document.createElement('div');
-  view.className = 'view';
-  const heading = document.createElement('h1');
-  heading.textContent = title;
-  const body = document.createElement('p');
-  body.className = 'lede';
-  body.textContent = text;
-  const note = document.createElement('p');
-  note.className = 'disclaimer-inline';
-  note.textContent = DISCLAIMER;
-  view.append(heading, body, note);
-  root.append(view);
 }
 
 function render() {
@@ -62,7 +47,7 @@ function render() {
     mountCrash(root);
     return;
   }
-  stub(root, 'Sandbox', 'Build any portfolio and see every measure. Not built yet.');
+  mountSandbox(root);
 }
 
 window.addEventListener('hashchange', render);
