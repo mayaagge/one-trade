@@ -4021,3 +4021,65 @@ on those tables, and it is the other half of the drift this review found.
 1,066 tests pass.
 
 Educational, not investment advice.
+
+## The level table is held to the spec too, 26 November 2026 (session 2.23)
+
+Session 2.22 left this as the open half of the drift it found: the crash windows
+were held to docs/PRD.md by a test, and the level table was still checked by eye.
+New: tests/prdLevels.test.js, 12 tests reading both of the PRD's level tables and
+three of its prose rules, and holding levels.json to every number in them.
+
+What is now read out of the spec rather than copied into a test: each level's
+title, its pass condition's threshold AND the direction of the comparison, the
+holdings count where the challenge states one, the minimum share under a named
+holding and under a kind, each bucket edge, each 2-star and 3-star band, each
+guess range, and the registered pool of 20.
+
+### It found the gap it was written to find
+
+**Level 4 fixed a 4-holding portfolio and the PRD never said so** - the same gap
+as level 6's, found the same way, one session later. The table's challenge column
+read "Keep at least 30% in QQQ", and levels.json has required exactly 4 holdings
+all along. It now reads "Build a 4-holding portfolio and keep at least 30% in
+QQQ".
+
+That is twice this has happened, so the test does not just compare the counts
+that ARE stated - it counts them. Five levels fix a holdings count; if the PRD's
+table states four of them, the test fails and names the levels, so the third
+occurrence is impossible rather than merely unlikely.
+
+### Reading the comparison, not just the number
+
+A threshold is two things: a number and a direction, and the direction is the
+whole of docs/PRD.md's rule that "a portfolio that fell exactly half as much did
+not fall LESS than half as much". So the test reads the direction out of the
+sentence - "no holding carries more than 35%" is a ceiling and reads `<=`, while
+"under 0.5" is strict - and a level whose comparison flipped would fail even with
+its number untouched.
+
+Two cells needed care. Level 6's condition is "fell less than half as much as the
+S&P 500", where the number is a word and the only numeral is part of the index's
+name: the first version read 500. And "All 3 guesses within 1" carries two
+numbers, the count of guesses and the band, so both are read by name rather than
+by position.
+
+### Checked by breaking it
+
+A test that reads a spec can fail to read it and pass anyway, so ten mutations
+were tried one at a time, each reverted after: four thresholds, two bucket edges,
+a holdings count, a minimum share, a star band and the "half" in level 6's
+sentence - five on the PRD side and five in levels.json. All ten failed the test.
+The mutation that mattered most was level 4's beta threshold moving from 0.5 to
+0.6 in levels.json with the PRD untouched, which is the direction this is for:
+the game quietly becoming something the registered spec does not describe.
+
+### Two tables anchored, because they look alike
+
+The level table and the scoring table have the same row shape - "| 1. Two of a
+kind | ... |", five columns each - so the first pattern loose enough to match one
+matched both and read ten rows where it expected seven. Each table is found by
+its own header row now and read until the table ends.
+
+1,078 tests pass.
+
+Educational, not investment advice.

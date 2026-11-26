@@ -79,7 +79,7 @@ After finishing the 7 levels, a player should be able to do six things without h
 | 1. Two of a kind | Correlation | Pick two holdings with different names that move together | Correlation of 0.8 or more |
 | 2. How many bets? | Effective bets | Guess the bets in a starter portfolio drawn at random from a pool of 20, then see the answer | Make a guess; scored on accuracy |
 | 3. Three real bets | Diversifying across groups | Build a 5-holding portfolio | At least 3 effective bets |
-| 4. Hidden AI | Index concentration | Keep at least 30% in QQQ | Beta to the AI basket under 0.5 |
+| 4. Hidden AI | Index concentration | Build a 4-holding portfolio and keep at least 30% in QQQ | Beta to the AI basket under 0.5 |
 | 5. Where's the risk? | Risk share vs dollar share | Build any 4-holding portfolio | No holding carries more than 35% of the risk |
 | 6. Crash test | Behavior under stress | Build a 4-holding portfolio with at least 60% in stocks and replay the February to March 2020 crash | Fell less than half as much as the S&P 500 |
 | 7. One trade | Everything | Guess the bets in 3 mystery portfolios | All 3 guesses within 1 |
