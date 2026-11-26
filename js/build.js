@@ -21,6 +21,13 @@
 // Educational, not investment advice.
 
 import { DOLLAR_STEP } from './round.js';
+// money() now lives in js/format.js, the one place that formats a number for
+// a player; imported here for use below and re-exported so every existing
+// `from './build.js'` import keeps working unchanged.
+import { money } from './format.js';
+import { DISCLAIMER } from './levels.js';
+
+export { money };
 
 // ------------------------------------------------------------------ DOM bits
 
@@ -55,9 +62,24 @@ export function button(label, className, onClick, {
   return node;
 }
 
-/** The money, as a player reads it. */
-export function money(dollars) {
-  return `$${dollars.toLocaleString('en-US')}`;
+/**
+ * A screen that failed to load its data: one heading, a sentence a player can
+ * act on, a retry, and the technical detail last - still there for whoever is
+ * debugging a local server, but no longer the first thing a player reads.
+ *
+ * role="alert" on the view itself, because replacing the loading screen with
+ * this said nothing to a screen reader before - see docs/DESIGN_REVIEW.md.
+ */
+export function errorView(title, detail) {
+  const view = h('div', 'view');
+  view.setAttribute('role', 'alert');
+  view.append(h('h1', null, title));
+  view.append(h('p', 'lede',
+    'Something went wrong loading this page. Check your connection and try again.'));
+  view.append(button('Try again', 'btn btn-quiet', () => globalThis.location.reload()));
+  view.append(h('p', 'error', detail));
+  view.append(h('p', 'disclaimer-inline', DISCLAIMER));
+  return view;
 }
 
 // -------------------------------------------------------------- the picker
@@ -83,7 +105,7 @@ export function tickerPicker(build, { groups, redraw, reasonFor = () => null }) 
     if (names.length === 0) continue;
 
     const section = h('section', 'picker-group');
-    section.append(h('h3', 'picker-group-label', group.label));
+    section.append(h('h2', 'picker-group-label', group.label));
     const row = h('div', 'picker-row');
     for (const ticker of names) {
       const held = build.hasPick(ticker);
@@ -167,7 +189,7 @@ function dollarsSpoken(dollars) {
  */
 export function allocator(build, { redraw }) {
   const wrap = h('div', 'allocator');
-  wrap.append(h('h3', 'allocator-head', `Split your ${money(build.total)}`));
+  wrap.append(h('h2', 'allocator-head', `Split your ${money(build.total)}`));
 
   // MONEY LEFT, ABOVE THE SLIDERS. It is the number that decides whether the
   // player can leave this screen, so it goes where they are looking before they

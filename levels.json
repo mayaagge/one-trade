@@ -401,7 +401,7 @@
       "title": "Crash test",
       "concept": "Behaviour under stress",
       "challenge": "Build a 4-holding portfolio with at least 60% in stocks, then hold it through the February to March 2020 crash. Fall less than half as much as the S&P 500.",
-      "hint": "Sixty percent has to sit in stocks, so the question is WHICH stocks. Through February and March 2020 the companies people kept paying for fell far less than the ones they stopped paying for.",
+      "hint": "Sixty percent has to sit in stocks, so the question is which stocks. Through February and March 2020 the companies people kept paying for fell far less than the ones they stopped paying for.",
       "holdings": {
         "exactly": 4,
         "minShareIn": {

@@ -44,7 +44,11 @@ import {
   equalWeightBasket,
   riskShares,
 } from './math.js';
-import { formatMeasure } from './levels.js';
+import {
+  formatMeasure, withMinus, percent, signedPercent,
+} from './format.js';
+
+export { percent, signedPercent };
 
 export const WHY_URL = 'why.json';
 export const DISCLAIMER = 'Educational, not investment advice.';
@@ -309,29 +313,6 @@ export function fillTemplate(template, values) {
   return text;
 }
 
-/** A share of the portfolio, as a whole percent. */
-export function percent(share) {
-  if (!Number.isFinite(share)) throw new Error('percent: expected a number');
-  return `${Math.round(share * 100)}%`;
-}
-
-/**
- * A move over a window, as a signed whole percent: "+14%", "-2%", "0%".
- *
- * SIGNED, AND NOT WORDED. The crash cards name one holding's own move, and the
- * holding that cushioned a fall is sometimes one that rose and sometimes one that
- * merely fell least - TLT rose 14% through February 2020 and WMT fell 2% - so a
- * template cannot say "rose" or "fell" without being wrong half the time. Putting
- * the direction in the number keeps the sentence true either way, and keeps the
- * card a template filled in rather than a sentence chosen by code.
- */
-export function signedPercent(change) {
-  if (!Number.isFinite(change)) throw new Error('signedPercent: expected a number');
-  const whole = Math.round(change * 100);
-  // -0% is an artefact of rounding a tiny fall, and reads as a mistake.
-  if (whole === 0) return '0%';
-  return `${whole > 0 ? '+' : ''}${whole}%`;
-}
 
 /**
  * A correlation, as the card shows it.
@@ -357,7 +338,7 @@ export function formatCorrelation(r, threshold = null, places = undefined) {
  */
 export function formatBeta(beta) {
   if (!Number.isFinite(beta)) throw new Error('formatBeta: expected a number');
-  return beta.toFixed(2);
+  return withMinus(beta.toFixed(2));
 }
 
 // -------------------------------------------------------------------- facts

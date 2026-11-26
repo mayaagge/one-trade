@@ -21,6 +21,12 @@
 // Educational, not investment advice.
 
 import { withSource } from './share.js';
+// longDate() now lives in js/format.js, the one place that formats a date for
+// a player; imported here for use below and re-exported so every existing
+// `from './daily.js'` import keeps working unchanged.
+import { longDate } from './format.js';
+
+export { longDate };
 
 /** Where a player's progress is kept. Versioned: an old shape is not a new one. */
 export const STORAGE_KEY = 'oneTrade.daily.v1';
@@ -30,15 +36,6 @@ export const DISCLAIMER = 'Educational, not investment advice.';
 /** Right, and not right. Two marks only: the grid must give nothing away. */
 export const RIGHT = '🟩';
 export const WRONG = '⬜';
-
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'];
-
-/** 2026-11-25 as "25 November 2026". */
-export function longDate(date) {
-  const [year, month, day] = String(date).split('-');
-  return `${Number(day)} ${MONTHS[Number(month) - 1]} ${year}`;
-}
 
 /**
  * Today's date in New York, as YYYY-MM-DD.

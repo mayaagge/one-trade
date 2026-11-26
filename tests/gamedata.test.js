@@ -256,8 +256,8 @@ test('the live label the page shows names the last day of real data', () => {
   // docs/PRD.md, "Launch is done when": the status chip reads "Live prices
   // through [date]". The string is built here so the page cannot word it
   // differently from the data it came from.
-  assert.match(doc.meta.liveLabel, /^Live prices through \d{1,2} [A-Z][a-z]+ \d{4}$/);
-  assert.equal(doc.meta.liveLabel, 'Live prices through 24 November 2026');
+  assert.match(doc.meta.liveLabel, /^Live prices through \d{1,2} [A-Z][a-z]{2} \d{4}$/);
+  assert.equal(doc.meta.liveLabel, 'Live prices through 24 Nov 2026');
   assert.equal(doc.meta.disclaimer, DISCLAIMER);
 });
 

@@ -24,7 +24,7 @@
 // Educational, not investment advice.
 
 import { createScreen } from './screen.js';
-import { h, button } from './build.js';
+import { h, button, errorView } from './build.js';
 import { ABOUT } from './config.js';
 import { copyOut, shareOut } from './share.js';
 import { read, write } from './storage.js';
@@ -126,7 +126,13 @@ function gridRow(state) {
 /** The end of a day: the score, the grid, and the share. */
 function summary(state, onPlayToday) {
   const view = h('div', 'daily-summary');
-  view.append(h('h2', null, `${state.score} / ${state.entry.pairs.length}`));
+  // role="status" on the wrapper, not the heading itself, so the score is
+  // announced the moment the fifth answer draws this in without losing the
+  // h2's own heading semantics.
+  const scoreWrap = h('div', null);
+  scoreWrap.setAttribute('role', 'status');
+  scoreWrap.append(h('h2', null, `${state.score} / ${state.entry.pairs.length}`));
+  view.append(scoreWrap);
   view.append(gridRow(state));
 
   const text = shareText(state.answers, state.entry, shareUrl(ABOUT, globalThis.location ?? null));
@@ -233,13 +239,9 @@ export async function mountDaily(root, { now = null, storageKey = STORAGE_KEY } 
   try {
     [doc, tickers] = await Promise.all([loadJson(DAILY_URL), loadJson(TICKERS_URL)]);
   } catch (error) {
-    const failed = h('div', 'view');
-    failed.append(h('h1', null, 'Same bet?'));
-    failed.append(h('p', 'error',
+    root.replaceChildren(errorView('Same bet?',
       `The puzzle could not load: ${error.message}. Serve the page from the project root `
       + 'with "python3 -m http.server 8000".'));
-    failed.append(h('p', 'disclaimer-inline', DISCLAIMER));
-    root.replaceChildren(failed);
     return null;
   }
 

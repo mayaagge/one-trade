@@ -462,23 +462,10 @@ export function createBuild(pool, {
 
 // ------------------------------------------------------------------ dates
 
-const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-/**
- * An ISO date as "Mon D" - "Feb 19" - for Crash replay's x-axis and tooltip.
- *
- * Every window sits inside one calendar year, so the year is left off; parsed
- * straight out of the string rather than through a Date object, which would
- * read the day back in whatever timezone the browser is in.
- */
-export function formatShortDate(isoDate) {
-  const [, month, day] = String(isoDate).split('-');
-  const index = Number(month) - 1;
-  if (!(index >= 0 && index < 12) || !Number.isFinite(Number(day))) {
-    throw new Error(`formatShortDate: "${isoDate}" is not an ISO date`);
-  }
-  return `${MONTH_ABBR[index]} ${Number(day)}`;
-}
+// formatShortDate() now lives in js/format.js, the one place that formats a
+// date for a player; re-exported here so every existing `from './crash.js'`
+// import keeps working unchanged.
+export { formatShortDate } from './format.js';
 
 /** Read data/crashes.json. The caller handles the failure, as with game.json. */
 export async function loadCrashes(url = CRASHES_URL) {

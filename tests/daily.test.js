@@ -330,7 +330,7 @@ test('a group the ticker file does not name still reads', () => {
 test('the window is named, and so is the fact that level 1 uses another one', () => {
   const line = windowLine(ENTRY);
   assert.match(line, /252 trading days/);
-  assert.match(line, /25 November 2026/);
+  assert.match(line, /25 Nov 2026/);
   assert.match(line, /last year/i);
 });
 

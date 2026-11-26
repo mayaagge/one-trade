@@ -24,6 +24,7 @@
 
 import { loadGameData, DISCLAIMER } from './gameView.js';
 import { validateLevels, displayFor, formatGuess, levelById, LEVELS_URL } from './levels.js';
+import { longDate } from './format.js';
 import { BUILD, GUESS, REVEAL, createRound, createSeries, isSeries } from './round.js';
 import { WHY_URL, groupIndex, pickSeriesWhy, seriesFacts, validateWhy } from './why.js';
 import { CRASHES_URL, loadCrashes } from './crash.js';
@@ -34,7 +35,9 @@ import { chartSpecFor, fallSentence, pickReason } from './crashReplay.js';
 import { renderLineChart, chartBox } from './chart.js';
 // The build screen, shared with Crash replay - and with Sandbox and My real
 // portfolio when they arrive. See the note at the top of js/build.js.
-import { h, button, money, tickerPicker, allocator, floorNotes } from './build.js';
+import {
+  h, button, money, tickerPicker, allocator, floorNotes, errorView,
+} from './build.js';
 // Saved progress: the stars a player keeps, and which levels are open.
 import {
   clearProgress, guessError, isUnlocked, loadProgress, playedLevels, recordLevel,
@@ -389,7 +392,7 @@ function renderBuild(ctx, round) {
     // "Your starter portfolio" is level 2's phrase and is wrong on a capstone:
     // nothing about the seventh level is a start. The series says which of the
     // three this is, which is also what the player needs to know here.
-    view.append(h('h3', 'allocator-head', ctx.series
+    view.append(h('h2', 'allocator-head', ctx.series
       ? `Mystery portfolio ${ctx.series.at + 1} of ${ctx.series.count}`
       : 'Your starter portfolio'));
     const list = h('ul', 'holding-list');
@@ -482,7 +485,9 @@ export function renderGuess(ctx, round) {
   const level = round.level;
   const view = h('div', 'view view-round');
   view.append(roundHead(ctx, round, 'Guess'));
-  view.append(h('p', 'lede', level.guess.prompt));
+  const prompt = h('label', 'lede', level.guess.prompt);
+  prompt.setAttribute('for', 'guess-slider-input');
+  view.append(prompt);
 
   view.append(h('p', 'guess-holdings', round.picks.join(' · ')));
 
@@ -501,11 +506,11 @@ export function renderGuess(ctx, round) {
   // what a range input does natively - no click handler of our own.
   const slider = h('input', state.className);
   slider.type = 'range';
+  slider.id = 'guess-slider-input';
   slider.min = String(state.min);
   slider.max = String(state.max);
   slider.step = String(state.step);
   slider.value = String(state.value);
-  slider.setAttribute('aria-label', level.guess.prompt);
   if (state.valueText) slider.setAttribute('aria-valuetext', state.valueText);
 
   const reveal = button('Reveal the answer', 'btn btn-primary btn-wide', () => {
@@ -763,7 +768,7 @@ export function renderReveal(ctx, round) {
     // the portfolio only on the screen before. The summary lists all three again.
     view.append(h('p', 'note', result.tickers
       .map((ticker) => `${ticker} ${money(result.dollars[ticker])}`).join(' · ')));
-    view.append(h('p', 'note', `Measured over ${windowDays(result)} trading days, ${result.startDate} to ${result.endDate}.`));
+    view.append(h('p', 'note', `Measured over ${windowDays(result)} trading days, ${longDate(result.startDate)} to ${longDate(result.endDate)}.`));
     view.append(h('p', 'note', last
       ? 'That is the third. Next you will see all three together.'
       : `Portfolio ${series.at + 1} of ${series.count} answered. The next one comes with no hints from this one.`));
@@ -793,7 +798,7 @@ export function renderReveal(ctx, round) {
   // text reads as the lesson behind it.
   if (result.whyCard) {
     const card = h('section', 'why-card');
-    card.append(h('h3', 'why-card-head', 'Why?'));
+    card.append(h('h2', 'why-card-head', 'Why?'));
     // Two templates from why.json, rendered as two lines. They are never joined
     // into one string: see the note at the top of js/why.js.
     if (result.whyCard.leadIn) card.append(h('p', 'why-card-lead', result.whyCard.leadIn));
@@ -802,7 +807,7 @@ export function renderReveal(ctx, round) {
   }
 
   // Headed "The idea" rather than "Why", which the card above now carries.
-  view.append(h('h3', null, 'The idea'));
+  view.append(h('h2', 'section-head', 'The idea'));
   view.append(h('p', 'explain', level.explain));
   view.append(h('p', 'explain', level.why));
 
@@ -810,7 +815,7 @@ export function renderReveal(ctx, round) {
     .map((t) => (round.usesMoney ? `${t} ${money(result.dollars[t])}` : t))
     .join(' · '));
   view.append(holdings);
-  view.append(h('p', 'note', `Measured over ${windowDays(result)} trading days, ${result.startDate} to ${result.endDate}.`));
+  view.append(h('p', 'note', `Measured over ${windowDays(result)} trading days, ${longDate(result.startDate)} to ${longDate(result.endDate)}.`));
 
   // The card. Below the level, above the buttons that leave it: a player reads
   // what happened, then decides whether to post it.
@@ -967,7 +972,7 @@ export function renderSeriesSummary(ctx, series) {
   // The three, in the order they were played, each with what it held, what it
   // answered and what was guessed. This is the table a player reads to find
   // their own mistake, so the holdings are here and not only on the reveal.
-  view.append(h('h3', null, 'Your three guesses'));
+  view.append(h('h2', 'section-head', 'Your three guesses'));
   const list = h('ol', 'series-list');
   series.answers.forEach((answerRow, index) => {
     const result = series.rounds[index].result;
@@ -988,18 +993,18 @@ export function renderSeriesSummary(ctx, series) {
 
   if (series.whyCard) {
     const card = h('section', 'why-card');
-    card.append(h('h3', 'why-card-head', 'Why?'));
+    card.append(h('h2', 'why-card-head', 'Why?'));
     card.append(h('p', 'why-card-text', series.whyCard.text));
     view.append(card);
   }
 
-  view.append(h('h3', null, 'The idea'));
+  view.append(h('h2', 'section-head', 'The idea'));
   view.append(h('p', 'explain', level.explain));
   view.append(h('p', 'explain', level.why));
 
   const days = series.rounds[0].result.days;
   const first = series.rounds[0].result;
-  view.append(h('p', 'note', `Each portfolio measured over ${days} trading days, ${first.startDate} to ${first.endDate}.`));
+  view.append(h('p', 'note', `Each portfolio measured over ${days} trading days, ${longDate(first.startDate)} to ${longDate(first.endDate)}.`));
 
   // Level 7's card is built from the VERDICT and nothing else - not from the
   // three results - because the stars are all it is allowed to know. Its three
@@ -1103,11 +1108,7 @@ export async function mountLearn(root, { session = null, progress = null } = {})
     crashes = await loadCrashes();
   } catch (error) {
     root.replaceChildren();
-    const failed = h('div', 'view');
-    failed.append(h('h1', null, 'Learn'));
-    failed.append(h('p', 'error', `The game could not load its data: ${error.message}. Serve the page from the project root with "python3 -m http.server 8000", and check that data/game.json and ${CRASHES_URL} are there.`));
-    failed.append(h('p', 'disclaimer-inline', DISCLAIMER));
-    root.append(failed);
+    root.append(errorView('Learn', `The game could not load its data: ${error.message}. Serve the page from the project root with "python3 -m http.server 8000", and check that data/game.json and ${CRASHES_URL} are there.`));
     return null;
   }
 

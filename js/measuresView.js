@@ -22,7 +22,7 @@
 // Educational, not investment advice.
 
 import { h, money } from './build.js';
-import { formatMeasure } from './levels.js';
+import { formatMeasure, longDate, signedPoints } from './format.js';
 import { BETS_NOTE } from './measures.js';
 import { formatBeta, percent } from './why.js';
 
@@ -49,7 +49,7 @@ export function measureRow(label, value, note) {
  */
 export function riskTable(result) {
   const wrap = h('section', 'measure-table');
-  wrap.append(h('h3', null, 'Where the money is, and where the risk is'));
+  wrap.append(h('h2', 'section-head', 'Where the money is, and where the risk is'));
   const table = h('table', 'shares-table');
 
   const headRow = h('tr', null);
@@ -75,8 +75,7 @@ export function riskTable(result) {
     row.append(h('td', null, percent(holding.riskShare)));
     // The gap in percentage POINTS, signed, because that is what it is: the
     // difference between two shares, not a change in one of them.
-    const points = Math.round(holding.gap * 100);
-    row.append(h('td', 'shares-gap', points === 0 ? '0' : `${points > 0 ? '+' : ''}${points}`));
+    row.append(h('td', 'shares-gap', signedPoints(holding.gap * 100)));
     body.append(row);
   }
   table.append(body);
@@ -109,7 +108,7 @@ export function rankedPairs(result) {
 
 export function correlationPanel(result) {
   const wrap = h('section', 'measure-table');
-  wrap.append(h('h3', null, 'Which holdings move together'));
+  wrap.append(h('h2', 'section-head', 'Which holdings move together'));
   const pairs = rankedPairs(result);
   const shown = pairs.slice(0, PAIRS_SHOWN);
 
@@ -117,7 +116,7 @@ export function correlationPanel(result) {
   for (const pair of shown) {
     const item = h('li', 'pair-row');
     item.append(h('span', 'pair-names', `${pair.a} and ${pair.b}`));
-    item.append(h('span', 'pair-value', formatMeasure(pair.r, { places: 3 })));
+    item.append(h('span', 'pair-value', formatMeasure(pair.r, { places: 2 })));
     list.append(item);
   }
   wrap.append(list);
@@ -144,7 +143,7 @@ export function correlationPanel(result) {
  */
 export function stressPanel(result) {
   const wrap = h('section', 'measure-table');
-  wrap.append(h('h3', null, 'If the AI basket fell'));
+  wrap.append(h('h2', 'section-head', 'If the AI basket fell'));
   const fall = percent(Math.abs(result.loss.shock));
 
   wrap.append(measureRow(
@@ -200,5 +199,5 @@ export function betsPanel(result, { label = 'holdings' } = {}) {
 /** The window every measure above was taken over. */
 export function windowNote(result) {
   return h('p', 'note', `Measured over ${result.days} trading days, `
-    + `${result.startDate} to ${result.endDate}.`);
+    + `${longDate(result.startDate)} to ${longDate(result.endDate)}.`);
 }

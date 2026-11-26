@@ -8,7 +8,7 @@
   "decimals": 12,
   "firstDate": "2023-11-07",
   "liveThrough": "2026-11-25",
-  "liveLabel": "Live prices through 25 November 2026",
+  "liveLabel": "Live prices through 25 Nov 2026",
   "calendarTicker": "^GSPC",
   "researchFreezeDate": "2026-11-24",
   "windowNote": "The most recent 766 trading days of daily simple returns, as docs/PRD.md registers for the covariance window. One row per trading day: the date, then one return per ticker in the order of the tickers list.",

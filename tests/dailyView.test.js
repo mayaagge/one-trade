@@ -131,7 +131,7 @@ test('clicking an answer locks it and reveals the pair', async () => {
 
     const text = textOf(root);
     assert.match(text, /VXUS \(International funds\) and QQQ \(Core US funds\): 0\.82, the same bet/);
-    assert.match(text, /Over the last year \(252 trading days\), as of 25 November 2026\./);
+    assert.match(text, /Over the last year \(252 trading days\), as of 25 Nov 2026\./);
     assert.match(text, /Right\./);
     // The surprise line, because this pair is one.
     assert.match(text, /Different groups, same bet: these two moved together over the last year\./);
@@ -249,7 +249,7 @@ test('midnight mid-puzzle: finish yesterday, then today is offered', async () =>
   const { root, restore } = browser({ daily: doc, store });
   try {
     await mountDaily(root, { now: '2026-11-28' });
-    assert.match(textOf(root), /You started 27 November 2026's puzzle before midnight/);
+    assert.match(textOf(root), /You started 27 Nov 2026's puzzle before midnight/);
     assert.match(textOf(root), /Pair 4 of 5/);
 
     for (const answer of ['different', 'different']) {
@@ -257,7 +257,7 @@ test('midnight mid-puzzle: finish yesterday, then today is offered', async () =>
       buttons[ANSWERS.findIndex((a) => a.key === answer)].click();
     }
     const text = textOf(root);
-    assert.match(text, /That was 27 November 2026's puzzle, which you had already started\./);
+    assert.match(text, /That was 27 Nov 2026's puzzle, which you had already started\./);
 
     // And today is a button, not something that happened to the player.
     const play = root.all().find((n) => n._text === "Play today's puzzle");

@@ -21,7 +21,7 @@
 //
 // Educational, not investment advice.
 
-import { h, button } from './build.js';
+import { h, button, errorView } from './build.js';
 import { ABOUT } from './config.js';
 import { read, write } from './storage.js';
 import { DISCLAIMER, LEVELS_URL, validateLevels, formatGuess } from './levels.js';
@@ -83,13 +83,9 @@ export async function mountWeekly(root, { now = null, storageKey = WEEKLY_STORAG
     validateLevels(levels);
     validateWhy(why);
   } catch (error) {
-    const failed = h('div', 'view');
-    failed.append(h('h1', null, 'Weekly challenge'));
-    failed.append(h('p', 'error',
+    root.replaceChildren(errorView('Weekly challenge',
       `The weekly challenge could not load: ${error.message}. Serve the page from the project root `
       + 'with "python3 -m http.server 8000".'));
-    failed.append(h('p', 'disclaimer-inline', DISCLAIMER));
-    root.replaceChildren(failed);
     return null;
   }
 
@@ -165,7 +161,7 @@ export async function mountWeekly(root, { now = null, storageKey = WEEKLY_STORAG
   const drawReveal = () => {
     const view = renderReveal(context, round);
     view.append(h('p', 'note',
-      `Measured over ${round.result.days} trading days to ${round.result.endDate}, the Friday before `
+      `Measured over ${round.result.days} trading days to ${longDate(round.result.endDate)}, the Friday before `
       + 'this week started - so everybody playing this week gets the same answer.'));
     view.append(h('p', 'disclaimer-inline', DISCLAIMER));
     root.replaceChildren(view);

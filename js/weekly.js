@@ -162,11 +162,7 @@ export function todayInNewYork(now = new Date(), timeZone = 'America/New_York') 
   }).format(now);
 }
 
-/** A date as a player reads it: 30 November 2026. */
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'];
-
-export function longDate(date) {
-  const [y, m, d] = String(date).split('-').map(Number);
-  return `${d} ${MONTHS[m - 1]} ${y}`;
-}
+// longDate() now lives in js/format.js, the one place that formats a date for
+// a player; re-exported here so every existing `from './weekly.js'` import
+// keeps working unchanged.
+export { longDate } from './format.js';

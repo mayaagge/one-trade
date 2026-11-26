@@ -22,7 +22,9 @@
 //
 // Educational, not investment advice.
 
-import { h, button, money, tickerPicker, allocator } from './build.js';
+import {
+  h, button, money, tickerPicker, allocator, errorView,
+} from './build.js';
 import { renderLineChart, chartBox, niceStep, DEFAULT_PADDING } from './chart.js';
 // Putting a view on the page without losing the scroll position or the focused
 // control - see the long note at the top of js/screen.js.
@@ -266,11 +268,7 @@ export async function mountCrash(root) {
     tickersDoc = await tickersResponse.json();
   } catch (error) {
     root.replaceChildren();
-    const failed = h('div', 'view');
-    failed.append(h('h1', null, 'Crash replay'));
-    failed.append(h('p', 'error', `Crash replay could not load its data: ${error.message}. Serve the page from the project root with "python3 -m http.server 8000", and check that data/crashes.json is there (run "node scripts/build_crash_data.mjs --write" if not).`));
-    failed.append(h('p', 'disclaimer-inline', DISCLAIMER));
-    root.append(failed);
+    root.append(errorView('Crash replay', `Crash replay could not load its data: ${error.message}. Serve the page from the project root with "python3 -m http.server 8000", and check that data/crashes.json is there (run "node scripts/build_crash_data.mjs --write" if not).`));
     return null;
   }
 

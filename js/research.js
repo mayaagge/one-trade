@@ -11,6 +11,8 @@
 // chart, and enters no verdict. Nothing else on this page computes anything.
 
 import { renderLineChart, yearEndSample, chartBox } from './chart.js';
+import { longDate } from './format.js';
+import { errorView } from './build.js';
 
 // chartBox() moved to js/chart.js so Crash replay's chart sizes by the same
 // rule; re-exported here unchanged so this file's own callers and tests are
@@ -210,7 +212,7 @@ function renderHypothesis1(results) {
   head.append(h('p', 'claim', CLAIMS.hypothesis1), verdictChip(h1.verdict));
   node.append(head);
   node.append(paragraph(
-    `500 beginner portfolios and 500 control portfolios, 3 to 8 holdings each, drawn with seed ${h1.seed} and scored on the same ${h1.days} trading days (${h1.window.startDate} to ${h1.window.endDate}).`,
+    `500 beginner portfolios and 500 control portfolios, 3 to 8 holdings each, drawn with seed ${h1.seed} and scored on the same ${h1.days} trading days (${longDate(h1.window.startDate)} to ${longDate(h1.window.endDate)}).`,
     'panel-sub',
   ));
 
@@ -359,7 +361,7 @@ function renderRolling(registered, live) {
 
   if (mark) {
     wrap.append(paragraph(mark.date === '2022-11-30'
-      ? `30 November 2022, ChatGPT’s release, is marked at ${fmt(mark.value, 4)}. ${rolling.mark.note}`
+      ? `${longDate(mark.date)}, ChatGPT’s release, is marked at ${fmt(mark.value, 4)}. ${rolling.mark.note}`
       : rolling.mark.note, 'note'));
   }
 
@@ -554,10 +556,6 @@ export async function mountResearch(root) {
     });
   } catch (error) {
     root.replaceChildren();
-    const failed = h('div', 'view');
-    failed.append(h('h1', null, 'Research'));
-    failed.append(paragraph(`The research results could not be loaded: ${error.message}. Run "node scripts/run_research.mjs" to regenerate data/results.json, and serve the page from the project root.`, 'error'));
-    failed.append(paragraph(DISCLAIMER, 'disclaimer-inline'));
-    root.append(failed);
+    root.append(errorView('Research', `The research results could not be loaded: ${error.message}. Run "node scripts/run_research.mjs" to regenerate data/results.json, and serve the page from the project root.`));
   }
 }

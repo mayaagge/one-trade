@@ -228,7 +228,7 @@ export const CRASH_LESSONS = [
       key: 'crashCushionElsewhere',
       values: {
         ticker: 'TLT', move: '+14%', indexMove: '34%', dollarPct: '20%',
-        otherWindow: 'the 2022 bear market', otherMove: '-29%', otherIndexMove: '25%',
+        otherWindow: 'the 2022 bear market', otherMove: '−29%', otherIndexMove: '25%',
       },
     },
     note: 'TLT rose 14% here and fell 29% against the index\'s 25% in 2022, both read from data/crashes.json',
@@ -238,7 +238,7 @@ export const CRASH_LESSONS = [
     what: 'Level 6 missed: banks and oil behind exactly the same cushion',
     lesson: 'The other half of the pair. Same shape, same bonds, and the card names what did the damage.',
     dollars: { JPM: 3000, XOM: 3000, TLT: 2000, BND: 2000 },
-    expect: { key: 'crashDrag', values: { ticker: 'XOM', move: '-48%', dollarPct: '30%' } },
+    expect: { key: 'crashDrag', values: { ticker: 'XOM', move: '−48%', dollarPct: '30%' } },
     note: 'XOM lost the most DOLLARS; it also fell the furthest, but the rule is dollars',
   },
   {
@@ -246,7 +246,7 @@ export const CRASH_LESSONS = [
     what: 'Level 6 passed with no holding that rose at all',
     lesson: 'A cushion is sometimes just the thing that fell least, and the card has to read correctly then too.',
     dollars: { WMT: 2500, JNJ: 2500, AMZN: 2500, QQQ: 2500 },
-    expect: { key: 'crashCushion', values: { ticker: 'WMT', move: '-2%', indexMove: '34%' } },
+    expect: { key: 'crashCushion', values: { ticker: 'WMT', move: '−2%', indexMove: '34%' } },
     note: 'Nothing rose, so the warning card stands itself down and the plain one answers',
   },
 ];

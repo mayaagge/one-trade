@@ -953,7 +953,7 @@ test('signedPercent puts the direction in the number, so no template has to', ()
   // The holding that cushions a fall sometimes rose and sometimes merely fell
   // least, so "rose" and "fell" cannot be written into a template.
   assert.equal(signedPercent(0.1423), '+14%');
-  assert.equal(signedPercent(-0.0246), '-2%');
+  assert.equal(signedPercent(-0.0246), '−2%', 'the true minus, not a hyphen');
   assert.equal(signedPercent(0), '0%');
   // A fall too small to round to a percent reads as 0%, not as -0%.
   assert.equal(signedPercent(-0.001), '0%');
@@ -999,7 +999,7 @@ test('a cushion that rose here and fell harder elsewhere carries the warning', (
     indexMove: '34%',
     dollarPct: '20%',
     otherWindow: 'the 2022 bear market',
-    otherMove: '-29%',
+    otherMove: '−29%',
     otherIndexMove: '25%',
   });
   assert.match(card.text, /You can watch that one in Crash replay\.$/);
@@ -1018,7 +1018,7 @@ test('the warning stands itself down when the cushion only fell least', () => {
   const card = crashCard({ WMT: 2500, JNJ: 2500, AMZN: 2500, QQQ: 2500 });
   assert.equal(card.key, 'crashCushion');
   assert.equal(card.values.ticker, 'WMT');
-  assert.equal(card.values.move, '-2%');
+  assert.equal(card.values.move, '−2%');
   assert.ok(!card.text.includes('not a cushion'));
 });
 
@@ -1026,7 +1026,7 @@ test('a missed replay names what took the portfolio down', () => {
   const card = crashCard({ JPM: 3000, XOM: 3000, TLT: 2000, BND: 2000 });
   assert.equal(card.key, 'crashDrag');
   assert.equal(card.values.ticker, 'XOM');
-  assert.equal(card.values.move, '-48%');
+  assert.equal(card.values.move, '−48%');
   assert.equal(card.values.dollarPct, '30%');
   // TLT rose in this round too, and is NOT what the card talks about: on a
   // missed round the question is what did the damage.

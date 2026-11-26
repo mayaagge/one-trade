@@ -30,7 +30,9 @@
 //
 // Educational, not investment advice.
 
-import { h, button, money } from './build.js';
+import {
+  h, button, money, errorView,
+} from './build.js';
 import { loadGameData } from './gameView.js';
 import { LEVELS_URL, validateLevels } from './levels.js';
 import { DISCLAIMER, measureAll } from './measures.js';
@@ -103,14 +105,25 @@ function footNotes(game) {
 
 // ----------------------------------------------------------- the entry screen
 
-/** A text box the screen can find again by name. */
-function box(name, { placeholder, aria, inputMode = null, list = null, value = '' }) {
+/**
+ * A text box the screen can find again by name, with a real visible <label> -
+ * the placeholder it used to carry alone disappears the moment a player
+ * types, and an aria-label with nothing on screen is not a label a sighted
+ * player can read either.
+ */
+function box(name, {
+  placeholder, aria, inputMode = null, list = null, value = '',
+}) {
+  const id = `entry-${name}`;
+  const field = h('div', 'entry-field');
+  const label = h('label', 'entry-field-label', aria);
+  label.setAttribute('for', id);
   const node = h('input', 'text-box');
   node.type = 'text';
+  node.id = id;
   node.value = value;
   node.setAttribute('data-box', name);
   node.setAttribute('placeholder', placeholder);
-  node.setAttribute('aria-label', aria);
   node.setAttribute('autocomplete', 'off');
   // A PHONE'S NUMBER KEYBOARD, without type="number". type="number" brings a
   // spinner nobody wants on a dollar amount, and - the reason it is actually
@@ -119,7 +132,8 @@ function box(name, { placeholder, aria, inputMode = null, list = null, value = '
   // the keyboard and leaves the text alone.
   if (inputMode) node.setAttribute('inputmode', inputMode);
   if (list) node.setAttribute('list', list);
-  return node;
+  field.append(label, node);
+  return { field, node };
 }
 
 /** The type-ahead list: every ticker this game carries. */
@@ -241,25 +255,27 @@ function renderEnter(ctx) {
   // reason beside them - boxes that vanish at fifteen look like a broken screen.
   const full = ctx.list.isFull();
   const entry = h('div', 'entry-row');
-  const tickerBox = box('ticker', {
+  const ticker = box('ticker', {
     placeholder: 'Ticker',
     aria: 'Ticker',
     list: TICKER_LIST_ID,
     value: ctx.typed.ticker,
   });
-  const dollarBox = box('dollars', {
+  const dollars = box('dollars', {
     placeholder: 'Amount in dollars',
     aria: 'Amount in dollars',
     inputMode: 'numeric',
     value: ctx.typed.dollars,
   });
+  const tickerBox = ticker.node;
+  const dollarBox = dollars.node;
   // Typing is remembered as it happens, so a redraw - which a refused row causes
   // - does not wipe what was typed.
   tickerBox.addEventListener('input', () => { ctx.typed.ticker = tickerBox.value; });
   dollarBox.addEventListener('input', () => { ctx.typed.dollars = dollarBox.value; });
   tickerBox.disabled = full;
   dollarBox.disabled = full;
-  entry.append(tickerBox, dollarBox);
+  entry.append(ticker.field, dollars.field);
   // An id, so the Add button keeps focus after the row it added is drawn in.
   entry.append(button('Add', 'btn btn-quiet', () => ctx.addHolding(), {
     disabled: full, id: 'add-holding',
@@ -362,13 +378,9 @@ export async function mountMyPortfolio(root) {
     game = await loadGameData();
   } catch (error) {
     root.replaceChildren();
-    const failed = h('div', 'view');
-    failed.append(h('h1', null, 'My real portfolio'));
-    failed.append(h('p', 'error', `My real portfolio could not load its data: ${error.message}. `
+    root.append(errorView('My real portfolio', `My real portfolio could not load its data: ${error.message}. `
       + 'Serve the page from the project root with "python3 -m http.server 8000", and check '
       + 'that data/game.json is there.'));
-    failed.append(h('p', 'disclaimer-inline', DISCLAIMER));
-    root.append(failed);
     return null;
   }
 

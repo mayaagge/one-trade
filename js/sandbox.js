@@ -33,7 +33,9 @@
 //
 // Educational, not investment advice.
 
-import { h, button, money, tickerPicker, allocator } from './build.js';
+import {
+  h, button, money, tickerPicker, allocator, errorView,
+} from './build.js';
 import { createBuild } from './crash.js';
 import { loadGameData } from './gameView.js';
 import { LEVELS_URL, validateLevels } from './levels.js';
@@ -164,13 +166,9 @@ export async function mountSandbox(root) {
     game = await loadGameData();
   } catch (error) {
     root.replaceChildren();
-    const failed = h('div', 'view');
-    failed.append(h('h1', null, 'Sandbox'));
-    failed.append(h('p', 'error', `Sandbox could not load its data: ${error.message}. Serve the `
+    root.append(errorView('Sandbox', `Sandbox could not load its data: ${error.message}. Serve the `
       + 'page from the project root with "python3 -m http.server 8000", and check that '
       + 'data/game.json is there.'));
-    failed.append(h('p', 'disclaimer-inline', DISCLAIMER));
-    root.append(failed);
     return null;
   }
 

@@ -5,19 +5,18 @@
 // without reading code. What lives here is the logic that applies those rules,
 // and it is pure - no DOM, no fetch, no prices.
 
+// CLOSE_TO_THRESHOLD and formatMeasure() now live in js/format.js, the one
+// place that formats a number for a player; imported here for use below and
+// re-exported so every existing `from './levels.js'` import keeps working.
+import { CLOSE_TO_THRESHOLD, formatMeasure, withMinus } from './format.js';
+
 export const LEVELS_URL = 'levels.json';
 export const DISCLAIMER = 'Educational, not investment advice.';
 
 /** The pretend money a player allocates, in dollars. */
 export const STARTING_DOLLARS = 10000;
 
-/**
- * How close to a threshold a result has to be before it is shown to 4 decimals
- * instead of 2. docs/PRD.md: "A displayed number never disagrees with the pass
- * check." VTI and VXUS correlate at 0.800 over the current window, so this is
- * not a hypothetical.
- */
-export const CLOSE_TO_THRESHOLD = 0.005;
+export { CLOSE_TO_THRESHOLD, formatMeasure };
 
 /**
  * How many decimals a revealed answer carries, unless its level says otherwise
@@ -1068,47 +1067,6 @@ function meetsBand(level, band, guess, actual) {
 // ------------------------------------------------------------------ display
 
 /**
- * Format a measure so that what it shows can never contradict the pass check.
- *
- * A result within CLOSE_TO_THRESHOLD of its threshold, or one that would round
- * to the same text as the threshold, is shown to 4 decimals. So 0.7996 against a
- * 0.8 threshold reads "0.7996" and fails, rather than reading "0.80" and failing.
- */
-export function formatMeasure(value, {
-  threshold = null, places = 2, closePlaces = 4, display = 'number',
-} = {}) {
-  if (!Number.isFinite(value)) return '—';
-  if (display === 'percent') return formatPercentMeasure(value, threshold);
-  if (display !== 'number') throw new Error(`formatMeasure: unknown display "${display}"`);
-  if (threshold !== null && Number.isFinite(threshold)) {
-    const near = Math.abs(value - threshold) <= CLOSE_TO_THRESHOLD;
-    const collides = value.toFixed(places) === threshold.toFixed(places) && value !== threshold;
-    if (near || collides) return value.toFixed(closePlaces);
-  }
-  return value.toFixed(places);
-}
-
-/**
- * A share of 1, shown as a percent, under the same rule.
- *
- * The closeness test is done in the measure's own units, where CLOSE_TO_THRESHOLD
- * is 0.005 - half a percentage point, which is exactly the width a whole percent
- * can round across. So a biggest risk share of 0.3549 against level 5's 35%
- * reads "35.49%" and fails, never "35%" and fails.
- */
-function formatPercentMeasure(value, threshold) {
-  const places = 0;
-  const closePlaces = 2;
-  if (threshold !== null && Number.isFinite(threshold)) {
-    const near = Math.abs(value - threshold) <= CLOSE_TO_THRESHOLD;
-    const collides = (100 * value).toFixed(places) === (100 * threshold).toFixed(places)
-      && value !== threshold;
-    if (near || collides) return `${(100 * value).toFixed(closePlaces)}%`;
-  }
-  return `${(100 * value).toFixed(places)}%`;
-}
-
-/**
  * A guess, written the way its level's slider reads it.
  *
  * Level 5's guess is a share of 1 and reads as a whole percent, so the slider
@@ -1119,8 +1077,8 @@ function formatPercentMeasure(value, threshold) {
 export function formatGuess(level, value) {
   if (!Number.isFinite(value)) return '—';
   const { display, places } = displayFor(level);
-  if (display === 'percent') return `${(100 * value).toFixed(0)}%`;
-  return value.toFixed(places);
+  if (display === 'percent') return withMinus(`${(100 * value).toFixed(0)}%`);
+  return withMinus(value.toFixed(places));
 }
 
 /**

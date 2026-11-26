@@ -118,15 +118,21 @@ export const GAME_PATH = 'data/game.json';
 /** Files this script must never write, whatever it is asked to do. */
 const PROTECTED = ['data/prices.json', 'data/results.json'];
 
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'];
+const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-/** "2026-11-24" -> "24 November 2026", without depending on the runner's locale. */
+/**
+ * "2026-11-24" -> "24 Nov 2026", without depending on the runner's locale.
+ *
+ * The one date style a player reads, also js/format.js's longDate() - kept as
+ * its own copy here because this script runs under Node outside the browser
+ * bundle, held to the same style by tests/gamedata.test.js.
+ */
 export function longDate(date) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(date));
   if (!match) throw new Error(`longDate: ${date} is not a YYYY-MM-DD date`);
   const [, year, month, day] = match;
-  return `${Number(day)} ${MONTHS[Number(month) - 1]} ${year}`;
+  return `${Number(day)} ${MONTH_ABBR[Number(month) - 1]} ${year}`;
 }
 
 /**

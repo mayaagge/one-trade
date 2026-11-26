@@ -26,6 +26,7 @@ import { mountWeekly } from '../js/weeklyView.js';
 import { WEEKLY_STORAGE_KEY, mondayOf, portfolioFor } from '../js/weekly.js';
 import { validateLevels } from '../js/levels.js';
 import { cardText, shareMessage, hidesValue } from '../js/shareCard.js';
+import { longDate } from '../js/format.js';
 
 const root = new URL('..', import.meta.url);
 const readJson = (name) => JSON.parse(readFileSync(fileURLToPath(new URL(name, root)), 'utf8'));
@@ -99,7 +100,7 @@ test('the answer is measured to the Friday before, not to the latest day', async
     const anchor = view.state().anchor;
     assert.ok(anchor < mondayOf(PLAYING_DAY), `the window ends on ${anchor}, which is not before the Monday`);
     assert.equal(result.endDate, anchor, 'the round measured to a different day than the screen says');
-    assert.match(textOf(b.root), new RegExp(anchor));
+    assert.match(textOf(b.root), new RegExp(longDate(anchor)));
   } finally { b.restore(); }
 });
 
