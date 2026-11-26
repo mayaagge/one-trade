@@ -3173,3 +3173,110 @@ not that a level-less card rounds like a level's.
 857 tests pass.
 
 Educational, not investment advice.
+
+## The weekly challenge, 26 November 2026 (session 2.17)
+
+Milestone 2 step 8, part 2. One mystery portfolio a week, the same one for
+everybody, changing at midnight New York time on Monday. New: js/weekly.js,
+js/weeklyView.js, tests/weekly.test.js, tests/weeklyView.test.js, and a weekly
+block in levels.json.
+
+### The window question, answered before anything was built
+
+Every player in a week has to get the same answer, and data/game.json is rebuilt
+every weekday evening. Three measurements decided the design:
+
+* **The file does not keep enough days.** It holds exactly 756 rows ending on
+  the latest trading day, so a 756-day window ending on the previous Friday
+  falls short by one day on Monday and five by Friday.
+* **Anchoring on the Friday leaves a drift of 0.0217 bets** across a week, worst
+  case over the ten portfolios and eight sample weeks - the far end of the
+  window slides as old days drop off the front. The star bands are 1 and 0.5, so
+  this cannot change a star; it can move the second decimal.
+* **Yahoo re-adjusting past closes is worth 7.3e-7 bets.** Measured by diffing
+  two committed versions of data/game.json: 99% of the values changed between
+  refreshes, the worst by 1.16e-6 on a daily return, and the worst effect on an
+  ANSWER was seven orders of magnitude below the 0.01 the screen prints.
+
+So no frozen ledger. A ledger would be a second file, a second builder and a
+second freeze check to defend a number that moves less than the screen can show.
+The window ends on the Friday before, in windowEndingOn() - gameWindow() with a
+different right-hand edge, which returns the identical object when asked for the
+file's last day, and tests/weekly.test.js checks that rather than assuming it.
+Making the drift exactly zero costs one constant - keeping 766 days in the file
+instead of 756 - and that is its own commit, after this one.
+
+A holiday Friday needs no holiday calendar: anchorTradingDay() asks the prices
+which days exist rather than working out which ones should.
+
+### Spacing the ten so one number cannot win
+
+The first draft had six of ten answers inside 1.3 +/- 0.5, so a player typing
+1.3 every week earned 3 stars six weeks out of ten. The rule now: no four
+answers within a bet of each other, which caps a constant guess at 3 of 10. The
+ten run 1.11, 1.25, 1.52, 2.17, 2.37, 2.75, 3.22, 3.45, 3.84, 4.40, and the
+tightest four are 1.053 apart.
+
+**The thirds could not be thirds, and the arithmetic says why.** Three of the
+ten were kept deliberately (1.11, 1.25, 1.52 - two teaching pairs), and those
+three already fill one 1.0-wide window. Any fourth answer below 2.11 would make
+four, and 2.11 is above the 1.5 line, so "below 1.5" is capped at exactly two
+portfolios while those three stay. The split is 2 / 3 / 5.
+
+The same squeeze dropped both portfolios that were going to carry the bonds
+card: the three-fund starter at 1.05 sits inside the kept trio's window, and
+"everything except shares" at 1.90 is within a bet of 1.11.
+
+The test that guards all this computes the answers from the live data rather
+than from numbers written down beside the portfolios. A market that moves the
+ten together should turn the run red - that is the moment somebody needs to
+know, and it is the same bargain the weekly level checks already make.
+
+### A card that leads on one mode
+
+The bonds lesson - bonds steady a portfolio, and effective bets counts risk
+rather than money, so the quiet holding adds least to the count - is a rule in
+why.json like every other card, not text attached to two portfolios.
+
+Putting it above riskGapOver in the order broke two lesson portfolios in
+scripts/check_why_cards.mjs whose written-down lesson is the opposite emphasis:
+in "a small volatile holding among bond funds", the point is the holding
+CARRYING the risk, not the bonds that are not. Both portfolios are the same
+shape, and only the intended lesson differs - so no threshold could separate
+them.
+
+The answer was already in the file: `leads`. A rule with one leads outside
+why.json's order and speaks only on the round it names. quietNotABet leads on
+`mode: "weekly"`, so it is the card on the two weekly portfolios built around a
+quiet bond fund and is silent on every level. `mode` joined `measure` and
+`passed` in LEAD_MATCHES for it.
+
+### Nothing is sent, and the card says nothing
+
+A weekly guess is not one of the two messages docs/PRD.md allows the Worker, so
+no record is made: createRound() has no emitter and none is given one.
+tests/weeklyView.test.js plays a week with fetch watched and asserts the only
+requests are the four files the screen reads.
+
+The share card hides the answer, and this is a WIDER leak than levels 2 and 7,
+not a narrower one: everybody has the same portfolio this week, so one posted
+number would be the answer for every player who had not gone yet. The card
+carries the stars and a band, and never the guess. It does not carry the
+portfolio's NAME either - "Gold, bonds, oil and staples" is a list of the
+holdings in words - so the card says "Weekly challenge, week of 30 November
+2026" and nothing about what is in it. hidesValue() reads share.hidesAnswer when
+the file states it and still defaults to hiding anything dealt.
+
+### What the weekly borrows
+
+The round, the slider, the reveal panel, the "Why?" card, the stars and the
+share card, all unchanged: levels.json's weekly block is level-shaped, so
+createRound() takes it as a level with `level:` handed in. Two things it does
+not borrow - the window, which ends where it says, and the buttons at the end of
+a reveal, which moved into ctx.afterReveal(). Learn still offers the next level
+and a replay; the weekly offers neither, because its next portfolio comes on
+Monday and playing again would be a second go at the week.
+
+885 tests pass.
+
+Educational, not investment advice.

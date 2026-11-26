@@ -65,6 +65,7 @@ export const PLACEHOLDERS = {
   groupRisk: ['group', 'count', 'total', 'dollarPct', 'riskPct'],
   riskGapOver: ['ticker', 'dollarPct', 'riskPct'],
   riskGapUnder: ['ticker', 'dollarPct', 'riskPct'],
+  quietNotABet: ['ticker', 'dollarPct', 'riskPct'],
   hiddenAi: ['ticker', 'dollarPct', 'portfolioBeta', 'contribution'],
   hiddenAiAll: ['ticker', 'dollarPct', 'portfolioBeta'],
   overRiskLimit: ['ticker', 'riskPct', 'dollarPct', 'limitPct'],
@@ -81,7 +82,7 @@ export const PLACEHOLDERS = {
 export const RULE_KEYS = [
   'overRiskLimit', 'crashCushionElsewhere', 'crashCushion', 'crashDrag',
   'hiddenAiAll', 'hiddenAi', 'groupRisk', 'fewBets', 'pair', 'pairLowRisk',
-  'riskGapOver', 'riskGapUnder',
+  'riskGapOver', 'riskGapUnder', 'quietNotABet',
 ];
 
 /**
@@ -99,7 +100,17 @@ export const RULE_KEYS = [
  * list here, rather than letting why.json name any field it likes, is the same
  * rule the placeholders follow: a condition cannot be invented in the JSON alone.
  */
-export const LEAD_MATCHES = ['measure', 'passed'];
+/**
+ * What a round reports about itself, for a card that leads on one kind of round.
+ *
+ * `mode` is how the weekly challenge gets the card about bonds: its portfolios
+ * are chosen to teach, several of them hold a bond fund that takes a big share
+ * of the money and almost none of the risk, and that is the lesson there. On a
+ * LEVEL the same portfolio shape is usually a lesson about the loud holding
+ * instead, so quietNotABet keeps its ordinary low place in why.json's order
+ * everywhere else rather than outranking riskGapOver across the whole game.
+ */
+export const LEAD_MATCHES = ['measure', 'passed', 'mode'];
 
 /**
  * The lead-in lines, one of which opens a card on the levels that take one.
@@ -709,6 +720,30 @@ export function ruleCandidate(facts, rule, { pairThreshold = null, pairPlaces = 
         total: String(facts.total),
         dollarPct: percent(top.dollarShare),
         riskPct: percent(top.riskShare),
+      },
+    };
+  }
+
+  if (rule.key === 'quietNotABet') {
+    // THE LESSON A PLAYER WHO HOLDS BONDS MOST NEEDS. A bond fund can be half
+    // the money and a twentieth of the risk, and effective bets counts the
+    // risk - so the holding that makes the portfolio feel diversified is the
+    // one adding least to the number. riskGapUnder says the first half of
+    // that; this says what it does to the count, and only for a loan fund,
+    // because "bonds steady a portfolio" is not a sentence to print about an
+    // international fund that happens to be quiet this window.
+    const loans = new Set(when.tickers ?? []);
+    const quietest = facts.holdings
+      .filter((holding) => loans.has(holding.ticker))
+      .reduce((found, holding) => (found === null || holding.gap < found.gap ? holding : found), null);
+    if (quietest === null) return none;
+    return {
+      key: rule.key,
+      fires: -quietest.gap >= when.gapAtLeast,
+      values: {
+        ticker: quietest.ticker,
+        dollarPct: percent(quietest.dollarShare),
+        riskPct: percent(quietest.riskShare),
       },
     };
   }

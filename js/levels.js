@@ -28,6 +28,13 @@ export const CLOSE_TO_THRESHOLD = 0.005;
 export const REVEAL_PLACES = 2;
 
 /**
+ * How many portfolios the weekly challenge cycles through. Ten is about two
+ * and a half months before a player sees one again, by which time the prices
+ * have moved it anyway.
+ */
+export const WEEKLY_PORTFOLIOS = 10;
+
+/**
  * Slack on a star band, so binary floating point cannot cost a player a star.
  *
  * A guess of 0.82 against an actual of 0.92 is "within 0.10" in every sense a
@@ -128,6 +135,7 @@ export function validateLevels(data) {
 
   validateKinds(data);
   validateDailyPuzzle(data);
+  validateWeekly(data);
   validateGuessPool(data.guessPool);
   validateFinalPool(data.finalPool, data.guessPool);
   return data;
@@ -518,6 +526,86 @@ function validateBuckets(level) {
  * guess came and never the answer. A headline with {value} in it on such a
  * level would post the answer, so the file will not load with one.
  */
+/**
+ * The weekly challenge: ten portfolios, a first Monday, and a card that must
+ * not give the week away.
+ *
+ * IT IS NOT A LEVEL and is not in the levels array - it has no place in the
+ * ladder and earns nothing towards it - but it is LEVEL-SHAPED, so js/round.js,
+ * the "Why?" cards and the share card work on it unchanged. What is checked
+ * here is the part that is its own: the ten, the Monday, and the spoiler rule.
+ *
+ * WHAT IS NOT CHECKED HERE, deliberately: that no weekly portfolio is a pool
+ * portfolio, and that the ten answers are spread far enough that one constant
+ * guess cannot score. Both are properties of the PRICES as much as of the file,
+ * so they live in tests/weekly.test.js where they are computed from
+ * data/game.json - a market that moves the answers together should turn a test
+ * run red, not stop the game from loading.
+ */
+export function validateWeekly(data) {
+  const weekly = data.weekly;
+  if (!weekly || typeof weekly !== 'object') throw new Error('weekly: the weekly block is missing');
+  const where = 'weekly';
+
+  if (!Array.isArray(weekly.portfolios) || weekly.portfolios.length !== WEEKLY_PORTFOLIOS) {
+    throw new Error(
+      `${where}: ${weekly.portfolios?.length ?? 0} portfolios, not ${WEEKLY_PORTFOLIOS}`,
+    );
+  }
+  const ids = new Set();
+  for (const portfolio of weekly.portfolios) {
+    if (typeof portfolio.id !== 'string' || !/^w\d\d$/.test(portfolio.id)) {
+      throw new Error(`${where}: "${portfolio.id}" is not a weekly id like w01`);
+    }
+    if (ids.has(portfolio.id)) throw new Error(`${where}: duplicate id ${portfolio.id}`);
+    ids.add(portfolio.id);
+    if (typeof portfolio.name !== 'string' || portfolio.name.length === 0) {
+      throw new Error(`${where}: ${portfolio.id} has no name`);
+    }
+    const total = totalDollars(portfolio);
+    if (total !== STARTING_DOLLARS) {
+      throw new Error(`${where}: ${portfolio.id} allocates ${total} dollars, not ${STARTING_DOLLARS}`);
+    }
+    if (Object.keys(portfolio.dollars).length < 2) {
+      throw new Error(`${where}: ${portfolio.id} holds one thing, which makes one bet by arithmetic`);
+    }
+  }
+
+  // The week turns over on a Monday, so the date the cycle counts from has to
+  // be one. A Tuesday here would put every later week half a week out.
+  if (typeof weekly.firstMonday !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(weekly.firstMonday)) {
+    throw new Error(`${where}: firstMonday must be a YYYY-MM-DD date`);
+  }
+  const [y, m, d] = weekly.firstMonday.split('-').map(Number);
+  if (new Date(Date.UTC(y, m - 1, d)).getUTCDay() !== 1) {
+    throw new Error(`${where}: firstMonday ${weekly.firstMonday} is not a Monday`);
+  }
+
+  if (weekly.window?.anchor !== 'fridayBefore') {
+    throw new Error(
+      `${where}: the window must be anchored "fridayBefore", or two players in one week `
+      + 'can be given different answers',
+    );
+  }
+  if (!Number.isFinite(weekly.window.days) || !Number.isFinite(weekly.window.minDays)) {
+    throw new Error(`${where}: the window needs days and minDays`);
+  }
+
+  // THE SPOILER RULE. Everybody has the same portfolio this week, so a card
+  // naming the answer tells every player who has not gone yet. validateShare()
+  // enforces the band wording; this insists the flag itself stays on.
+  if (weekly.share?.hidesAnswer !== true) {
+    throw new Error(
+      `${where}: share.hidesAnswer must be true - every player has the same portfolio this `
+      + 'week, so a card with the answer on it is a spoiler for all of them',
+    );
+  }
+  validateGuess(weekly);
+  validateStars(weekly);
+  validateShare(weekly);
+  return data;
+}
+
 function validateShare(level) {
   const where = `level ${level.id}`;
   const share = level.share;

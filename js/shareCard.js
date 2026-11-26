@@ -49,6 +49,11 @@ export const STARS = 3;
  * portfolio on every other level, so its number tells nobody else anything.
  */
 export function hidesValue(level) {
+  // An explicit answer in the file wins, so a mode that is dealt a portfolio
+  // can still say out loud which way it has chosen - and has to. The default
+  // is the safe one: anything dealt rather than built hides its answer unless
+  // the data says otherwise.
+  if (typeof level?.share?.hidesAnswer === 'boolean') return level.share.hidesAnswer;
   return level?.holdings?.fixed === true;
 }
 
@@ -97,22 +102,30 @@ export function shareHeadline(level, { stars, shown = null, value = null, holdin
  * @param {number} [options.holdings] how many holdings, for a headline that counts them
  * @param {string} [options.url]    where the game lives, before the source code
  */
-export function shareCardContent({ level, stars, shown = null, value = null, holdings = null, url = '' }) {
+export function shareCardContent({
+  level, stars, shown = null, value = null, holdings = null, url = '', subtitle = null,
+}) {
   if (!Number.isInteger(stars) || stars < 0 || stars > STARS) {
     throw new Error(`a share card needs 0 to ${STARS} stars, not ${stars}`);
   }
   const headline = shareHeadline(level, { stars, shown, value, holdings });
   const starsText = `${stars} of ${STARS} stars`;
-  const levelLine = `Level ${level.id} · ${level.title}`;
+  // A numbered level says which one. The weekly challenge has no number and is
+  // not in the ladder, so it says its own name - and never the portfolio's,
+  // which is a list of the holdings in words.
+  const named = Number.isInteger(level.id) ? `Level ${level.id} · ${level.title}` : level.title;
+  const levelLine = subtitle ? `${named} · ${subtitle}` : named;
   return {
     size: CARD_SIZE,
     wordmark: 'One Trade',
     levelLine,
     stars: { count: stars, of: STARS, text: starsText },
     headline,
-    link: withSource(url, SHARE_SOURCE),
+    // The source code docs/PRD.md asks every shared link to carry. The level
+    // cards say ?src=share; the weekly says ?src=weekly, from its own block.
+    link: withSource(url, level.share?.source ?? SHARE_SOURCE),
     disclaimer: DISCLAIMER,
-    fileName: `one-trade-level-${level.id}.png`,
+    fileName: `one-trade-${Number.isInteger(level.id) ? `level-${level.id}` : level.id}.png`,
     // What the card says, for a screen reader and for the share sheet's own
     // description. It is the same words in the same order as the picture.
     alt: `One Trade, ${levelLine}. ${starsText}. ${headline} ${DISCLAIMER}`,
@@ -144,9 +157,10 @@ export function shareMessage(content) {
 }
 
 /** A card for a one-question level, from the result js/round.js revealed. */
-export function cardFromResult(level, result, url = '') {
+export function cardFromResult(level, result, url = '', { subtitle = null } = {}) {
   return shareCardContent({
     level,
+    subtitle,
     stars: result.stars,
     shown: result.shown,
     value: result.value,

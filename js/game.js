@@ -301,7 +301,15 @@ export function guessSliderState(round) {
   };
 }
 
-function renderGuess(ctx, round) {
+/**
+ * The guess screen.
+ *
+ * Exported because the weekly challenge asks exactly this question about
+ * exactly this kind of portfolio, and a second copy of a slider that must not
+ * show a number before the player moves it is a second copy of the thing most
+ * worth getting right.
+ */
+export function renderGuess(ctx, round) {
   const level = round.level;
   const view = h('div', 'view view-round');
   view.append(roundHead(ctx, round, 'Guess'));
@@ -485,16 +493,28 @@ export function renderReveal(ctx, round) {
 
   // The card. Below the level, above the buttons that leave it: a player reads
   // what happened, then decides whether to post it.
-  view.append(shareRow(cardFromResult(level, result, shareUrl(ABOUT, globalThis.location ?? null))));
+  view.append(shareRow(cardFromResult(
+    level, result, shareUrl(ABOUT, globalThis.location ?? null), { subtitle: ctx.cardSubtitle ?? null },
+  )));
 
-  const next = ctx.nextLevelId(level.id);
-  if (next !== null) {
-    view.append(button(`Next: level ${next}`, 'btn btn-primary btn-wide', () => ctx.startRound(next)));
-  }
-  view.append(button('Play this level again', 'btn btn-quiet btn-wide', () => ctx.startRound(level.id)));
-  view.append(button('Back to the levels', 'btn btn-quiet btn-wide', () => ctx.toMenu()));
+  // WHERE TO GO NEXT BELONGS TO THE MODE. Learn offers the next level and a
+  // replay; the weekly challenge has neither - its next portfolio arrives on
+  // Monday, and playing this one again would be a second go at the week.
+  for (const node of (ctx.afterReveal ?? defaultAfterReveal)(ctx, round)) view.append(node);
   view.append(footNotes(ctx.game));
   return view;
+}
+
+/** Learn's own buttons: the next level, this one again, and the menu. */
+function defaultAfterReveal(ctx, round) {
+  const nodes = [];
+  const next = ctx.nextLevelId(round.level.id);
+  if (next !== null) {
+    nodes.push(button(`Next: level ${next}`, 'btn btn-primary btn-wide', () => ctx.startRound(next)));
+  }
+  nodes.push(button('Play this level again', 'btn btn-quiet btn-wide', () => ctx.startRound(round.level.id)));
+  nodes.push(button('Back to the levels', 'btn btn-quiet btn-wide', () => ctx.toMenu()));
+  return nodes;
 }
 
 // --------------------------------------------------------- the share card

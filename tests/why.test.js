@@ -152,7 +152,7 @@ test('every template in why.json uses only placeholders the code can fill', () =
   assert.deepEqual(Object.keys(PLACEHOLDERS).sort(),
     ['bucketCard', 'crashCushion', 'crashCushionElsewhere', 'crashDrag', 'fallback', 'fewBets',
       'groupRisk', 'hiddenAi', 'hiddenAiAll', 'overRiskLimit', 'pair', 'pairLowRisk',
-      'riskGapOver', 'riskGapUnder'].sort());
+      'quietNotABet', 'riskGapOver', 'riskGapUnder'].sort());
 });
 
 test('validateWhy rejects a template with a placeholder the code cannot fill', () => {
@@ -1062,4 +1062,65 @@ test('the crash lesson portfolios still get the cards written down beside them',
   assert.equal(cushion.dollars.TLT, drag.dollars.TLT);
   assert.equal(cushion.dollars.BND, drag.dollars.BND);
   assert.notEqual(cushion.expect.key, drag.expect.key);
+});
+
+// ------------------------------------- bonds are quiet, and quiet is not a bet
+
+const WEEKLY_ROUND = { outcome: { mode: 'weekly', measure: 'effectiveBets', passed: true } };
+
+test('a loan fund that takes less risk than money gets the card that says why', () => {
+  // The weekly challenge's barbell: half the money in long Treasuries, and
+  // almost none of the risk. The lesson a player who holds bonds most needs:
+  // effective bets counts RISK, not money.
+  const { facts } = cardFor(GAME, GROUPS, WHY, { NVDA: 5000, TLT: 5000 }, WEEKLY_ROUND);
+  const card = pickWhy(facts, WHY, WEEKLY_ROUND);
+  assert.equal(card.key, 'quietNotABet');
+  assert.match(card.text, /TLT/);
+  assert.match(card.text, /counts risk, not money/i);
+  // The numbers are the holding's own, formatted as every other card does it.
+  assert.equal(card.values.ticker, 'TLT');
+  assert.match(card.values.dollarPct, /^\d+%$/);
+  assert.match(card.values.riskPct, /^\d+%$/);
+});
+
+test('the quiet card needs a loan fund, not merely a quiet holding', () => {
+  // A world fund can be the quietest holding in a portfolio; calling it a bond
+  // would be wrong, so the rule stands down and the next one speaks.
+  const { facts } = cardFor(GAME, GROUPS, WHY, { VXUS: 3400, UNH: 3300, GOOGL: 3300 }, WEEKLY_ROUND);
+  const card = pickWhy(facts, WHY, WEEKLY_ROUND);
+  assert.notEqual(card.key, 'quietNotABet');
+
+  // Gold is in the same group as the bond funds and is not a loan either.
+  const metal = cardFor(GAME, GROUPS, WHY, { GLD: 5000, NVDA: 5000 }, WEEKLY_ROUND);
+  assert.notEqual(pickWhy(metal.facts, WHY, WEEKLY_ROUND).key, 'quietNotABet');
+});
+
+test('the quiet card stands down when the bond fund is carrying its share', () => {
+  // Two bond funds and nothing else: BND is not quiet RELATIVE to the rest, so
+  // there is no gap to talk about and the card would be saying nothing.
+  const { facts } = cardFor(GAME, GROUPS, WHY, { BND: 5000, LQD: 5000 }, WEEKLY_ROUND);
+  assert.notEqual(pickWhy(facts, WHY, WEEKLY_ROUND).key, 'quietNotABet');
+});
+
+test('the loan funds the card knows about are the ones levels.json calls loans', () => {
+  // why.json lists them, levels.json classifies them, and a bond fund added to
+  // one file and not the other would quietly get the wrong card - or none.
+  const rule = WHY.rules.find((r) => r.key === 'quietNotABet');
+  const notStocks = LEVELS.kinds.notStocks;
+  assert.deepEqual(
+    [...rule.when.tickers].sort(),
+    notStocks.filter((t) => t !== 'GLD').sort(),
+    'why.json\'s loan funds are not levels.json\'s notStocks without the metal',
+  );
+});
+
+test('the quiet card speaks on the weekly challenge and nowhere else', () => {
+  // It leads on a weekly round, so it is not in why.json's order: on a level the
+  // same portfolio is usually a lesson about the holding CARRYING the risk, and
+  // scripts/check_why_cards.mjs has two lesson portfolios that say exactly that.
+  const barbell = { NVDA: 5000, TLT: 5000 };
+  assert.equal(pickWhy(cardFor(GAME, GROUPS, WHY, barbell, WEEKLY_ROUND).facts, WHY, WEEKLY_ROUND).key, 'quietNotABet');
+  assert.notEqual(pickWhy(cardFor(GAME, GROUPS, WHY, barbell).facts, WHY).key, 'quietNotABet');
+  assert.ok(!WHY.order.includes('quietNotABet'), 'a leading rule must not also sit in the order');
+  assert.deepEqual(WHY.rules.find((r) => r.key === 'quietNotABet').leads, { mode: 'weekly' });
 });

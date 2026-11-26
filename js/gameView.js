@@ -136,6 +136,67 @@ export function gameWindow(doc, wanted, requestedDays) {
 }
 
 /**
+ * The same window, ending on a day of the caller's choosing rather than on the
+ * most recent one in the file.
+ *
+ * WHY ANYTHING WOULD WANT THAT. The weekly challenge has to give every player
+ * in a week the same answer, and data/game.json is rebuilt every weekday
+ * evening. A window ending on "the latest day" answers differently on Monday
+ * and on Friday; one ending on the Friday before the week started does not.
+ *
+ * It is gameWindow() with a different right-hand edge, and it returns the same
+ * shape, so everything downstream - windowMatrix(), the measures, the "Why?"
+ * cards - cannot tell the difference. Asking for the file's last day gives
+ * exactly gameWindow(), which tests/weekly.test.js checks rather than assumes.
+ *
+ * A SHORT WINDOW IS NOT AN ERROR HERE. The file keeps a fixed number of days,
+ * so a window anchored in the past can run out of room at the far end and come
+ * back shorter than it asked for. How short is too short is levels.json's
+ * minDays and the caller's business, exactly as it is for gameWindow().
+ *
+ * @param {string} endDate the last day of the window, which the file must carry
+ */
+export function windowEndingOn(doc, wanted, requestedDays, endDate) {
+  if (!Array.isArray(wanted) || wanted.length === 0) {
+    throw new Error('windowEndingOn: expected at least one ticker');
+  }
+  if (!Number.isInteger(requestedDays) || requestedDays <= 0) {
+    throw new Error('windowEndingOn: requestedDays must be a whole number of days');
+  }
+  const dates = gameDates(doc);
+  const end = dates.indexOf(endDate);
+  if (end === -1) {
+    throw new Error(
+      `windowEndingOn: data/game.json has no trading day ${endDate}; it runs `
+      + `${dates[0]} to ${dates[dates.length - 1]}`,
+    );
+  }
+
+  const byTicker = {};
+  for (const ticker of wanted) byTicker[ticker] = tickerSeries(doc, ticker);
+
+  // Walk back from the anchor until one of the tickers runs out, exactly as
+  // gameWindow() walks back from the end of the file.
+  let from = end + 1;
+  while (from > 0 && wanted.every((ticker) => byTicker[ticker][from - 1] !== null)) from -= 1;
+  const available = end + 1 - from;
+  const days = Math.min(requestedDays, available);
+  const start = end + 1 - days;
+
+  const out = {};
+  for (const ticker of wanted) out[ticker] = byTicker[ticker].slice(start, end + 1);
+  return {
+    startDate: dates[start] ?? null,
+    endDate: dates[end] ?? null,
+    dates: dates.slice(start, end + 1),
+    days,
+    requestedDays,
+    availableDays: available,
+    byTicker: out,
+  };
+}
+
+/**
  * A window as a matrix of rows = days, columns = holdings, which is the shape
  * covariance() and correlation() in js/math.js want.
  */

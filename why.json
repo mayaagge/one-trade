@@ -43,7 +43,7 @@
   "rules": [
     {
       "key": "overRiskLimit",
-      "says": "one holding is over the level\u2019s risk limit",
+      "says": "one holding is over the level’s risk limit",
       "leads": {
         "measure": "maxRiskShare",
         "passed": false
@@ -194,6 +194,26 @@
       "thresholdNote": "15 points, deliberately lower than riskGapOver's 20, and the asymmetry is structural rather than a preference. The shares sum to 1, so the gaps sum to 0: a holding 20 points under its dollar share means other holdings are over, and riskGapOver takes them first. Held to the same 20 this card never appeared at all in 420 test portfolios. At 15 it appears in 7%.",
       "whenNote": "The same 15 points, the other way round. riskShareAtLeast keeps the card off a holding whose share of risk is negative, which happens when a holding offsets the rest rather than adding to it: that is a real thing a portfolio can do, but it is a different lesson from steadiness and has no template of its own. This is the bond-fund case, and it is a separate template rather than a reworded one, because the lesson is the opposite: steadiness, not concentration.",
       "template": "{ticker} is {dollarPct} of your money but only {riskPct} of your risk. It moves more quietly than the rest, so it takes up room in the portfolio without adding much to what can go wrong."
+    },
+    {
+      "key": "quietNotABet",
+      "says": "a bond fund takes less of the risk than of the money, and adds less to the count than its size suggests",
+      "when": {
+        "gapAtLeast": 0.15,
+        "tickers": [
+          "BND",
+          "TLT",
+          "LQD"
+        ]
+      },
+      "whenNote": "Fires when one of the three loan funds holds a share of the MONEY at least 15 points above its share of the RISK. The gap is the point: a bond fund carrying its share of the risk has nothing to explain, and a holding that is merely quiet is covered by riskGapUnder, which does not call it a bond.",
+      "tickersNote": "BND, TLT and LQD, which is levels.json's kinds.notStocks without GLD - gold is in the same group and is not a loan. tests/why.test.js holds the two lists together, so a bond fund added to levels.json and not here fails rather than quietly getting the wrong card.",
+      "thresholdNote": "15 points, the same gap riskGapUnder uses for the general version of this card. Not a new number.",
+      "template": "{ticker} is {dollarPct} of your money but only {riskPct} of your risk. Bonds steady a portfolio, which is what they are there for - but effective bets counts risk, not money, so a holding this quiet adds less to the count than its share of the dollars suggests.",
+      "leads": {
+        "mode": "weekly"
+      },
+      "leadsNote": "It LEADS on the weekly challenge and nowhere else. Several of the ten weekly portfolios are built around a bond fund that holds a big share of the money and almost none of the risk, and that is the lesson they exist to teach. On a level the same shape is usually a lesson about the holding carrying the risk, so here the card keeps its ordinary place below riskGapOver - see the two lesson portfolios in scripts/check_why_cards.mjs that say exactly that."
     }
   ],
   "rulesTail": "pairLowRisk is the pair card demoted rather than dropped. A pair correlated 0.70 or more that carries less than a fifth of the risk is still the same bet, and still worth naming - but it is not what decided the number, and it says so. It sits LAST in the order on purpose: if it ran before the risk-gap rules it would simply hand back the cards pairRiskAtLeast took away, and the condition would have been for nothing. Last means it speaks only when nothing else had anything to say.",

@@ -32,7 +32,7 @@ import {
   maxRiskShare,
   topRiskShare,
 } from './math.js';
-import { gameWindow, windowMatrix } from './gameView.js';
+import { gameWindow, windowEndingOn, windowMatrix } from './gameView.js';
 import { crashFacts, pickWhy, whyFacts } from './why.js';
 // Level 6 is replayed through a crash window, so this file reaches into Crash
 // replay's arithmetic rather than keeping a second copy of it: fallAgainstIndex()
@@ -375,7 +375,7 @@ export function measureOf(level) {
  * displayed number never disagrees with the pass check.
  */
 export function measureFor(level, game, { tickers, weights }, window, {
-  basket = null, crashes = null, dollars = null,
+  basket = null, crashes = null, dollars = null, endDate = null,
 } = {}) {
   const measure = measureOf(level);
 
@@ -432,7 +432,13 @@ export function measureFor(level, game, { tickers, weights }, window, {
     );
   }
   const needed = measure === 'beta' ? [...new Set([...tickers, ...basket])] : tickers;
-  const slice = gameWindow(game, needed, window.days);
+  // ENDING WHERE THE CALLER SAYS, on a mode that needs a window that does not
+  // move: the weekly challenge measures to the Friday before its Monday, so
+  // that a refresh landing mid-week cannot change the answer under a player.
+  // Null is the ordinary case - the most recent days in the file.
+  const slice = endDate === null
+    ? gameWindow(game, needed, window.days)
+    : windowEndingOn(game, needed, window.days, endDate);
   if (slice.days < window.minDays) {
     throw new Error(
       `${needed.join(', ')} overlap on only ${slice.days} trading days, fewer than the `
@@ -581,7 +587,11 @@ function buildWhyCard(level, {
       // holding went past the limit, and naming it is the whole answer to
       // "where's the risk?"; nothing leads on any other round, and those get
       // why.json's order exactly as before.
-      outcome: { measure, passed },
+      // WHAT KIND OF ROUND THIS WAS. `mode` lets a card lead on one mode and
+      // stay silent on the levels: the weekly challenge's portfolios are built
+      // around bond funds that hold the money and none of the risk, and that
+      // is the lesson there.
+      outcome: { measure, passed, mode: level.mode ?? null },
       // The level's own threshold, so a card that states the limit states the
       // same number the pass check used.
       limit: level.pass.threshold ?? null,
@@ -613,9 +623,12 @@ function buildWhyCard(level, {
  */
 export function createRound({
   levels, levelId, game, universe = [], why = null, groups = null, basket = null,
-  crashes = null, random = Math.random, dealt = null,
+  crashes = null, random = Math.random, dealt = null, endDate = null, level: given = null,
 }) {
-  const level = levelById(levels, levelId);
+  // A MODE THAT IS NOT A LEVEL hands its own level-shaped block in: the weekly
+  // challenge is not in the ladder and has no number, but it is built, guessed
+  // and revealed by this file exactly as a level is.
+  const level = given ?? levelById(levels, levelId);
   const window = {
     days: levels.window?.days ?? 756,
     minDays: levels.window?.minDays ?? 252,
@@ -1014,7 +1027,9 @@ export function createRound({
       : { tickers: [...round.picks], weights: round.picks.map(() => 1 / round.picks.length) };
 
     const { matrix, basketReturns, ...measured } = measureFor(
-      level, gameData, weighted, window, { basket, crashes, dollars: round.dollars },
+      level, gameData, weighted, window, {
+        basket, crashes, dollars: round.dollars, endDate,
+      },
     );
     // A SERIES PART IS NOT SCORED ON ITS OWN. Level 7 passes on all three
     // guesses together, so there is no verdict to give after one of them, and

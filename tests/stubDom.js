@@ -30,6 +30,23 @@ export class StubNode {
     this.disabled = false;
   }
 
+  /**
+   * The handful of classList calls the screens make. className stays the one
+   * source of truth, so matches() and querySelector() see a class added here.
+   */
+  get classList() {
+    const classes = () => this.className.split(/\s+/).filter(Boolean);
+    const set = (list) => { this.className = list.join(' '); };
+    return {
+      add: (...names) => set([...new Set([...classes(), ...names])]),
+      remove: (...names) => set(classes().filter((name) => !names.includes(name))),
+      contains: (name) => classes().includes(name),
+      toggle: (name, on) => (on ?? !classes().includes(name)
+        ? set([...new Set([...classes(), name])])
+        : set(classes().filter((c) => c !== name))),
+    };
+  }
+
   set textContent(value) { this._text = String(value); this.children = []; }
 
   get textContent() {

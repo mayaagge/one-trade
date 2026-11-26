@@ -4,9 +4,10 @@ import { mountResearch, DISCLAIMER } from './research.js';
 import { mountLearn } from './game.js';
 import { mountCrash } from './crashReplay.js';
 import { mountDaily } from './dailyView.js';
+import { mountWeekly } from './weeklyView.js';
 
 const DEFAULT_MODE = 'research';
-const MODES = ['learn', 'daily', 'crash', 'sandbox', 'research'];
+const MODES = ['learn', 'daily', 'weekly', 'crash', 'sandbox', 'research'];
 
 /** The mode named by a hash such as "#research", or the default. */
 export function modeFromHash(hash) {
@@ -51,6 +52,10 @@ function render() {
   }
   if (mode === 'daily') {
     mountDaily(root);
+    return;
+  }
+  if (mode === 'weekly') {
+    mountWeekly(root);
     return;
   }
   if (mode === 'crash') {

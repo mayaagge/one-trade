@@ -590,6 +590,201 @@
     "timeZone": "America/New_York",
     "timeZoneNote": "The puzzle turns over with the market, so two devices in different time zones get the same five pairs."
   },
+  "weekly": {
+    "note": "The weekly challenge: one mystery portfolio a week, the same one for everybody, changing at midnight New York time on Monday. docs/PRD.md, milestone 2 step 8: \"one new mystery portfolio each Monday, so there's a reason to come back and to post about it.\" It is not one of the seven levels and has no place in the ladder; it borrows their shape so that js/round.js, the \"Why?\" cards and the share card work on it unchanged.",
+    "id": "weekly",
+    "mode": "weekly",
+    "modeNote": "What a round of this reports about itself, so a \"Why?\" card written for the weekly can lead on it and stay silent on the levels. See js/why.js's LEAD_MATCHES.",
+    "title": "Weekly challenge",
+    "concept": "Effective bets",
+    "challenge": "One mystery portfolio a week. Guess how many separate bets it makes.",
+    "firstMonday": "2026-11-30",
+    "firstMondayNote": "The first week. Before this date the screen says when the challenge starts rather than dealing a portfolio from before it existed, and the cycle counts weeks from here, so two browsers on the same date agree without storing anything or asking anybody.",
+    "timeZone": "America/New_York",
+    "cyclesNote": "Ten portfolios, and week 11 is week 1 again. A player who has seen them all has seen them all; cycling is better than running out, and the answers move with the prices anyway.",
+    "window": {
+      "days": 756,
+      "minDays": 252,
+      "anchor": "fridayBefore",
+      "anchorNote": "EVERY PLAYER IN A WEEK GETS THE SAME ANSWER, so the window ends on the Friday before the Monday rather than on the latest day in data/game.json, which changes every weekday evening. If that Friday was a holiday the anchor walks back to the last day the file carries, which needs no holiday calendar. The file keeps the most recent 756 days, so early in a week the anchored window is a few days shorter than 756; across the ten portfolios that moves an answer by at most 0.022 bets, which cannot change a star and is checked by tests/weekly.test.js."
+    },
+    "holdings": {
+      "fixed": true,
+      "from": "weekly"
+    },
+    "guess": {
+      "measure": "effectiveBets",
+      "prompt": "Before the reveal: how many separate bets does this portfolio make?",
+      "min": 1,
+      "max": 6,
+      "step": 0.1,
+      "display": "number",
+      "places": 1,
+      "rangeNote": "1 to 6, the slider levels 2 and 7 use. The ten answers all sit inside it, which tests/weekly.test.js checks against the live data: an answer above the top could not be guessed within 1 by anybody."
+    },
+    "pass": {
+      "measure": "guess",
+      "says": "make a guess"
+    },
+    "stars": {
+      "pass": 1,
+      "two": {
+        "test": "within",
+        "of": 1,
+        "says": "within 1 bet"
+      },
+      "three": {
+        "test": "within",
+        "of": 0.5,
+        "says": "within half a bet"
+      }
+    },
+    "share": {
+      "source": "weekly",
+      "hidesAnswer": true,
+      "hidesAnswerNote": "EVERYBODY HAS THE SAME PORTFOLIO THIS WEEK, which makes a card naming the answer a spoiler for every player who has not gone yet - a wider leak than levels 2 and 7, where only the one player in twenty who draws the same portfolio could use it. So the card carries the stars and how close the guess came, and neither the answer nor the guess. The portfolio's NAME is not on it either: \"Gold, bonds, oil and staples\" is a list of the holdings in words.",
+      "headline": "This week’s mystery portfolio — {band}. {ending}",
+      "bands": {
+        "1": "out by more than 1 bet",
+        "2": "within 1 bet",
+        "3": "within half a bet"
+      },
+      "endings": {
+        "1": "Can you get closer?",
+        "2": "Can you?",
+        "3": "Can you?"
+      }
+    },
+    "explain": "Effective bets counts independent sources of risk, not holdings. Holdings that move together collapse into one bet, and a quiet holding can take a big share of the money while adding little to the count - because the count measures risk, not money.",
+    "why": "A new portfolio every Monday, the same one for every player, measured over the three years ending the Friday before. Nothing about your guess leaves the browser.",
+    "revealLabel": "Separate bets this portfolio really makes",
+    "portfoliosNote": "Ten hand-built portfolios, each a lesson. None of them holds the same set of tickers as any of the 40 in guessPool or finalPool - those belong to Hypothesis 3, and a portfolio a player already met on level 2 is not a mystery. The answers are spread so that one number typed every week earns 3 stars on at most 3 of the 10: no four of them sit within a bet of each other. Both rules are checked against the live data by tests/weekly.test.js, not against numbers written down here, so a market that moves the answers together turns the run red instead of quietly making the challenge guessable. The bets below are what the committed data/game.json gave on 26 November 2026 and are a comment, never read by the game.",
+    "portfolios": [
+      {
+        "id": "w01",
+        "name": "Five big names",
+        "bets": 1.11,
+        "lesson": "Five companies, one trade.",
+        "dollars": {
+          "AAPL": 2000,
+          "MSFT": 2000,
+          "GOOGL": 2000,
+          "AMZN": 2000,
+          "META": 2000
+        }
+      },
+      {
+        "id": "w02",
+        "name": "The barbell",
+        "bets": 1.25,
+        "lesson": "Half the money in the quietest thing on the list, and it still makes barely more than one bet.",
+        "dollars": {
+          "NVDA": 5000,
+          "TLT": 5000
+        }
+      },
+      {
+        "id": "w03",
+        "name": "One stock, one bond fund",
+        "bets": 1.52,
+        "lesson": "The same shape as the barbell, a different answer: what you hold beside the bonds decides it.",
+        "dollars": {
+          "KO": 5000,
+          "TLT": 5000
+        }
+      },
+      {
+        "id": "w04",
+        "name": "Three that share no customers",
+        "bets": 2.17,
+        "lesson": "Three holdings in three different businesses, and still not three bets.",
+        "dollars": {
+          "VXUS": 3400,
+          "UNH": 3300,
+          "GOOGL": 3300
+        }
+      },
+      {
+        "id": "w05",
+        "name": "Oil, drugs and software",
+        "bets": 2.37,
+        "lesson": "Three industries that do not rise and fall together.",
+        "dollars": {
+          "COP": 3400,
+          "JNJ": 3300,
+          "MSFT": 3300
+        }
+      },
+      {
+        "id": "w06",
+        "name": "One from every group",
+        "bets": 2.75,
+        "lesson": "Eight holdings, eight groups, and fewer than three bets. Spreading the names is not spreading the risk.",
+        "dollars": {
+          "NVDA": 1300,
+          "MSFT": 1200,
+          "JPM": 1300,
+          "XOM": 1200,
+          "JNJ": 1300,
+          "KO": 1200,
+          "GLD": 1300,
+          "TLT": 1200
+        }
+      },
+      {
+        "id": "w07",
+        "name": "Four that go their own ways",
+        "bets": 3.22,
+        "lesson": "Four holdings, more bets than the eight above: what matters is whether they move together.",
+        "dollars": {
+          "GLD": 2500,
+          "TLT": 2500,
+          "XOM": 2500,
+          "KO": 2500
+        }
+      },
+      {
+        "id": "w08",
+        "name": "A tech fund and four quiet things",
+        "bets": 3.45,
+        "lesson": "The loud holding takes most of the risk, and the quiet ones still buy real bets.",
+        "dollars": {
+          "QQQ": 2000,
+          "BND": 2000,
+          "LQD": 2000,
+          "XOM": 2000,
+          "PG": 2000
+        }
+      },
+      {
+        "id": "w09",
+        "name": "Five, none of them alike",
+        "bets": 3.84,
+        "lesson": "Metal, oil, health, staples and one giant: about as far apart as five holdings get here.",
+        "dollars": {
+          "GLD": 2000,
+          "XOM": 2000,
+          "UNH": 2000,
+          "PG": 2000,
+          "AMZN": 2000
+        }
+      },
+      {
+        "id": "w10",
+        "name": "Quiet money, one loud corner",
+        "bets": 4.4,
+        "lesson": "Most of the money in the calmest holdings and a little in the wildest: the most bets this list can make.",
+        "dollars": {
+          "TLT": 3000,
+          "LQD": 2500,
+          "GLD": 2000,
+          "KO": 1200,
+          "UNH": 800,
+          "NVDA": 500
+        }
+      }
+    ]
+  },
   "guessPool": {
     "size": 20,
     "note": "Level 2's portfolio and the first of level 7's mystery portfolios are both drawn from this one pool, as PREREG.md requires, so on average they are equally hard.",
