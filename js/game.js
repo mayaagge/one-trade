@@ -547,6 +547,126 @@ export function renderGuess(ctx, round) {
 // ------------------------------------------------------------- the reveal
 
 /**
+ * The number line itself.
+ *
+ * The marks are in their FINAL positions in the markup, and the keyframes only
+ * move them into place - so with motion turned off the screen is the same
+ * screen, fully readable, with nothing missing. The two custom properties are
+ * where the animation starts from, which only the round knows.
+ *
+ * aria-hidden, every bit of it: it is a drawing of two numbers that the panel
+ * says in words directly above and below it, and a screen reader being walked
+ * through "your guess 3.2, 3.00 needed, 2.06" a second time as disconnected
+ * labels is being given the same information worse.
+ */
+function numberLine(round, line) {
+  const wrap = h('div', 'numberline');
+  wrap.setAttribute('aria-hidden', 'true');
+  wrap.style.setProperty('--guess-at', `${line.guessAt}%`);
+  wrap.style.setProperty('--answer-at', `${line.answerAt}%`);
+  wrap.style.setProperty('--span-from', `${line.spanFrom}%`);
+  wrap.style.setProperty('--span-width', `${line.spanWidth}%`);
+
+  wrap.append(h('span', 'numberline-track'));
+
+  const span = h('span', round.result.passed === false ? 'numberline-span' : 'numberline-span numberline-span-pass');
+  span.style.left = `${line.spanFrom}%`;
+  span.style.width = `${line.spanWidth}%`;
+  wrap.append(span);
+
+  if (line.needAt !== null) {
+    const need = h('span', 'numberline-need');
+    need.style.left = `${line.needAt}%`;
+    need.append(h('span', null, `${line.needShown} needed`));
+    wrap.append(need);
+  }
+
+  const guess = h('span', 'numberline-mark mark-guess');
+  guess.style.left = `${line.guessAt}%`;
+  guess.append(h('span', null, `your guess ${formatGuess(round.level, round.result.guess)}`));
+  wrap.append(guess);
+
+  const answer = h('span', 'numberline-mark mark-answer');
+  answer.style.left = `${line.answerAt}%`;
+  answer.append(h('span', null, round.result.shown));
+  wrap.append(answer);
+
+  return wrap;
+}
+
+/**
+ * Where the guess, the answer and the level's threshold fall on the reveal's
+ * number line, as percentages across it.
+ *
+ * PURE, so it is tested in node without a document, the way guessSliderState()
+ * and starsExplanation() are. The screen below is a thin wrapper around it.
+ *
+ * THE SCALE IS THE LEVEL'S OWN GUESS RANGE, which is the scale the player has
+ * just been looking at: level 3 ran from 1.0 to 5.0 and the marks have to land
+ * where that slider would have put them, or the reveal is drawn against a
+ * different ruler from the question.
+ *
+ * AN ANSWER CAN FALL OUTSIDE IT, and that is not a bug to clamp away quietly.
+ * levels.json records that level 5's share of risk can pass 100% when a holding
+ * offsets the rest, and level 6's fall ratio reaches -0.117 on a legal build. A
+ * mark is held to the ends of the line so it stays on the screen, and `beyond`
+ * says it was held, so the caller can say so rather than drawing a dot in the
+ * corner and hoping nobody asks.
+ *
+ * Returns null when there is nothing to draw a line for - a level with no
+ * numeric guess, or a round that was never guessed.
+ */
+export function revealLine(round) {
+  const result = round.result;
+  if (!result || !Number.isFinite(result.guess) || !Number.isFinite(result.value)) return null;
+  const { min, max } = round.guessRange();
+  if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return null;
+
+  // ROUNDED TO A THOUSANDTH OF THE LINE. The arithmetic gives 55.00000000000001
+  // for a guess of 3.2 on a 1-to-5 scale, and that goes straight into a style
+  // attribute: three decimals is finer than a pixel on any screen this runs on
+  // and reads as a position rather than as a float.
+  const round3 = (value) => Math.round(value * 1000) / 1000;
+  const at = (value) => round3(((value - min) / (max - min)) * 100);
+  const held = (value) => Math.min(100, Math.max(0, at(value)));
+
+  const guessAt = held(result.guess);
+  const answerAt = held(result.value);
+  const threshold = round.level.pass?.threshold;
+  const hasThreshold = Number.isFinite(threshold);
+
+  return {
+    min,
+    max,
+    guessAt,
+    answerAt,
+    // The span runs from whichever is further left, so it is a length rather
+    // than a signed offset: it is drawn, and a drawing has no sign.
+    spanFrom: Math.min(guessAt, answerAt),
+    spanWidth: round3(Math.abs(answerAt - guessAt)),
+    needAt: hasThreshold ? held(threshold) : null,
+    needShown: hasThreshold ? formatGuess(round.level, threshold) : null,
+    // How far out the guess was, in the level's own units and its own rounding.
+    gap: Math.abs(result.guess - result.value),
+    beyond: at(result.value) !== answerAt,
+  };
+}
+
+/**
+ * The gap in words, because a length on a line is not a quantity.
+ *
+ * "Spot on" rather than "out by 0.00": a guess that rounds to the answer in the
+ * units the level shows has not missed by anything a player could have done
+ * better, and telling them they were out by zero reads as a fault.
+ */
+export function gapSentence(round, line) {
+  const places = guessPlaces(round.level);
+  const shown = line.gap.toFixed(places);
+  if (Number(shown) === 0) return 'Spot on.';
+  return `Out by ${shown}.`;
+}
+
+/**
  * The reveal.
  *
  * Exported for tests/gameShare.test.js, which renders it to check that the
@@ -578,6 +698,10 @@ export function renderReveal(ctx, round) {
   }
 
   const panel = h('div', 'reveal-panel');
+  // ANNOUNCED. The reveal replaces the screen with the answer a player has been
+  // waiting for, and until now a screen reader was told nothing: focus moved to
+  // the view and the number arrived in silence.
+  panel.setAttribute('role', 'status');
   // The level's own words for what the number is. It used to be a ternary on the
   // measure's name, which could only ever name two of the four measures.
   panel.append(h('p', 'reveal-label', level.revealLabel));
@@ -594,6 +718,34 @@ export function renderReveal(ctx, round) {
     panel.append(h('p', 'reveal-about', fallSentence(result.crash, { compare: false })));
   }
   panel.append(h('p', 'reveal-guess', `You guessed ${formatGuess(level, result.guess)}`));
+  // THE NUMBER LINE: the guess, the answer, and the distance between them drawn
+  // to scale on the level's own scale. It is the reveal's whole job - a player
+  // who was out by 1.14 should see 1.14 of the line, not work it out from two
+  // numbers - and it is why this screen is the one place in the game that moves.
+  const line = revealLine(round);
+  if (line) {
+    panel.append(numberLine(round, line));
+
+    // The ends of the scale, in the level's own units, so the drawing above is
+    // readable as a measurement rather than as a picture.
+    const ends = h('p', 'numberline-ends');
+    ends.setAttribute('aria-hidden', 'true');
+    ends.append(h('span', null, formatGuess(level, line.min)));
+    ends.append(h('span', null, formatGuess(level, line.max)));
+    panel.append(ends);
+
+    // THE GAP IN WORDS, beside the drawing of it. A length on a line says "about
+    // this far"; the sentence says how far, in the units the level answers in.
+    const gap = h('p', 'reveal-gap');
+    gap.append(h('strong', null, gapSentence(round, line)));
+    if (line.beyond) {
+      // The answer fell off the end of the level's own scale, which levels.json
+      // records as reachable on levels 5 and 6. Saying so beats a dot parked at
+      // the edge with nothing to explain it.
+      gap.append(h('span', null, ' The answer is past the end of the scale, so its mark sits at the edge.'));
+    }
+    panel.append(gap);
+  }
   if (result.line) {
     panel.append(h('p', result.passed ? 'reveal-line reveal-pass' : 'reveal-line reveal-fail', result.line));
   }

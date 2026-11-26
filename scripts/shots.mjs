@@ -79,7 +79,11 @@ async function main() {
         const page = await context.newPage();
         try {
           await scene.run(page);
-          await page.waitForTimeout(120);
+          // LONG ENOUGH FOR THE REVEAL TO SETTLE. The number line animates for
+          // 520ms with a 260ms delay on the gap sentence, so a 120ms wait
+          // photographed it part-way through a fade and the text came out grey -
+          // which looks exactly like a contrast bug and is not one.
+          await page.waitForTimeout(900);
           const file = join(OUT, name, `${scene.id}.png`);
           await page.screenshot({ path: file, fullPage: true });
           await page.screenshot({ path: join(OUT, name, `${scene.id}--fold.png`) });

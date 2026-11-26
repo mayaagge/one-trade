@@ -1,45 +1,106 @@
-/* One Trade - one plain stylesheet. No framework, no build step.
-   Colours are the validated data-viz palette: categorical slot 1 (blue) for a
-   single chart series, slot 2 (orange) added for Crash replay's second line -
-   a portfolio against the index - with the palette's chart chrome and ink for
-   everything else. Dark mode is stepped for the dark surface, not an automatic
-   flip. The pair passes the palette's own validator in both modes (worst normal-
-   vision Delta E 35.2 light / 33.3 dark); slot 2 sits under 3:1 contrast on the
-   light surface, which is why Crash replay never puts the orange line's own
-   color on text - see the legend and tooltip rules in js/chart.js. */
+/* One Trade - one plain stylesheet. No framework, no build step, no web font.
+
+   THE PALETTE IS SEMANTIC, AND EACH COLOUR MEANS ONE THING.
+
+     --accent    the live value and the thing to press. A muted indigo, not a
+                 bright blue: this is a teaching tool a student may show a
+                 professor, and the brightest thing on the screen should be the
+                 answer, not the furniture.
+     --clears    a pass. Deep green.
+     --misses    a miss. Rust. It is NOT the colour of the index line and NOT
+                 the colour of a button, so "you missed" cannot be confused
+                 with "the market" or with "do this".
+     --reference the market: the S&P 500 line a portfolio is measured against.
+                 Stone, because a benchmark is not a verdict. It sits 2.2:1
+                 away from --accent in lightness as well as in hue, so the two
+                 chart lines separate in greyscale and for a colour-blind
+                 reader; the index line is dashed as well, and both are named
+                 in a text legend.
+
+   PAPER, NOT SCREEN. The page is cream and the cards are a shade lighter, in
+   both modes - dark mode is a warm near-black rather than pure black, so the
+   two schemes are the same design at two brightnesses instead of an inversion.
+
+   EVERY PAIR IS MEASURED, not estimated, by scripts/dev_a11y.mjs on the live
+   page at 375px in both schemes: 4.5:1 for text, 3:1 for the boundary of a
+   control and for a line on a chart. The numbers are in docs/DESIGN_REVIEW.md.
+   The colour that used to be here - #257de0 - failed at 4.13:1 on white and
+   3.43:1 under white text in dark mode, which was every button label, every
+   star and every pass line in the game.
+
+   OLD NAMES, NEW VALUES. --series-1, --surface-1 and the rest keep their names
+   because 140 rules use them; the semantic names below are aliases onto the
+   same colours, so a rule can say what it means. */
 
 :root {
   color-scheme: light;
-  --surface-1: #ffffff;        /* chart surface, cards */
-  --plane: #f9f9f9;            /* page plane */
-  --text-primary: #191919;
-  --text-secondary: #666666;
-  --grid: #e7e7e7;
-  --axis: #c2c2c2;
-  --border: rgba(11, 11, 11, 0.10);
-  --series-1: #257de0;         /* the chart series */
-  --series-1-soft: #cce3fd;
-  --series-2: #f47230;         /* Crash replay's second line: the index */
-  --waiting: #fbb315;          /* status: waiting on data */
+
+  /* paper */
+  --plane: #faf7f2;            /* the page */
+  --surface-1: #fffdf9;        /* cards, chart surfaces */
+  --ghost: #e9e1d4;            /* an empty star, an unfilled track */
+
+  /* ink */
+  --text-primary: #1f1b16;     /* 16.0:1 on the page */
+  --text-secondary: #5e564c;   /* 6.8:1 on the page, 7.1:1 on a card */
+  --text: var(--text-primary); /* two rules asked for this and nothing defined it */
+
+  /* lines */
+  --border: rgba(31, 27, 22, 0.12);   /* a card's hairline: decorative */
+  --control-edge: #7a7168;     /* the boundary of a control: 4.7:1, needs 3:1 */
+  --grid: #e4ddd1;             /* chart gridlines */
+  --axis: #7a7168;             /* chart axes and tick labels */
+  --line: var(--grid);         /* the daily puzzle asked for these two by name */
+  --line-soft: var(--grid);    /* and nothing defined either of them */
+
+  /* meaning */
+  --accent: #3b4a7a;           /* 8.5:1 on a card, both as text and behind it */
+  --accent-on: #fffdf9;        /* what is legible on --accent */
+  --accent-soft: #dfe3ef;      /* a filled slider track */
+  --clears: #15604a;           /* 7.4:1 */
+  --misses: #8f3a12;           /* 7.4:1 */
+  --reference: #8a8075;        /* the index line: 3.8:1 on a card */
+  --waiting: #7c5a12;          /* status: waiting on data */
+
+  /* the old names, pointing at the new colours */
+  --series-1: var(--accent);
+  --series-1-soft: var(--accent-soft);
+  --series-2: var(--reference);
+
   --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --surface-1: #191919;
-    --plane: #0b0b0b;
-    --text-primary: #efefef;
-    --text-secondary: #9c9c9c;
-    --grid: #303030;
-    --axis: #474747;
-    --border: rgba(255, 255, 255, 0.10);
-    --series-1: #338ced;
-    --series-1-soft: #1757ac;
-    --series-2: #e76624;
-    --waiting: #fbb315;
+
+    --plane: #14110d;
+    --surface-1: #1f1b16;
+    --ghost: #2b241c;
+
+    --text-primary: #f2ece2;
+    --text-secondary: #b3a899;
+
+    --border: rgba(242, 236, 226, 0.14);
+    --control-edge: #8a7f72;
+    --grid: #332c23;
+    --axis: #8a7f72;
+
+    --accent: #a9bdf0;
+    --accent-on: #14110d;
+    --accent-soft: #2c3550;
+    --clears: #6fcf9f;
+    --misses: #e8975a;
+    --reference: #857b70;
+    --waiting: #e0b85a;
   }
 }
+
+/* MOTION IS OPT-IN. There was none in this file at all until the reveal got
+   its number line, so this query is a thing the restyle added rather than a gap
+   it closed. Everything that moves is inside the no-preference branch; nothing
+   outside it animates, so a reader who asks for stillness gets the same screen
+   without any of it. */
 
 * { box-sizing: border-box; }
 
@@ -110,16 +171,19 @@ a { color: var(--series-1); }
   padding: 0;
 }
 .modes a {
-  display: block;
-  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 14px;
   border-radius: 999px;
   text-decoration: none;
   color: var(--text-secondary);
 }
 .modes a:hover { background: var(--plane); }
+.modes a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .modes a.current {
-  background: var(--series-1);
-  color: #ffffff;
+  background: var(--accent);
+  color: var(--accent-on);
 }
 
 main { outline: none; }
@@ -493,19 +557,19 @@ main { outline: none; }
   min-height: 44px;
   padding: 10px 16px;
   border-radius: 8px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--control-edge);
   background: var(--surface-1);
   color: var(--text-primary);
   cursor: pointer;
 }
-.btn:hover:not(:disabled) { border-color: var(--axis); }
+.btn:hover:not(:disabled) { border-color: var(--text-primary); }
 .btn:focus-visible { outline: 2px solid var(--series-1); outline-offset: 2px; }
 .btn:disabled { opacity: 0.45; cursor: default; }
 
 .btn-primary {
-  background: var(--series-1);
-  border-color: var(--series-1);
-  color: #ffffff;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-on);
   font-weight: 600;
 }
 .btn-primary:disabled { background: var(--plane); border-color: var(--border); color: var(--text-secondary); }
@@ -569,7 +633,7 @@ main { outline: none; }
   min-width: 68px;
   padding: 8px 12px;
   border-radius: 999px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--control-edge);
   background: var(--surface-1);
   color: var(--text-primary);
   cursor: pointer;
@@ -577,9 +641,9 @@ main { outline: none; }
 .chip:focus-visible { outline: 2px solid var(--series-1); outline-offset: 2px; }
 .chip:disabled { opacity: 0.35; cursor: default; }
 .chip-on {
-  background: var(--series-1);
-  border-color: var(--series-1);
-  color: #ffffff;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-on);
   font-weight: 600;
 }
 /* A holding the level deals and keeps - level 4's QQQ. It is disabled, so the
@@ -599,18 +663,36 @@ main { outline: none; }
 
 .allocator { margin: 16px 0 4px; }
 .allocator-head { margin: 0 0 8px; }
-.alloc-row, .holding {
+/* A HOLDING'S ROW IS TWO LINES, not one.
+   The slider went in beside the amount and the +/- buttons at first and came out
+   about 40px wide, which is a control nobody can use. It gets the full width on
+   its own line underneath: the slider is the coarse control, the buttons are the
+   fine one, and on a phone neither can be squeezed to make room for the other. */
+.alloc-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+/* PLACED EXPLICITLY, both of them. Left to auto-placement the slider takes the
+   whole of row 2 and pushes the +/- buttons down to a row 3 of their own, which
+   made each holding about 150px tall and the five of them a screenful. */
+.alloc-row .alloc-buttons { grid-row: 1; grid-column: 3; }
+.alloc-row .alloc-slider { grid-row: 2; grid-column: 1 / -1; }
+
+.holding {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 6px 0;
   border-bottom: 1px solid var(--border);
+  justify-content: space-between;
 }
-.holding { justify-content: space-between; }
 .holding-list { list-style: none; margin: 0 0 12px; padding: 0; }
 .alloc-ticker { font-weight: 600; min-width: 4.5rem; }
 .alloc-amount {
-  flex: 1;
   display: flex;
   align-items: baseline;
   gap: 8px;
@@ -648,8 +730,12 @@ main { outline: none; }
   width: 100%;
   height: 44px;
   margin: 0;
-  accent-color: var(--series-1);
+  accent-color: var(--accent);
 }
+/* ITS OWN RING. There was no rule for this, so the single most important
+   control in the game wore the browser's 1px default while every button in it
+   had a 2px one. */
+.guess-slider:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 /* Before the first tap: a bare line. No thumb and no filled track, because the
    thumb's resting position is an anchor of its own even with the number hidden.
    The input keeps its full 44px tap area, and a tap anywhere on the line sets
@@ -686,27 +772,16 @@ main { outline: none; }
 }
 
 /* --- the reveal ---------------------------------------------------------- */
+/* The panel itself is at the foot of this file, with the number line it holds.
+   Only the lines beside it are here. */
 
-.reveal-panel {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 16px;
-  background: var(--surface-1);
-  text-align: center;
-}
-.reveal-label { margin: 0 0 4px; color: var(--text-secondary); font-size: 0.9rem; }
-.reveal-value {
-  margin: 0;
-  font-size: 3rem;
-  line-height: 1.1;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
 .reveal-guess { margin: 4px 0 0; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .reveal-line { margin: 10px 0 0; font-weight: 600; font-variant-numeric: tabular-nums; }
-.reveal-pass { color: var(--series-1); }
-/* A failed level is a result, not an error: it gets ordinary ink. */
-.reveal-fail { color: var(--text-primary); }
+/* PASS AND MISS, in the two colours that mean only those two things. A failed
+   level is still a result rather than an error, so the miss colour is used on
+   the sentence and nowhere near the number: the answer stays ordinary ink. */
+.reveal-pass { color: var(--clears); }
+.reveal-fail { color: var(--misses); }
 
 .stars-panel { margin: 14px 0; text-align: center; }
 .stars-row {
@@ -809,8 +884,12 @@ main { outline: none; }
   padding: 0.6rem 0 0.6rem 0.9rem;
   margin: 1rem 0;
 }
-.daily-reveal.is-right { border-left-color: #2e7d4f; }
-.daily-reveal.is-wrong { border-left-color: #8a8a8a; }
+/* THE SAME TWO COLOURS THE REST OF THE GAME USES for the same two meanings.
+   These were #2e7d4f and #8a8a8a: a green that appeared on no other screen, and
+   a grey that read as "nothing here" rather than as "wrong". Right and wrong are
+   also said in words beside the mark, so neither is carried by colour alone. */
+.daily-reveal.is-right { border-left-color: var(--clears); }
+.daily-reveal.is-wrong { border-left-color: var(--misses); }
 .daily-verdict { font-weight: 600; margin: 0 0 0.3rem; display: flex; gap: 0.45rem; align-items: baseline; }
 .daily-pair-line { margin: 0.2rem 0; }
 .daily-window, .daily-elsewhere { font-size: 0.85rem; opacity: 0.75; margin: 0.2rem 0; }
@@ -867,7 +946,12 @@ main { outline: none; }
 
 /* ---- saved progress, on the level list --------------------------------- */
 
-.level-locked { opacity: 0.72; }
+/* NOT opacity. Fading the whole card took --text-secondary to 3.16:1 on the
+   six locked cards of the first screen a player sees, and opacity hides the
+   real colour from the palette and from any audit. A locked card is marked by
+   sitting on the page rather than on paper, and by saying so in words. */
+.level-locked { background: var(--plane); border-style: dashed; }
+.level-locked .level-card-head h2 { color: var(--text-secondary); }
 .level-lock-note { font-size: 0.85rem; color: var(--text-secondary); margin: 0 0 0.6rem; }
 
 .reset-row { margin: 1.4rem 0 0.4rem; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
@@ -992,7 +1076,7 @@ main { outline: none; }
   border: 1px solid var(--border);
   border-radius: 8px;
 }
-.text-box:focus-visible { outline: 2px solid var(--series-1); outline-offset: 1px; }
+.text-box:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .text-box:disabled { opacity: 0.6; }
 
 /* What could not be used, against the box it belongs to. Ordinary ink, not
@@ -1017,4 +1101,189 @@ main { outline: none; }
   background: var(--surface-1);
   border-left: 3px solid var(--series-1);
   border-radius: 4px;
+}
+
+/* --- the allocator's sliders --------------------------------------------- */
+
+.alloc-slider {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin: 2px 0 0;
+  accent-color: var(--accent);
+}
+.alloc-slider:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* Money left, above the sliders: the number that decides whether the player can
+   leave this screen. It reads as ordinary text at $0 and wants attention until
+   then - and says so in words either way, never in colour alone. */
+.money-left { margin: 0 0 8px; color: var(--text-secondary); }
+.money-left strong { color: var(--misses); font-variant-numeric: tabular-nums; }
+.money-left-done strong { color: var(--clears); }
+.btn-even { margin: 0 0 12px; }
+
+/* A hint, after three tries. Paper rather than a warning: it is help, not a
+   problem with what the player did. */
+.level-hint {
+  border-left: 4px solid var(--accent);
+  background: var(--surface-1);
+  border-radius: 0 8px 8px 0;
+  padding: 10px 12px;
+  margin: 0 0 14px;
+}
+.level-hint-head {
+  margin: 0 0 4px;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.level-hint-body { margin: 0; }
+
+/* The note under a holdings list whose rounded shares do not reach 100%. */
+.holding-rounding { margin: 6px 0 0; }
+
+/* ------------------------------------------------- the reveal, as a number line
+
+   THE REVEAL IS THE LEARNING MOMENT, so it is the one place in the game that
+   moves. The guess is marked on the level's own scale, the answer slides in and
+   lands, and the span between them fills: the distance a player was wrong by is
+   drawn to scale rather than left to be worked out from two numbers. The gap is
+   also written in words beside it, because a length is not a quantity.
+
+   Everything here is still true with the animation off - the marks, the span and
+   the words are all in their final positions in the markup, and the keyframes
+   only move them into place. */
+
+.reveal-panel {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin: 0 0 12px;
+  box-shadow: 0 1px 2px rgba(31, 27, 22, 0.06), 0 8px 24px rgba(31, 27, 22, 0.05);
+}
+
+.reveal-label { margin: 0 0 2px; font-size: 0.9rem; color: var(--text-secondary); }
+.reveal-value {
+  margin: 0;
+  font-size: 3.2rem;
+  line-height: 1.02;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* The scale. A fixed height, because the marks and their labels are positioned
+   inside it and a collapsing box would stack them on the number above. */
+.numberline {
+  position: relative;
+  height: 86px;
+  margin: 22px 2px 0;
+}
+.numberline-track {
+  position: absolute;
+  left: 0; right: 0; top: 34px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--ghost);
+}
+/* The distance the guess was out by, from the answer to the guess. */
+.numberline-span {
+  position: absolute;
+  top: 34px;
+  height: 3px;
+  background: var(--misses);
+}
+.numberline-span-pass { background: var(--clears); }
+
+.numberline-mark { position: absolute; top: 26px; transform: translateX(-50%); }
+.numberline-mark span {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.75rem;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+/* The guess: hollow, because it was a question rather than an answer. */
+.mark-guess::before {
+  content: "";
+  display: block;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  border: 3px solid var(--text-secondary);
+  background: var(--surface-1);
+}
+/* ITS LABEL SITS TO THE RIGHT OF THE DOT, not centred under it: the guess and
+   the threshold can be a couple of percent of the scale apart, and two centred
+   labels then overlap - which is exactly the pair a player most needs to read. */
+.mark-guess span { left: auto; right: -8px; transform: none; top: 24px; }
+
+/* The answer: solid, in the colour of the live value. */
+.mark-answer::before {
+  content: "";
+  display: block;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.mark-answer span { color: var(--accent); font-weight: 700; top: 24px; }
+
+/* The line the level asked the player to get past. */
+.numberline-need { position: absolute; top: 18px; transform: translateX(-50%); }
+.numberline-need::before {
+  content: "";
+  display: block;
+  width: 2px; height: 34px;
+  margin: 0 auto;
+  background: var(--control-edge);
+}
+.numberline-need span {
+  position: absolute;
+  top: -18px; left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.72rem;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+.numberline-ends {
+  display: flex;
+  justify-content: space-between;
+  margin: 6px 0 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The gap in words, beside the drawing of it. */
+.reveal-gap { margin: 10px 0 0; color: var(--text-secondary); font-size: 0.9rem; }
+.reveal-gap strong { color: var(--text-primary); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .reveal-value { animation: one-trade-pop 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .mark-answer { animation: one-trade-land 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .numberline-span { animation: one-trade-span 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .reveal-gap { animation: one-trade-fade 520ms 260ms ease-out both; }
+
+  @keyframes one-trade-pop {
+    from { transform: scale(0.92); opacity: 0; }
+    to { transform: none; opacity: 1; }
+  }
+  /* FROM WHERE THE GUESS WAS. The two custom properties are set per reveal in
+     js/game.js, because only the round knows where on the scale either of them
+     falls; the stylesheet knows the shape of the movement and nothing else. */
+  @keyframes one-trade-land {
+    from { left: var(--guess-at); }
+    to { left: var(--answer-at); }
+  }
+  @keyframes one-trade-span {
+    from { width: 0; left: var(--guess-at); }
+    to { width: var(--span-width); left: var(--span-from); }
+  }
+  @keyframes one-trade-fade {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: none; }
+  }
 }

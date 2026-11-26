@@ -32,7 +32,14 @@ export class StubNode {
     // js/chart.js does, to show and hide its tooltip - would otherwise fail on a
     // property the stub never gave it. Nothing reads it back; it exists so that
     // drawing a chart does not throw.
-    this.style = {};
+    // A style object that also answers setProperty(), because the reveal sets
+    // custom properties - the number line's animation has to start from where
+    // the guess was, and only the round knows that. Written into the same
+    // object, so a test can read either form back.
+    this.style = {
+      setProperty(name, value) { this[name] = String(value); },
+      getPropertyValue(name) { return this[name] ?? ''; },
+    };
     // Text boxes. My real portfolio is the first screen in this game a player
     // types into - every other mode is taps - so the stub needs a value and an
     // input event, and nothing more than that.

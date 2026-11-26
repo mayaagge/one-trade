@@ -122,6 +122,21 @@ export function tickerPicker(build, { groups, redraw, reasonFor = () => null }) 
 // ----------------------------------------------------------- the allocator
 
 /**
+ * The top of a holding's slider scale: the whole budget, less the floors the
+ * other holdings have to keep.
+ *
+ * Fixed for as long as the line-up is, so the thumbs are comparable with each
+ * other. It is a DISPLAY decision, which is why it lives here and not on the
+ * build: the build's own ceilingFor() is about what a move may do.
+ */
+export function sliderCeiling(build, ticker) {
+  const others = build.picks
+    .filter((other) => other !== ticker)
+    .reduce((sum, other) => sum + build.floorOf(other), 0);
+  return Math.max(build.floorOf(ticker), build.total - others);
+}
+
+/**
  * A number of dollars as a slider position, for the aria value a reader hears.
  *
  * The slider's own value is a number of dollars, and "3000" read out on its own
@@ -191,10 +206,21 @@ export function allocator(build, { redraw }) {
     slider.type = 'range';
     slider.id = id;
     slider.min = String(build.floorOf(ticker));
-    // THE TOP OF THE RANGE IS WHAT THIS HOLDING COULD TAKE, not the whole total:
-    // a slider that ran to $10,000 while only $400 was unspent would stop dead
-    // part-way along and feel broken. It moves as far as there is money for.
-    slider.max = String(build.ceilingFor(ticker));
+    // THE SCALE IS THE WHOLE BUDGET, less what the other holdings must keep.
+    //
+    // The first version ran each slider to ceilingFor() - what this holding could
+    // take right now - which is the honest limit on the MOVE and the wrong scale
+    // for the POSITION: with every dollar allocated the ceiling equals the
+    // current amount, so all five thumbs sat hard against the right-hand end and
+    // an even split looked like everything being in the first holding.
+    //
+    // A fixed scale means the thumb's position is the holding's share of the
+    // money, which is the thing a player is reading, and it is comparable from
+    // one row to the next. Dragging past what is left snaps back, because
+    // setDollars() still clamps to the real ceiling - and the + button is
+    // disabled and "Money left: $0" is on the screen, so the limit is said
+    // rather than merely enforced.
+    slider.max = String(sliderCeiling(build, ticker));
     slider.step = String(DOLLAR_STEP);
     slider.value = String(dollars);
     slider.setAttribute('aria-valuetext', dollarsSpoken(dollars));

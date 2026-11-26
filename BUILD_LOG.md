@@ -4288,3 +4288,133 @@ left: $100" with every slider at a floor.
 50 winning designs across levels 1 and 3 to 6.
 
 Educational, not investment advice.
+
+## The chosen look, applied everywhere, 26 November 2026 (session 2.25)
+
+Direction B's layout and number-line reveal on direction C's cream paper, with
+calmer accents than either had. One commit, no wording, number or rule changed.
+
+### The palette is semantic now, and that is the point
+
+Five names, each meaning exactly one thing, in `css/style.css`:
+
+| Name | Means | Light | Dark |
+| --- | --- | --- | --- |
+| `--accent` | the live value, and the thing to press | `#3b4a7a` | `#a9bdf0` |
+| `--clears` | a pass | `#15604a` | `#6fcf9f` |
+| `--misses` | a miss | `#8f3a12` | `#e8975a` |
+| `--reference` | the market: the index line | `#8a8075` | `#857b70` |
+| `--control-edge` | the boundary of a control | `#7a7168` | `#8a7f72` |
+
+**The old blue failed AA in both modes and was the colour of everything.**
+`#257de0` came out at 4.13:1 on white and 3.43:1 under white text in dark mode,
+which was every primary button label, every selected chip, every star, every
+pass line, the current nav pill and every link. One variable, dozens of
+failures; the replacement is 8.5:1 as text and 8.5:1 behind its own label.
+
+**No bright blue, by instruction and on reflection.** This is a teaching tool a
+student may put in front of a professor, and the brightest thing on the screen
+should be the answer rather than the furniture.
+
+**The index line is stone, not rust, and that was a correction.** Both chart
+lines were going to be accent-and-rust, which would have made "the market" and
+"you missed" the same colour on screens that show both. A benchmark is not a
+verdict. Stone also sits 2.2:1 from the accent in LIGHTNESS as well as hue, so
+the two lines separate in greyscale and for a colour-blind reader - the check
+that caught this was comparing the two lines against each other, which a
+contrast table against the background would never have asked.
+
+**The daily puzzle had a private colour system.** `#2e7d4f` and `#8a8a8a`,
+hard-coded, and a green that appeared on no other screen; `var(--line,
+#d5d5d5)`, `var(--line-soft, #ececec)` and `var(--text)` were three variables
+that were never defined anywhere and had been silently falling back for weeks.
+Right and wrong are `--clears` and `--misses` now, and the three undefined names
+are aliases rather than fallbacks.
+
+**OLD NAMES, NEW VALUES.** `--series-1`, `--surface-1` and the rest keep their
+names - 140 rules use them - and point at the semantic ones. A rule can now say
+what it means without 140 edits.
+
+### The reveal is the one place that moves
+
+The number line: the guess marked hollow, the answer solid, and the span between
+them filled in the colour of the verdict, drawn on **the level's own guess
+range** - the same ruler the slider used a moment earlier, because a reveal drawn
+against a different scale is a reveal of a different number.
+
+`revealLine()` is pure and tested in node: it answers where each mark falls, as
+percentages. Three decisions in it worth keeping:
+
+* **An answer can fall off the end, and is not clamped quietly.** levels.json
+  records that level 5's share of risk passes 100% when a holding offsets the
+  rest, and that level 6's fall ratio reaches -0.117 on a legal build. The mark
+  is held to the edge so it stays on screen, and `beyond` says it was held, so
+  the screen can say "the answer is past the end of the scale" rather than
+  parking a dot in the corner and hoping nobody asks.
+* **The positions are rounded to a thousandth of the line.** The arithmetic
+  gives `55.00000000000001` for a guess of 3.2 on a 1-to-5 scale, and that was
+  going straight into a style attribute.
+* **The gap is also said in words** - "Out by 1.1." - because a length on a line
+  says "about this far" and the sentence says how far. A guess that rounds to
+  the answer in the level's own units reads "Spot on." rather than "Out by 0.0",
+  which would be calling a perfect guess a fault.
+
+**The marks are in their final positions in the markup** and the keyframes only
+move them there, so with `prefers-reduced-motion: reduce` the screen is the same
+screen with nothing missing. There was no motion in this stylesheet at all
+before today, so the query is a thing the restyle added rather than a gap it
+closed.
+
+The whole drawing is `aria-hidden`: it is a picture of two numbers the panel
+says in words directly above and below it, and walking a screen reader through
+"your guess 3.2, 3.00 needed, 2.06" a second time as loose labels is the same
+information delivered worse. The panel itself is `role="status"`, which it was
+not before - pressing "Reveal the answer" used to replace the screen and say
+nothing at all.
+
+### Three things the browser found that the stylesheet looked fine about
+
+**The sliders came out 40px wide.** They went into the existing `.alloc-row`
+flex line beside the amount and the +/- buttons, and a control nobody can drag is
+not a control. The row is a grid now with the slider spanning its own line -
+and both the slider and the buttons are PLACED explicitly, because auto-placement
+put the buttons on a third row and made each holding 150px tall.
+
+**Every slider sat hard against its right-hand end.** The range ran to
+`ceilingFor()` - what the holding could take right now - which is the honest
+limit on a MOVE and the wrong scale for a POSITION: with every dollar allocated
+the ceiling equals the current amount, so an even split looked like everything
+being in the first holding. The scale is the whole budget less the other
+holdings' floors, fixed while the line-up is, so a thumb's position is the
+holding's share of the money and is comparable between rows.
+
+**"Out by 1.1." photographed grey.** Not a contrast bug: `scripts/shots.mjs`
+waited 120ms and the gap sentence fades in over 520ms after a 260ms delay, so
+every reveal was being photographed part-way through its own animation. The tool
+waits 900ms now. Worth recording because a screenshot of a half-finished
+animation is indistinguishable from a styling fault, and the first instinct was
+to go and change a colour that was already correct.
+
+### Contrast failures the palette fixed on the way past
+
+* **`.level-locked { opacity: 0.72 }`** took `--text-secondary` to **3.16:1** on
+  six of the seven cards of the first screen a player sees. Dimming with opacity
+  also hides the real colour from the palette and from any audit. A locked card
+  is marked by sitting on the page rather than on paper, and by saying so in
+  words.
+* **Control edges at 1.24:1.** `rgba(11, 11, 11, 0.1)` on chips, quiet buttons,
+  the +/- steps and the text boxes. Cards keep a hairline, because a card is
+  decorative and a control's boundary is not.
+* **The guess slider had no focus ring of its own**, so the single most important
+  control in the game wore the browser's 1px default while every button around it
+  had a 2px one. The allocator's new sliders got the same ring.
+* **The nav pills were 65x37 to 91x37** against a 44px minimum, on every screen.
+  They are 44px now, and they have a focus ring, which they also never had.
+
+**One web font at most: none.** `system-ui` everywhere. Nothing to self-host,
+nothing to request, no flash of a fallback face, and on the phones this is built
+for it is the typeface the reader already reads in.
+
+1,113 tests pass.
+
+Educational, not investment advice.

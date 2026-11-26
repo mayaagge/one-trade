@@ -150,3 +150,36 @@ test('the card built on the capstone summary says nothing about the three portfo
 test('a stub node is enough to render a reveal, which is the point of the stub', () => {
   assert.ok(new StubNode('div') instanceof StubNode);
 });
+
+// ------------------------------------------- the number line, rendered
+
+test('the reveal draws the line, says the gap, and announces itself', () => {
+  const { view } = revealOfLevel3(3.2);
+
+  const panel = view.querySelector('reveal-panel');
+  assert.equal(panel.attributes.role, 'status', 'the reveal is not announced');
+
+  const line = view.querySelector('numberline');
+  assert.ok(line, 'there is no number line on the reveal');
+  assert.equal(line.attributes['aria-hidden'], 'true',
+    'the drawing is read out as well as the words that describe it');
+
+  // THE MARKS ARE IN THEIR FINAL PLACES IN THE MARKUP, so the screen is complete
+  // and readable with the animation off. The keyframes only move them there.
+  const answer = view.querySelector('mark-answer');
+  const guess = view.querySelector('mark-guess');
+  assert.equal(guess.style.left, '55%', '3.2 on a 1-to-5 scale is 55% along');
+  assert.match(answer.style.left, /^[\d.]+%$/);
+
+  // And where the animation starts from is on the wrapper, for the keyframes:
+  // only the round knows where on the scale the guess fell.
+  assert.equal(line.style.getPropertyValue('--guess-at'), '55%');
+  assert.match(line.style.getPropertyValue('--answer-at'), /^[\d.]+%$/);
+  assert.match(line.style.getPropertyValue('--span-width'), /^[\d.]+%$/);
+
+  // The gap in words, beside the drawing of it.
+  assert.match(textOf(view), /Out by \d+\.\d\./);
+  // And the ends of the scale, in the level's own units.
+  assert.match(textOf(view), /1\.0/);
+  assert.match(textOf(view), /5\.0/);
+});

@@ -25,11 +25,13 @@ import {
   basketFrom,
   seenPoolIds,
   buildHint,
+  gapSentence,
   guessPlaces,
   guessSliderState,
   guessStep,
   newSession,
   recordResult,
+  revealLine,
   starText,
   starsExplanation,
 } from '../js/game.js';
@@ -433,4 +435,108 @@ test('basketFrom() accepts the registered basket and refuses anything else', () 
   assert.throws(() => basketFrom({ stocks: [] }), /carries no stocks/);
   assert.throws(() => basketFrom({}), /carries no stocks/);
   assert.throws(() => basketFrom({ stocks: [{ layer: 'chips' }] }), /no ticker/);
+});
+
+// --------------------------------------------- the reveal's number line
+//
+// Where the guess, the answer and the threshold fall on the line, and the gap in
+// words. Pure: the rendering of it is tested in tests/gameShare.test.js, which
+// has a document.
+
+/** A level played to its reveal, with a given guess. */
+function revealed(levelId, picks, guess) {
+  const r = atGuess(levelId, picks);
+  r.setGuess(guess);
+  r.reveal();
+  return r;
+}
+
+test('the number line is drawn on the level own scale', () => {
+  // THE SAME RULER AS THE QUESTION. Level 3's slider ran from 1.0 to 5.0, so the
+  // marks have to land where that slider would have put them - a reveal drawn
+  // against a different scale is a reveal of a different number.
+  const r = revealed(3, ['VOO', 'BND', 'GLD', 'XOM', 'JNJ'], 3.2);
+  const line = revealLine(r);
+  assert.equal(line.min, 1);
+  assert.equal(line.max, 5);
+  // 3.2 on a 1-to-5 scale is (3.2 - 1) / 4 = 55%.
+  assert.ok(Math.abs(line.guessAt - 55) < 1e-9, `the guess sits at ${line.guessAt}%`);
+  // A THOUSANDTH, not 1e-9: the positions are rounded to three decimals on the
+  // way out, because they end up in a style attribute and 36.524439324273615%
+  // is not a position anybody needs. Finer than a pixel on any screen.
+  const expected = ((r.result.value - 1) / 4) * 100;
+  assert.ok(Math.abs(line.answerAt - expected) < 1e-3,
+    `the answer sits at ${line.answerAt}%, not ${expected}%`);
+  // The span is a length, so it has no sign whichever way round the two fell.
+  assert.ok(Math.abs(line.spanWidth - Math.abs(line.answerAt - line.guessAt)) < 1e-9);
+  assert.equal(line.spanFrom, Math.min(line.guessAt, line.answerAt));
+  // The threshold is on it too: 3 bets on a 1-to-5 scale is halfway.
+  assert.ok(Math.abs(line.needAt - 50) < 1e-9);
+  assert.equal(line.needShown, '3.0');
+});
+
+test('an answer past the end of the scale is held to the edge, and says so', () => {
+  // NOT CLAMPED QUIETLY. levels.json records that level 5's share of risk can
+  // pass 100% when a holding offsets the rest, and the slider stops at 100%; a
+  // mark drawn off the end would be invisible, and one drawn at the edge with
+  // nothing said about it is a lie about where the answer was.
+  const r = revealed(5, ['VOO', 'BND', 'GLD', 'JNJ'], 0.5);
+
+  const beyond = revealLine({ ...r, result: { ...r.result, value: 1.2, guess: 0.5 } });
+  assert.equal(beyond.answerAt, 100, 'a mark past the top was not held to the line');
+  assert.equal(beyond.beyond, true, 'and nothing said it had been held');
+
+  const below = revealLine({ ...r, result: { ...r.result, value: 0.1, guess: 0.5 } });
+  assert.equal(below.answerAt, 0);
+  assert.equal(below.beyond, true);
+
+  const inside = revealLine({ ...r, result: { ...r.result, value: 0.4, guess: 0.5 } });
+  assert.equal(inside.beyond, false);
+});
+
+test('revealLine answers null where there is nothing to draw', () => {
+  const r = round(3);
+  for (const ticker of ['VOO', 'BND', 'GLD', 'XOM', 'JNJ']) r.togglePick(ticker);
+  assert.equal(revealLine(r), null, 'a round with no result drew a line');
+  r.toGuess();
+  assert.equal(revealLine(r), null, 'a round with no guess drew a line');
+});
+
+test('the gap is said in words, and a guess that rounds to the answer is spot on', () => {
+  const r = revealed(3, ['VOO', 'BND', 'GLD', 'XOM', 'JNJ'], 3.2);
+  const line = revealLine(r);
+  const said = gapSentence(r, line);
+  assert.match(said, /^Out by \d+\.\d\.$/, `the gap read "${said}"`);
+  // Level 3 answers to one decimal, so the sentence does too.
+  assert.equal(said, `Out by ${line.gap.toFixed(1)}.`);
+
+  // A guess that lands on the answer is not "out by 0.0", which reads as a fault.
+  assert.equal(gapSentence(r, { ...line, gap: 0 }), 'Spot on.');
+  // And one that rounds to zero in the level's own units is the same thing.
+  assert.equal(gapSentence(r, { ...line, gap: 0.004 }), 'Spot on.');
+});
+
+test('every level can draw its own line, in its own units', () => {
+  // A line is drawn on six of the seven levels. Level 2's pass condition is
+  // "make a guess" and has no threshold, so it gets the line without the tick -
+  // which is the case that would throw if the threshold were assumed.
+  // Level 4 and level 6 are left out: their measures need a basket and a crash
+  // window that atGuess() does not deal, and they are covered in the round's own
+  // tests. The point here is the SCALES, and four different ones is the point.
+  for (const [levelId, picks, guess] of [
+    [1, ['VOO', 'VTI'], 0.8],
+    [2, [], 2.5],
+    [3, ['VOO', 'BND', 'GLD', 'XOM', 'JNJ'], 3.2],
+    [5, ['VOO', 'BND', 'GLD', 'JNJ'], 0.4],
+  ]) {
+    const r = revealed(levelId, picks, guess);
+    const line = revealLine(r);
+    assert.ok(line, `level ${levelId} drew no line`);
+    for (const at of [line.guessAt, line.answerAt, line.spanFrom]) {
+      assert.ok(at >= 0 && at <= 100, `level ${levelId} put a mark at ${at}%`);
+    }
+    assert.ok(line.spanFrom + line.spanWidth <= 100 + 1e-9,
+      `level ${levelId}'s span runs off the end`);
+    assert.ok(line.needAt === null || (line.needAt >= 0 && line.needAt <= 100));
+  }
 });
