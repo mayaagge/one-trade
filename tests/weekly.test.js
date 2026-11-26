@@ -136,6 +136,53 @@ test('the ten are spread, and no four of them sit within a bet of each other', (
     'an answer sits above the top of the slider, so no guess can reach it');
 });
 
+test('no two weeks in a row answer within a bet of each other', () => {
+  // SORTED BY ANSWER THE TEN RISE from 1.11 to 4.40, and a player who came back
+  // every week could guess "a bit more than last week" without reading the
+  // portfolio. The order in the file is a fixed mixed one, and this is the rule
+  // it exists to satisfy.
+  //
+  // THE WRAP COUNTS. The list cycles, so week 10 is followed by week 1 again,
+  // and a returning player meets that step like any other.
+  const answers = WEEKLY.portfolios.map((p) => betsOn(p.dollars).bets);
+  for (let i = 0; i < answers.length; i += 1) {
+    const next = (i + 1) % answers.length;
+    const step = Math.abs(answers[next] - answers[i]);
+    assert.ok(
+      step > 1,
+      `weeks ${i + 1} and ${next + 1} answer ${answers[i].toFixed(2)} and ${answers[next].toFixed(2)}, `
+      + `${step.toFixed(2)} apart - a returning player can guess the second from the first`,
+    );
+  }
+});
+
+test('the order alternates rather than climbing, and week 1 opens on the lesson', () => {
+  const answers = WEEKLY.portfolios.map((p) => betsOn(p.dollars).bets);
+  // Not sorted, in either direction: a sorted list is the thing the rule above
+  // forbids, and it would pass that rule by accident if the ten were far apart.
+  const rising = answers.every((value, i) => i === 0 || value > answers[i - 1]);
+  const falling = answers.every((value, i) => i === 0 || value < answers[i - 1]);
+  assert.ok(!rising && !falling, 'the weeks run in order of their answers');
+  // Each step changes direction, which is what "mixed" means here.
+  for (let i = 1; i + 1 < answers.length; i += 1) {
+    const up = answers[i] > answers[i - 1];
+    const thenUp = answers[i + 1] > answers[i];
+    assert.notEqual(up, thenUp, `weeks ${i} to ${i + 2} move the same way twice`);
+  }
+  // The first week is five famous companies that turn out to be one trade,
+  // which is the lesson the game is named for.
+  assert.equal(WEEKLY.portfolios[0].id, 'w01');
+  assert.equal(WEEKLY.portfolios[0].name, 'Five big names');
+  assert.ok(answers[0] < 1.5, `week 1 answers ${answers[0].toFixed(2)}, which is not "these are one bet"`);
+});
+
+test('the ids run in play order, so the file reads in the order it is played', () => {
+  assert.deepEqual(
+    WEEKLY.portfolios.map((p) => p.id),
+    Array.from({ length: 10 }, (_, i) => `w${String(i + 1).padStart(2, '0')}`),
+  );
+});
+
 // ---------------------------------------------------------------- the week
 
 test('the week turns over at midnight on Monday, New York time', () => {

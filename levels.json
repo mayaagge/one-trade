@@ -560,7 +560,11 @@
     "maxPerTicker": 2,
     "maxPerTickerNote": "No ticker appears in more than two of a day's five pairs, so one name cannot carry the whole day.",
     "noRepeatDays": 14,
-    "relaxations": [14, 7, 0],
+    "relaxations": [
+      14,
+      7,
+      0
+    ],
     "relaxationsNote": "A pair used in the last 14 days is not used again. If that leaves a bucket unable to fill its slots, the window halves to 7 and then to 0, in this fixed order, and the entry records which one it used; the three-answer mix and the surprise are never dropped, and a day that cannot be built fails the build rather than shipping a weaker puzzle. A LONGER window is not better: at 18 days the 24-pair same-bet pool cannot fill it, the fallback fires, and the shortest gap gets worse, not better - 12 days against 15.",
     "surprise": {
       "required": 1,
@@ -675,48 +679,6 @@
       },
       {
         "id": "w02",
-        "name": "The barbell",
-        "bets": 1.25,
-        "lesson": "Half the money in the quietest thing on the list, and it still makes barely more than one bet.",
-        "dollars": {
-          "NVDA": 5000,
-          "TLT": 5000
-        }
-      },
-      {
-        "id": "w03",
-        "name": "One stock, one bond fund",
-        "bets": 1.52,
-        "lesson": "The same shape as the barbell, a different answer: what you hold beside the bonds decides it.",
-        "dollars": {
-          "KO": 5000,
-          "TLT": 5000
-        }
-      },
-      {
-        "id": "w04",
-        "name": "Three that share no customers",
-        "bets": 2.17,
-        "lesson": "Three holdings in three different businesses, and still not three bets.",
-        "dollars": {
-          "VXUS": 3400,
-          "UNH": 3300,
-          "GOOGL": 3300
-        }
-      },
-      {
-        "id": "w05",
-        "name": "Oil, drugs and software",
-        "bets": 2.37,
-        "lesson": "Three industries that do not rise and fall together.",
-        "dollars": {
-          "COP": 3400,
-          "JNJ": 3300,
-          "MSFT": 3300
-        }
-      },
-      {
-        "id": "w06",
         "name": "One from every group",
         "bets": 2.75,
         "lesson": "Eight holdings, eight groups, and fewer than three bets. Spreading the names is not spreading the risk.",
@@ -732,7 +694,17 @@
         }
       },
       {
-        "id": "w07",
+        "id": "w03",
+        "name": "The barbell",
+        "bets": 1.25,
+        "lesson": "Half the money in the quietest thing on the list, and it still makes barely more than one bet.",
+        "dollars": {
+          "NVDA": 5000,
+          "TLT": 5000
+        }
+      },
+      {
+        "id": "w04",
         "name": "Four that go their own ways",
         "bets": 3.22,
         "lesson": "Four holdings, more bets than the eight above: what matters is whether they move together.",
@@ -744,7 +716,17 @@
         }
       },
       {
-        "id": "w08",
+        "id": "w05",
+        "name": "One stock, one bond fund",
+        "bets": 1.52,
+        "lesson": "The same shape as the barbell, a different answer: what you hold beside the bonds decides it.",
+        "dollars": {
+          "KO": 5000,
+          "TLT": 5000
+        }
+      },
+      {
+        "id": "w06",
         "name": "A tech fund and four quiet things",
         "bets": 3.45,
         "lesson": "The loud holding takes most of the risk, and the quiet ones still buy real bets.",
@@ -757,7 +739,18 @@
         }
       },
       {
-        "id": "w09",
+        "id": "w07",
+        "name": "Three that share no customers",
+        "bets": 2.17,
+        "lesson": "Three holdings in three different businesses, and still not three bets.",
+        "dollars": {
+          "VXUS": 3400,
+          "UNH": 3300,
+          "GOOGL": 3300
+        }
+      },
+      {
+        "id": "w08",
         "name": "Five, none of them alike",
         "bets": 3.84,
         "lesson": "Metal, oil, health, staples and one giant: about as far apart as five holdings get here.",
@@ -767,6 +760,17 @@
           "UNH": 2000,
           "PG": 2000,
           "AMZN": 2000
+        }
+      },
+      {
+        "id": "w09",
+        "name": "Oil, drugs and software",
+        "bets": 2.37,
+        "lesson": "Three industries that do not rise and fall together.",
+        "dollars": {
+          "COP": 3400,
+          "JNJ": 3300,
+          "MSFT": 3300
         }
       },
       {
@@ -783,7 +787,8 @@
           "NVDA": 500
         }
       }
-    ]
+    ],
+    "orderNote": "THE ORDER IS THE POINT, not just the set. Sorted by answer the ten rise from 1.11 to 4.40, and a player who came back every week could guess \"a bit more than last week\" without reading the portfolio. Here no two weeks in a row are within a bet of each other, INCLUDING the wrap from week 10 back to week 1, since the list cycles - the tightest step is 1.28. Found by searching every ordering for the one whose tightest step is widest, then rotating the cycle to open on five famous companies that turn out to be one trade, which is the lesson the game is named for. tests/weekly.test.js checks the rule against the live prices."
   },
   "guessPool": {
     "size": 20,
