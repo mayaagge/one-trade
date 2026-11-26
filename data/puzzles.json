@@ -30,7 +30,7 @@
     {
      "a": "VXUS",
      "b": "QQQ",
-     "correlation": 0.820288741442,
+     "correlation": 0.820288763759,
      "answer": "same",
      "groups": [
       "international_funds",
@@ -41,7 +41,7 @@
     {
      "a": "AVGO",
      "b": "ORCL",
-     "correlation": 0.49319449632,
+     "correlation": 0.493194523237,
      "answer": "partly",
      "groups": [
       "ai_stocks",
@@ -52,7 +52,7 @@
     {
      "a": "NVDA",
      "b": "GS",
-     "correlation": 0.467624529972,
+     "correlation": 0.467624728754,
      "answer": "partly",
      "groups": [
       "ai_stocks",
@@ -63,7 +63,7 @@
     {
      "a": "ABBV",
      "b": "BND",
-     "correlation": 0.082885133182,
+     "correlation": 0.082880389869,
      "answer": "different",
      "groups": [
       "health_care",
@@ -74,7 +74,7 @@
     {
      "a": "ADBE",
      "b": "CSCO",
-     "correlation": -0.083850562232,
+     "correlation": -0.083850596608,
      "answer": "different",
      "groups": [
       "other_large_tech",
@@ -125,7 +125,7 @@
     {
      "a": "VWO",
      "b": "VTI",
-     "correlation": 0.860173785583,
+     "correlation": 0.860173980372,
      "answer": "same",
      "groups": [
       "international_funds",
@@ -136,7 +136,7 @@
     {
      "a": "MSFT",
      "b": "ADBE",
-     "correlation": 0.365145867576,
+     "correlation": 0.365145731114,
      "answer": "partly",
      "groups": [
       "ai_stocks",
@@ -147,7 +147,7 @@
     {
      "a": "MRVL",
      "b": "VRT",
-     "correlation": 0.556062330167,
+     "correlation": 0.556062448608,
      "answer": "partly",
      "groups": [
       "ai_stocks",
@@ -158,7 +158,7 @@
     {
      "a": "AVGO",
      "b": "KO",
-     "correlation": -0.307614625377,
+     "correlation": -0.30761466834,
      "answer": "different",
      "groups": [
       "ai_stocks",
@@ -169,7 +169,7 @@
     {
      "a": "MRVL",
      "b": "META",
-     "correlation": 0.168415613689,
+     "correlation": 0.168415720805,
      "answer": "different",
      "groups": [
       "ai_stocks",
@@ -220,7 +220,7 @@
     {
      "a": "VEA",
      "b": "VOO",
-     "correlation": 0.827405762694,
+     "correlation": 0.827405603358,
      "answer": "same",
      "groups": [
       "international_funds",
@@ -231,7 +231,7 @@
     {
      "a": "AMD",
      "b": "VEA",
-     "correlation": 0.592349376883,
+     "correlation": 0.592349562034,
      "answer": "partly",
      "groups": [
       "ai_stocks",
@@ -242,7 +242,7 @@
     {
      "a": "NVDA",
      "b": "VRT",
-     "correlation": 0.504368716948,
+     "correlation": 0.50436872571,
      "answer": "partly",
      "groups": [
       "ai_stocks",
@@ -253,7 +253,7 @@
     {
      "a": "MU",
      "b": "LQD",
-     "correlation": 0.143211708349,
+     "correlation": 0.143210636746,
      "answer": "different",
      "groups": [
       "ai_stocks",
@@ -264,7 +264,7 @@
     {
      "a": "JNJ",
      "b": "UNH",
-     "correlation": 0.166314915996,
+     "correlation": 0.166314512861,
      "answer": "different",
      "groups": [
       "health_care",
@@ -315,7 +315,7 @@
     {
      "a": "VTI",
      "b": "QQQ",
-     "correlation": 0.932034867212,
+     "correlation": 0.93203514688,
      "answer": "same",
      "groups": [
       "core_us_funds",
@@ -326,7 +326,7 @@
     {
      "a": "VXUS",
      "b": "VWO",
-     "correlation": 0.936576401183,
+     "correlation": 0.936576458611,
      "answer": "same",
      "groups": [
       "international_funds",
@@ -337,7 +337,7 @@
     {
      "a": "AMZN",
      "b": "QQQ",
-     "correlation": 0.486931166506,
+     "correlation": 0.486931199629,
      "answer": "partly",
      "groups": [
       "ai_stocks",
@@ -348,7 +348,7 @@
     {
      "a": "ORCL",
      "b": "GS",
-     "correlation": 0.402549256332,
+     "correlation": 0.402549246883,
      "answer": "partly",
      "groups": [
       "ai_stocks",
@@ -359,7 +359,7 @@
     {
      "a": "ANET",
      "b": "MSFT",
-     "correlation": 0.217846047751,
+     "correlation": 0.217846394654,
      "answer": "different",
      "groups": [
       "ai_stocks",
@@ -410,7 +410,7 @@
     {
      "a": "AMD",
      "b": "ORCL",
-     "correlation": 0.434479455165,
+     "correlation": 0.434479610121,
      "answer": "partly",
      "groups": [
       "ai_stocks",
@@ -421,7 +421,7 @@
     {
      "a": "PLTR",
      "b": "VOO",
-     "correlation": 0.461006656216,
+     "correlation": 0.461006326508,
      "answer": "partly",
      "groups": [
       "ai_stocks",
@@ -432,7 +432,7 @@
     {
      "a": "GOOGL",
      "b": "JPM",
-     "correlation": 0.175733093382,
+     "correlation": 0.175732970429,
      "answer": "different",
      "groups": [
       "ai_stocks",
@@ -443,7 +443,7 @@
     {
      "a": "ABBV",
      "b": "LQD",
-     "correlation": 0.079570759726,
+     "correlation": 0.079572091205,
      "answer": "different",
      "groups": [
       "health_care",
@@ -454,7 +454,7 @@
     {
      "a": "VWO",
      "b": "VOO",
-     "correlation": 0.857536557865,
+     "correlation": 0.857536746192,
      "answer": "same",
      "groups": [
       "international_funds",
@@ -505,7 +505,7 @@
     {
      "a": "VEA",
      "b": "QQQ",
-     "correlation": 0.781556898631,
+     "correlation": 0.781556982879,
      "answer": "same",
      "groups": [
       "international_funds",
@@ -516,7 +516,7 @@
     {
      "a": "CRM",
      "b": "ADBE",
-     "correlation": 0.757400717587,
+     "correlation": 0.757400717843,
      "answer": "same",
      "groups": [
       "other_large_tech",
@@ -527,7 +527,7 @@
     {
      "a": "NVDA",
      "b": "CSCO",
-     "correlation": 0.367686210809,
+     "correlation": 0.367686150066,
      "answer": "partly",
      "groups": [
       "ai_stocks",
@@ -538,7 +538,7 @@
     {
      "a": "GOOGL",
      "b": "BND",
-     "correlation": 0.16194391104,
+     "correlation": 0.161945358809,
      "answer": "different",
      "groups": [
       "ai_stocks",
@@ -549,7 +549,7 @@
     {
      "a": "AVGO",
      "b": "MSFT",
-     "correlation": 0.225168397614,
+     "correlation": 0.225168768136,
      "answer": "different",
      "groups": [
       "ai_stocks",
@@ -600,7 +600,7 @@
     {
      "a": "AMD",
      "b": "QQQ",
-     "correlation": 0.777439502416,
+     "correlation": 0.777439483727,
      "answer": "same",
      "groups": [
       "ai_stocks",
@@ -611,7 +611,7 @@
     {
      "a": "AVGO",
      "b": "VXUS",
-     "correlation": 0.541104101386,
+     "correlation": 0.541104035631,
      "answer": "partly",
      "groups": [
       "ai_stocks",
@@ -622,7 +622,7 @@
     {
      "a": "JNJ",
      "b": "WMT",
-     "correlation": 0.381191393017,
+     "correlation": 0.381191472573,
      "answer": "partly",
      "groups": [
       "health_care",
@@ -633,7 +633,7 @@
     {
      "a": "MU",
      "b": "META",
-     "correlation": 0.14290842042,
+     "correlation": 0.142908518276,
      "answer": "different",
      "groups": [
       "ai_stocks",
@@ -644,7 +644,7 @@
     {
      "a": "CRM",
      "b": "INTC",
-     "correlation": -0.121567053927,
+     "correlation": -0.121567089256,
      "answer": "different",
      "groups": [
       "other_large_tech",
