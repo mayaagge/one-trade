@@ -1,13 +1,31 @@
 {
   "version": 1,
   "decided": "2026-11-25",
-  "note": "Levels 1 to 5. Every rule the game checks is data in this file, so an instructor or a reviewer can read it without reading code. Levels 6 and 7 are not built yet.",
+  "note": "Levels 1 to 6. Every rule the game checks is data in this file, so an instructor or a reviewer can read it without reading code. Level 7 is not built yet.",
   "disclaimer": "Educational, not investment advice.",
   "startingDollars": 10000,
   "window": {
     "days": 756,
     "minDays": 252,
-    "note": "About 3 years of daily returns, over each portfolio's own overlapping days, as docs/PRD.md asks for a single portfolio. The daily 'Same bet?' puzzle uses one year instead, by its own design."
+    "note": "About 3 years of daily returns, over each portfolio's own overlapping days, as docs/PRD.md asks for a single portfolio. The daily 'Same bet?' puzzle uses one year instead, by its own design. Level 6 does not use this window: it carries its own, a fixed stretch of 2020 that never moves.",
+    "appliesTo": "Every level whose prices come from data/game.json, which is levels 1 to 5 and 7."
+  },
+  "kinds": {
+    "note": "What counts as a stock, for level 6's rule that at least 60% of the money sits in stocks. A stock fund is a stock: VOO, QQQ and VXUS are shares bought in one line. BND, TLT and LQD are loans, and GLD is metal, so none of the four is.",
+    "stocks": [
+      "NVDA", "AMD", "AVGO", "MRVL", "MU", "ANET", "VRT",
+      "MSFT", "GOOGL", "AMZN", "META", "ORCL", "PLTR",
+      "AAPL", "CRM", "ADBE", "CSCO", "INTC",
+      "JPM", "BAC", "GS",
+      "XOM", "CVX", "COP",
+      "JNJ", "UNH", "ABBV",
+      "PG", "KO", "WMT",
+      "VXUS", "VEA", "VWO",
+      "VOO", "VTI", "QQQ"
+    ],
+    "notStocks": ["BND", "TLT", "LQD", "GLD"],
+    "coverNote": "36 + 4, which is exactly tickers.json's 40 playable tickers. Both lists are written out rather than only the four exceptions: with an exceptions list, a bond fund added later would count as a stock in silence. tests/levels.test.js holds the union to the ticker list and the two lists to being disjoint, so a new ticker fails the test until it is classified here.",
+    "pltrNote": "PLTR is a stock and is listed as one. It cannot be held in level 6 for a different reason - it had not listed in February 2020 - and mixing the two reasons would be a way to get the wrong answer later."
   },
   "levels": [
     {
@@ -295,6 +313,77 @@
       "revealLabel": "Share of the risk in your biggest holding",
       "explain": "Share of risk is not share of dollars. Each holding's share is its part of what makes the portfolio move, and the four shares add up to 100%, so they can be read straight against the money. A quarter of the money in the holding that swings hardest can be most of the risk.",
       "why": "Spreading the risk evenly is not the same as making several bets. Four funds that all move together can each carry about a quarter of the risk and still be barely more than one bet, so a portfolio can pass this level and fail level 3. This level asks where the risk sits; level 3 asks how many different things it rides on."
+    },
+    {
+      "id": 6,
+      "title": "Crash test",
+      "concept": "Behaviour under stress",
+      "challenge": "Build a 4-holding portfolio with at least 60% in stocks, then hold it through the February to March 2020 crash. Fall less than half as much as the S&P 500.",
+      "holdings": {
+        "exactly": 4,
+        "minShareIn": {
+          "kind": "stocks",
+          "share": 0.6
+        }
+      },
+      "holdingsNote": "docs/PRD.md sets the 60% in stocks and leaves the holding count open; 4 matches levels 4 and 5, and on real data it is the hardest of 3, 4 and 5 holdings while still having far more than the 3 winning designs the PRD asks for. The floor sits on a SET of holdings rather than on one, which is new: level 4's 30% sits on QQQ, and this level's 60% sits on whichever of the four holdings are stocks.",
+      "pool": "all",
+      "poolNote": "The whole ticker list. PLTR is shown disabled with its reason - it had not listed in February 2020 - rather than left out: a holding that vanishes explains nothing.",
+      "window": {
+        "source": "data/crashes.json",
+        "key": "crash2020",
+        "note": "19 February to 23 March 2020, 23 trading days, bought and held and never rebalanced, against VOO's adjusted closes labelled 'S&P 500 (VOO, with dividends)'. Every one of those is fixed in docs/PRD.md and read from data/crashes.json, not decided here. This level's prices are history and never move, so unlike levels 1 to 5 its answer is the same every week - the window block above, and its 252-day minimum, do not apply to it."
+      },
+      "guess": {
+        "measure": "fallShare",
+        "prompt": "Before the reveal: for every 1% the S&P 500 fell, how much did your portfolio fall?",
+        "min": 0,
+        "max": 2,
+        "step": 0.05,
+        "display": "number",
+        "places": 2
+      },
+      "guessNote": "1.00 - falling with the index, one for one - sits exactly in the middle of the slider, so the left half is 'held up better than the market' and the right half is 'fell harder'. The range does not cover every build: across the legal 4-holding builds the real answer runs from -0.117, a portfolio that ROSE 3.96% while the index fell, to 1.714, almost all of it in COP. Both ends are corners a player reaches only by pushing one holding as far as the $100 steps allow, and at both the bucket star still lands; it is the within-0.10 star that cannot be reached there. Level 5 makes the same trade for the same reason.",
+      "pass": {
+        "measure": "fallShare",
+        "comparison": "<",
+        "threshold": 0.5,
+        "says": "a fall under half the S&P 500's"
+      },
+      "buckets": [
+        {
+          "key": "harder",
+          "min": 1,
+          "label": "fell harder than the index"
+        },
+        {
+          "key": "withIt",
+          "min": 0.5,
+          "label": "fell with the index"
+        },
+        {
+          "key": "heldUp",
+          "min": null,
+          "label": "held up - less than half the index's fall"
+        }
+      ],
+      "bucketNote": "The edges are this level's own pass threshold (0.50) and the portfolio falling one for one with the index (1.00) - the same 'one for one' edge level 4 uses for the AI basket, and here it is the index itself: all of VOO gives exactly 1.000 in this window. The lowest bucket has no floor because the answer goes below zero when a portfolio rises while the index falls, which this window allows.",
+      "stars": {
+        "pass": 1,
+        "two": {
+          "test": "bucket",
+          "says": "named the right bucket"
+        },
+        "three": {
+          "test": "within",
+          "of": 0.1,
+          "says": "within 0.10 of the real ratio"
+        }
+      },
+      "revealLabel": "How much of the index's fall your portfolio took",
+      "explain": "This level asks a different question from the others: not how many bets you made, but what happened when everything fell at once. The S&P 500 fell 33.99% in five weeks. Your answer is your own fall as a share of that one: 0.50 means you fell half as far, 1.00 means you fell with it, and above 1.00 means you fell harder. The 60% in stocks is there so the answer cannot be bought by simply holding less of the market.",
+      "why": "What cushioned this crash was long government bonds: TLT rose 14.23% while the index lost 33.99%, and most of the portfolios that pass hold something like it. That is this crash, not a rule about bonds. In the 2022 bear market TLT fell 29.33%, MORE than the S&P 500's own 24.52% - rates rose, and bonds fell alongside shares instead of cushioning them. You can watch that happen in Crash replay's 2022 window. So the lesson is not 'hold bonds': it is that what protects a portfolio depends on what the crash is made of, and you cannot know that in advance.",
+      "crashNote": "Both TLT numbers are read from data/crashes.json, bought and held over each window's own dates, the same way the level measures a portfolio."
     }
   ],
   "guessPool": {

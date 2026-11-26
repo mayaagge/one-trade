@@ -38,7 +38,17 @@ export const BAND_TOLERANCE = 1e-9;
  * is level 2's "make a guess", which every round satisfies - so it is allowed on
  * a pass and nowhere else.
  */
-export const MEASURES = ['correlation', 'effectiveBets', 'beta', 'maxRiskShare'];
+export const MEASURES = ['correlation', 'effectiveBets', 'beta', 'maxRiskShare', 'fallShare'];
+
+/**
+ * The measures that are not taken over data/game.json's rolling window.
+ *
+ * Level 6's answer is a ratio of two falls through a fixed stretch of 2020, read
+ * from data/crashes.json. A level measuring one of these carries its own
+ * `window` block naming the file and the key, and levels.json's shared 756-day
+ * window - and its 252-day minimum - say nothing about it.
+ */
+export const CRASH_MEASURES = ['fallShare'];
 
 /** How a level's answer is shown: a plain number, or a share of 1 as a percent. */
 export const DISPLAYS = ['number', 'percent'];
@@ -89,13 +99,73 @@ export function validateLevels(data) {
       }
     }
     validateGuess(level);
-    validateHoldings(level);
+    validateHoldings(level, data);
     validateBuckets(level);
     validateStars(level);
+    validateWindow(level);
   }
 
+  validateKinds(data);
   validateGuessPool(data.guessPool);
   return data;
+}
+
+/**
+ * The kinds of ticker, for a level whose build rule is about a kind rather than
+ * about a named holding: level 6's "at least 60% in stocks".
+ *
+ * BOTH LISTS ARE WRITTEN OUT in levels.json, and that redundancy is the point. A
+ * file listing only the four that are not stocks would quietly count a bond fund
+ * added next year as a stock. Here a ticker in neither list has no kind, so
+ * tests/levels.test.js can hold the two lists to tickers.json's own universe and
+ * fail until a new ticker is classified. This function cannot do that itself: it
+ * is handed levels.json and nothing else, and the universe lives in another file.
+ */
+export function validateKinds(data) {
+  const kinds = data.kinds;
+  if (kinds === undefined) return data;
+  if (typeof kinds !== 'object' || kinds === null) throw new Error('levels: kinds must be an object');
+  const seen = new Map();
+  for (const [kind, members] of Object.entries(kinds)) {
+    // The prose beside the lists - note, coverNote, pltrNote - is for a reader,
+    // not for the game, so only the lists are checked.
+    if (!Array.isArray(members)) continue;
+    if (members.length === 0) throw new Error(`levels: kind "${kind}" is empty`);
+    for (const ticker of members) {
+      if (typeof ticker !== 'string' || ticker.length === 0) {
+        throw new Error(`levels: kind "${kind}" has an entry that is not a ticker`);
+      }
+      if (seen.has(ticker)) {
+        throw new Error(
+          `levels: ${ticker} is in two kinds, "${seen.get(ticker)}" and "${kind}", `
+          + 'so what it counts as would depend on which list was read first',
+        );
+      }
+      seen.set(ticker, kind);
+    }
+  }
+  return data;
+}
+
+/**
+ * A level that measures a crash has to say which window, and in which file.
+ *
+ * Level 6's answer is a fixed stretch of history rather than the rolling window
+ * every other level reads, so leaving the key out would silently measure
+ * something else - or nothing at all.
+ */
+function validateWindow(level) {
+  const where = `level ${level.id}`;
+  const measures = [level.pass.measure, level.guess?.measure];
+  const needsWindow = measures.some((measure) => CRASH_MEASURES.includes(measure));
+  if (!needsWindow) return;
+  const window = level.window;
+  if (!window || typeof window.source !== 'string' || typeof window.key !== 'string') {
+    throw new Error(
+      `${where}: a level measuring ${measures.find((m) => CRASH_MEASURES.includes(m))} needs `
+      + 'window.source and window.key, naming the file and the window it replays',
+    );
+  }
 }
 
 /**
@@ -137,7 +207,7 @@ function validateGuess(level) {
  * that matters is that the floors LEAVE ROOM: every other holding still needs
  * its $100, or the level would be asking for a portfolio that cannot be built.
  */
-function validateHoldings(level) {
+function validateHoldings(level, data = {}) {
   const where = `level ${level.id}`;
   const holdings = level.holdings;
   if (!holdings) return;
@@ -181,6 +251,63 @@ function validateHoldings(level) {
       );
     }
   }
+
+  validateKindFloor(level, data, wanted);
+}
+
+/**
+ * The floor on a KIND of holding: level 6's "at least 60% in stocks".
+ *
+ * Different from minShare above, which names a ticker the level deals. This one
+ * names a kind in levels.json's own `kinds` block, and any holding of that kind
+ * can carry it - so what is checked is that the kind exists and that the floor
+ * leaves every OTHER holding its $100. One holding of the kind can carry the
+ * whole floor on its own, which is why the room left over is counted against
+ * wanted - 1 rather than against the number of floors.
+ */
+function validateKindFloor(level, data, wanted) {
+  const where = `level ${level.id}`;
+  const rule = level.holdings?.minShareIn;
+  if (rule === undefined) return;
+  if (!rule || typeof rule !== 'object') throw new Error(`${where}: holdings.minShareIn must be an object`);
+  if (typeof rule.kind !== 'string' || rule.kind.length === 0) {
+    throw new Error(`${where}: holdings.minShareIn.kind must name a kind in this file's kinds block`);
+  }
+  if (!Array.isArray(data.kinds?.[rule.kind])) {
+    throw new Error(
+      `${where}: holdings.minShareIn names the kind "${rule.kind}", which this file's kinds `
+      + 'block does not list, so nothing says which tickers it means',
+    );
+  }
+  if (!Number.isFinite(rule.share) || !(rule.share > 0) || rule.share > 1) {
+    throw new Error(`${where}: holdings.minShareIn.share must be above 0 and at most 1`);
+  }
+  if (wanted !== null) {
+    const room = 1 - rule.share - (wanted - 1) * MIN_HOLDING_SHARE;
+    if (room < -BAND_TOLERANCE) {
+      throw new Error(
+        `${where}: a floor of ${rule.share} in ${rule.kind} leaves nothing for the other `
+        + `${wanted - 1} holdings, so the portfolio this level asks for cannot be built`,
+      );
+    }
+  }
+}
+
+/** The tickers a kind covers, from levels.json, or an empty list if there is no such kind. */
+export function kindTickers(data, kind) {
+  const members = data.kinds?.[kind];
+  return Array.isArray(members) ? [...members] : [];
+}
+
+/**
+ * The floor a level puts on a kind of holding, as a rule the build can apply:
+ * the kind, its share, and the tickers it covers. Null on a level without one,
+ * which is every level but 6.
+ */
+export function kindFloorFor(level, data) {
+  const rule = level.holdings?.minShareIn;
+  if (!rule) return null;
+  return { kind: rule.kind, share: rule.share, tickers: kindTickers(data, rule.kind) };
 }
 
 /**

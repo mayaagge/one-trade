@@ -35,6 +35,8 @@ import {
   GUESS,
   REVEAL,
   createRound,
+  raiseToKindFloor,
+  usesCrashWindow,
   drawFromPool,
   evenSplit,
   floorFor,
@@ -54,6 +56,7 @@ import {
   riskShares,
 } from '../js/math.js';
 import { gameWindow, windowMatrix } from '../js/gameView.js';
+import { validateCrashes, fallAgainstIndex, replay, windowByKey } from '../js/crash.js';
 
 const root = new URL('..', import.meta.url);
 const readJson = (name) => JSON.parse(readFileSync(fileURLToPath(new URL(name, root)), 'utf8'));
@@ -63,6 +66,12 @@ const TICKERS = readJson('tickers.json');
 // Level 4's beta is to the basket frozen in basket.json, which is where the round
 // reads its members from rather than from a list repeated here.
 const BASKET = readJson('basket.json').stocks.map((s) => s.ticker);
+// Level 6 is replayed through a window in data/crashes.json rather than measured
+// over data/game.json. That file is history - built once and committed, never
+// refreshed - so the numbers it produces here are as fixed as the frozen
+// snapshot's, and the level's own window is the 2020 crash.
+const CRASHES = validateCrashes(readJson('data/crashes.json'));
+const CRASH_WINDOW = windowByKey(CRASHES, levelById(LEVELS, 6).window.key);
 const UNIVERSE = TICKERS.groups.flatMap((g) => g.tickers.map((t) => (typeof t === 'string' ? t : t.ticker)));
 
 // A game document at full precision, built from the frozen snapshot. Full
@@ -81,8 +90,10 @@ const GAME = (() => {
 })();
 
 /** A round on a level, with the draw pinned when it matters. */
-function round(levelId, { random = () => 0, basket = BASKET } = {}) {
-  return createRound({ levels: LEVELS, levelId, game: GAME, universe: UNIVERSE, basket, random });
+function round(levelId, { random = () => 0, basket = BASKET, crashes = CRASHES } = {}) {
+  return createRound({
+    levels: LEVELS, levelId, game: GAME, universe: UNIVERSE, basket, crashes, random,
+  });
 }
 
 /** Play a whole round: pick these tickers, guess this, reveal. */
@@ -511,6 +522,9 @@ test('every level in the file can be played end to end', () => {
     3: ['VOO', 'BND', 'GLD', 'XOM', 'JNJ'],
     4: ['BND', 'GLD', 'JNJ'],
     5: ['VOO', 'BND', 'GLD', 'XOM'],
+    // Level 6 needs four with at least 60% of the money in stocks, which an even
+    // split of two stocks and two bond funds reaches on its own.
+    6: ['WMT', 'PG', 'TLT', 'BND'],
   };
   for (const level of LEVELS.levels) {
     const r = round(level.id);
@@ -694,4 +708,264 @@ test('a measure about a pair or a whole portfolio names no single holding', () =
   assert.equal(play(1, ['VOO', 'VTI'], 0.9).result.aboutTicker, null);
   assert.equal(play(4, ['BND', 'GLD', 'JNJ'], 0.2).result.aboutTicker, null);
   assert.equal(play(3, ['VOO', 'BND', 'GLD', 'XOM', 'JNJ'], 2.5).result.aboutTicker, null);
+});
+
+// --------------------------------------------- level 6: at least 60% in stocks
+//
+// The floor is on a KIND of holding rather than on a named one, which is new.
+// Everything below is the same three places level 4's QQQ floor is held up - the
+// opening split, the gate, and the buttons - asked about a set.
+
+/** A level 6 round with these four picked, in this order. */
+function crashRound(picks) {
+  const r = round(6);
+  for (const ticker of picks) r.togglePick(ticker);
+  return r;
+}
+
+const inStocks = (r) => r.allocatedInKind();
+
+test('level 6 opens at its 60% in stocks, as evenly as whole steps allow', () => {
+  // Two stocks and two bond funds: $500 comes out of each bond fund and goes to
+  // the stock that has least, so both sides stay level.
+  const two = crashRound(['WMT', 'PG', 'TLT', 'BND']);
+  assert.deepEqual(two.dollars, { WMT: 3000, PG: 3000, TLT: 2000, BND: 2000 });
+  assert.equal(inStocks(two), 6000);
+  assert.equal(two.allocated(), 10000);
+  assert.ok(two.buildComplete());
+
+  // One stock carrying the whole floor on its own, which is legal: the floor is
+  // on the kind, not on a holding.
+  const one = crashRound(['WMT', 'TLT', 'BND', 'GLD']);
+  assert.equal(one.dollars.WMT, 6000);
+  assert.equal(inStocks(one), 6000);
+  assert.equal(one.allocated(), 10000);
+  assert.ok(one.buildComplete());
+
+  // Three stocks and one bond fund need no raising at all: an even split is
+  // already 75% in stocks.
+  const three = crashRound(['VOO', 'QQQ', 'WMT', 'BND']);
+  assert.deepEqual(three.dollars, { VOO: 2500, QQQ: 2500, WMT: 2500, BND: 2500 });
+  assert.equal(inStocks(three), 7500);
+  assert.ok(three.buildComplete());
+
+  // And all four in stocks is 100%, which clears a 60% floor trivially.
+  const all = crashRound(['VOO', 'QQQ', 'VTI', 'WMT']);
+  assert.equal(inStocks(all), 10000);
+  assert.ok(all.buildComplete());
+});
+
+test('four holdings with no stock among them is an unfinished build, not an error', () => {
+  // A player can pick four bond funds, and the right answer is to tell them what
+  // is missing - not to throw, and not to silently reshuffle their money.
+  const r = crashRound(['BND', 'TLT', 'LQD', 'GLD']);
+  assert.deepEqual(r.dollars, {
+    BND: 2500, TLT: 2500, LQD: 2500, GLD: 2500,
+  });
+  assert.equal(inStocks(r), 0);
+  assert.equal(r.shortOfKindFloor(), 6000);
+  assert.equal(r.buildComplete(), false);
+  assert.equal(r.allocated(), 10000, 'the money still adds up; it is in the wrong place');
+  // And the refusal names the rule that was missed. Four holdings and $10,000
+  // allocated are both already true here, so a message about either would send a
+  // player hunting for the wrong thing.
+  assert.match(r.whyIncomplete(), /needs at least \$6000 of the \$10000 in stocks; this has \$0/);
+  assert.throws(() => r.toGuess(), /needs at least \$6000 of the \$10000 in stocks/);
+});
+
+test('whyIncomplete() names the rule that is missed, and nothing when none is', () => {
+  // An empty build reports the target rather than the obvious, as every level
+  // with a holding count has always done.
+  assert.match(round(6).whyIncomplete(), /wants exactly 4 holdings; this has 0/);
+
+  const three = crashRound(['WMT', 'PG', 'TLT']);
+  assert.match(three.whyIncomplete(), /wants exactly 4 holdings; this has 3/);
+
+  const ready = crashRound(['WMT', 'PG', 'TLT', 'BND']);
+  assert.equal(ready.whyIncomplete(), null);
+
+  // A level without a floor on a kind reports its own rules exactly as before.
+  const four = round(4);
+  four.togglePick('BND');
+  assert.match(four.whyIncomplete(), /wants exactly 4 holdings; this has 2/);
+  assert.match(round(1).whyIncomplete(), /wants exactly 2 holdings; this has 0/);
+});
+
+test('the money buttons cannot take the stocks below 60%, from either side', () => {
+  // Level 4's test asked this of one holding. Here it is a set, and the step that
+  // breaks the rule can be a step on a holding the player is not looking at.
+  const r = crashRound(['WMT', 'PG', 'TLT', 'BND']);   // 3000/3000/2000/2000
+
+  // Raising a bond fund takes from the OTHER bond fund, never from a stock.
+  assert.equal(r.adjustDollars('TLT', 1), 1);
+  assert.deepEqual(r.dollars, { WMT: 3000, PG: 3000, TLT: 2100, BND: 1900 });
+  assert.equal(inStocks(r), 6000);
+
+  // Lowering a stock gives the step to the other stock, so the kind keeps it.
+  assert.equal(r.adjustDollars('WMT', -1), 1);
+  assert.deepEqual(r.dollars, { WMT: 2900, PG: 3100, TLT: 2100, BND: 1900 });
+  assert.equal(inStocks(r), 6000);
+
+  // With one stock holding the whole floor there is nowhere for a step to go:
+  // every other holding is outside the kind, so the - button cannot work and
+  // says so rather than offering a tap that does nothing.
+  const one = crashRound(['WMT', 'TLT', 'BND', 'GLD']);
+  assert.equal(one.canLower('WMT'), false);
+  assert.equal(one.adjustDollars('WMT', -1), 0, 'it refused the move as well as disabling it');
+  assert.equal(inStocks(one), 6000);
+  // Raising a bond fund there is still possible, out of the other bond funds.
+  assert.equal(one.canRaise('TLT'), true);
+  assert.equal(one.adjustDollars('TLT', 1), 1);
+  assert.equal(inStocks(one), 6000);
+});
+
+test('no run of button presses can leave a level 6 build breaking its own rule', () => {
+  // The invariant, over a long run of moves rather than a hand-picked one: the
+  // stocks never drop below $6,000 and the money always adds to $10,000. A
+  // deterministic walk, so a failure is reproducible.
+  const r = crashRound(['WMT', 'PG', 'TLT', 'BND']);
+  let seed = 7;
+  const next = (n) => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % n; };
+  for (let i = 0; i < 400; i += 1) {
+    const ticker = r.picks[next(r.picks.length)];
+    const steps = next(2) === 0 ? 1 : -1;
+    const expected = steps > 0 ? r.canRaise(ticker) : r.canLower(ticker);
+    const moved = r.adjustDollars(ticker, steps);
+    // The buttons and the move are the same rule, so what a button offers is
+    // exactly what a move does.
+    assert.equal(moved === 1, expected, `${ticker} ${steps} disagreed with its button`);
+    assert.equal(r.allocated(), 10000, 'the money stopped adding up');
+    assert.ok(inStocks(r) >= 6000, `the stocks fell to ${inStocks(r)}`);
+    assert.ok(r.picks.every((t) => r.dollars[t] >= 100), 'a holding went below its $100');
+  }
+  assert.ok(r.buildComplete(), 'and the build is still one the level asked for');
+});
+
+test('raiseToKindFloor() moves as far as it can and leaves the rest to the gate', () => {
+  // Unlike splitWithFloors(), it does not throw: a floor on a kind can be
+  // genuinely unreachable from what the player picked, and that is a build to
+  // report, not an exception to raise.
+  const inKind = (t) => t === 'WMT';
+  const dollars = raiseToKindFloor({ WMT: 2500, BND: 2500, TLT: 2500, GLD: 2500 },
+    ['WMT', 'BND', 'TLT', 'GLD'], inKind, 6000);
+  assert.equal(dollars.WMT, 6000);
+  assert.equal(Object.values(dollars).reduce((a, b) => a + b, 0), 10000);
+
+  // Nothing of the kind at all: untouched, and short of the floor.
+  const none = raiseToKindFloor({ BND: 5000, TLT: 5000 }, ['BND', 'TLT'], () => false, 6000);
+  assert.deepEqual(none, { BND: 5000, TLT: 5000 });
+
+  // Floors on the other holdings are respected while raising, so a donor never
+  // drops through its own $100.
+  const tight = raiseToKindFloor({ WMT: 100, BND: 9900 }, ['WMT', 'BND'], inKind, 6000);
+  assert.equal(tight.WMT, 6000);
+  assert.equal(tight.BND, 4000);
+});
+
+// ------------------------------------------- level 6: the window and the reveal
+
+test('a holding the window cannot replay cannot be picked, and says why', () => {
+  // PLTR listed in September 2020, so it cannot be held through the February
+  // crash. The round refuses it, not just the picker: a disabled chip stops a
+  // click, never a caller.
+  const r = crashRound(['WMT', 'PG', 'TLT']);
+  assert.equal(r.canHold('PLTR'), false);
+  assert.equal(r.canHold('WMT'), true);
+  assert.throws(() => r.togglePick('PLTR'), /first trading day was 2020-10-01/);
+  assert.equal(r.picks.length, 3, 'and the build was left alone');
+  // Everything else in the universe can be held, so the level is not quietly
+  // narrower than its pool claims.
+  const refused = UNIVERSE.filter((t) => !r.canHold(t));
+  assert.deepEqual(refused, ['PLTR']);
+});
+
+test('a round that replays a crash refuses to start without the crash data', () => {
+  assert.ok(usesCrashWindow(levelById(LEVELS, 6)));
+  assert.equal(usesCrashWindow(levelById(LEVELS, 5)), false);
+  assert.throws(
+    () => createRound({ levels: LEVELS, levelId: 6, game: GAME, universe: UNIVERSE }),
+    /replays crash2020, so it needs data\/crashes.json/,
+  );
+});
+
+test("level 6's answer is Crash replay's own measure, to 1e-9", () => {
+  // The same two numbers by two routes: the round, and a replay built straight
+  // from data/crashes.json. If the round ever starts rebalancing, or reads the
+  // window from the wrong end, these come apart.
+  const { round: r, result } = play(6, ['WMT', 'PG', 'TLT', 'BND'], 0.15);
+  const direct = replay(CRASHES, 'crash2020', r.dollars);
+  const expected = fallAgainstIndex(direct).share;
+  assert.ok(Math.abs(result.value - expected) <= 1e-9 * Math.abs(expected),
+    `${result.value} is not ${expected}`);
+  assert.equal(result.measure, 'fallShare');
+  assert.equal(result.days, CRASH_WINDOW.rows.length);
+  assert.equal(result.startDate, '2020-02-19');
+  assert.equal(result.endDate, '2020-03-23');
+  // The two lines the reveal screen will draw, one point longer than there are
+  // returns because a replay starts at a close.
+  assert.equal(result.crash.path.length, CRASH_WINDOW.rows.length + 1);
+  assert.equal(result.crash.indexPath.length, result.crash.path.length);
+  assert.equal(result.crash.indexLabel, 'S&P 500 (VOO, with dividends)');
+  // It passed, in the lowest bucket, and the guess was within 0.10 of 0.1415.
+  assert.equal(result.passed, true);
+  assert.equal(result.buckets.actual, 'heldUp');
+  assert.equal(result.stars, 3);
+  assert.equal(result.line, '0.14 clears the 0.50 needed');
+});
+
+test('level 6 reads no prices from data/game.json at all', () => {
+  // Its window is a fixed stretch of 2020 in another file, so the rolling window
+  // - and its 252-day minimum - say nothing about it. A round played with no game
+  // document at all still reveals, which is the proof.
+  const r = createRound({
+    levels: LEVELS, levelId: 6, game: null, universe: UNIVERSE, crashes: CRASHES,
+  });
+  for (const ticker of ['VOO', 'TLT', 'BND', 'GLD']) r.togglePick(ticker);
+  r.toGuess();
+  r.setGuess(0.5);
+  const result = r.reveal(null);
+  assert.ok(Number.isFinite(result.value));
+  assert.equal(result.days, 23, 'and 23 days is fewer than the 252 every other level needs');
+});
+
+test('a level 6 reveal carries no rule card yet, rather than a wrong one', () => {
+  // why.json's rules are all thresholded on a covariance matrix over three years.
+  // Over 23 crash days nearly everything correlates above 0.9, so every round
+  // would be handed the pair card. Level 6's card is written from the replay
+  // instead, and is the next piece of work - this test is here to be changed by
+  // it, not to stand for ever.
+  const why = readJson('why.json');
+  const r = createRound({
+    levels: LEVELS, levelId: 6, game: GAME, universe: UNIVERSE, crashes: CRASHES, why,
+  });
+  for (const ticker of ['WMT', 'PG', 'TLT', 'BND']) r.togglePick(ticker);
+  r.toGuess();
+  r.setGuess(0.15);
+  const result = r.reveal();
+  assert.equal(result.whyCard, null);
+  assert.equal(result.whyFacts, null);
+  assert.ok(Number.isFinite(result.value), 'the round still works without a card');
+});
+
+test('the bought-and-held rule is what level 6 measures, not a rebalanced portfolio', () => {
+  // docs/PRD.md fixes this, and the two genuinely differ: holding lets the
+  // winners grow into a bigger share of the money. Measured here by comparing the
+  // round's answer with a rebalanced path over the same window, which must NOT
+  // match.
+  const { result } = play(6, ['WMT', 'PG', 'TLT', 'BND'], 0.15);
+  const window = CRASH_WINDOW;
+  const tickers = ['WMT', 'PG', 'TLT', 'BND'];
+  const weights = [0.3, 0.3, 0.2, 0.2];
+  const columns = tickers.map((t) => window.tickers.indexOf(t) + 1);
+  let rebalanced = 1;
+  for (const row of window.rows) {
+    rebalanced *= 1 + columns.reduce((sum, c, i) => sum + weights[i] * row[c], 0);
+  }
+  const indexColumn = window.tickers.indexOf('VOO') + 1;
+  let index = 1;
+  for (const row of window.rows) index *= 1 + row[indexColumn];
+  const rebalancedShare = (rebalanced - 1) / (index - 1);
+  assert.notEqual(result.value.toFixed(6), rebalancedShare.toFixed(6));
+  assert.ok(Math.abs(result.value - rebalancedShare) > 1e-4,
+    'held and rebalanced should differ by more than rounding');
 });

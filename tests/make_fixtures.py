@@ -388,6 +388,160 @@ def deepest_fall(path):
     return min(path) / path[0] - 1.0
 
 
+def fall_share(portfolio_path, index_path):
+    """Level 6's measure: the portfolio's fall as a fraction of the index's.
+
+    "Fell less than half as much as the S&P 500" is this number under 0.5. It is
+    a ratio of two total changes, so the money each line started with cancels and
+    the two paths do not have to start from the same dollars.
+
+    None when the index did not fall. A share of a rise is not what level 6 asks
+    about, and 0.4 of a gain would read on screen as if it were.
+    """
+    portfolio = total_change(portfolio_path)
+    index = total_change(index_path)
+    if index >= 0.0:
+        return None
+    return portfolio / index
+
+
+def build_fall_share_cases():
+    """Known answers for level 6's measure, portfolio against index.
+
+    The replay cases above read their index off the portfolio's own first
+    holding, so their share is 1 by construction. These carry an index series of
+    their own, which is what a level 6 round has: the portfolio is the player's
+    and the index line is VOO.
+
+    A fresh generator at the same registered seed, so nothing here moves a number
+    in any case above.
+    """
+    rng = np.random.default_rng(SEED)
+    cases = [
+        {
+            "name": "fall_share_passes",
+            "description": (
+                "One day. The index halves; the portfolio is 60% in a holding that "
+                "falls 30% and 40% in one that rises 10%, so it falls 14% against the "
+                "index's 50% and its share is 0.28."
+            ),
+            "hand_derivable": True,
+            "dollars": [6000.0, 4000.0],
+            "returns": [[-0.30, 0.10]],
+            "index_returns": [-0.50],
+            "expected_exact": {"total_change": -0.14, "index_change": -0.50, "fall_share": 0.28},
+        },
+        {
+            "name": "fall_share_at_the_threshold",
+            "description": (
+                "The portfolio falls exactly half as much as the index - 25% against 50% - "
+                "so the share is exactly 0.5 and level 6's '<' refuses it. The boundary is "
+                "a real build, not a limit."
+            ),
+            "hand_derivable": True,
+            "dollars": [10000.0],
+            "returns": [[-0.25]],
+            "index_returns": [-0.50],
+            "expected_exact": {"total_change": -0.25, "index_change": -0.50, "fall_share": 0.5},
+        },
+        {
+            "name": "fall_share_one_ulp_under_the_threshold",
+            "description": (
+                "20% against 40% is half as much in arithmetic but not in binary floating "
+                "point: 8000/10000 - 1 is -0.19999999999999996, so the share comes out at "
+                "0.4999999999999999 and PASSES a '<' check. Python and JavaScript land on "
+                "the same bit, which is the point of carrying it: the boundary is one ulp "
+                "wide and the display rule has to cover it."
+            ),
+            "hand_derivable": True,
+            "dollars": [10000.0],
+            "returns": [[-0.20]],
+            "index_returns": [-0.40],
+            # Not -0.2 and not 0.5: the numbers the arithmetic actually produces.
+            "expected_exact": {
+                "total_change": -0.19999999999999996,
+                "index_change": -0.4,
+                "fall_share": 0.4999999999999999,
+            },
+        },
+        {
+            "name": "fall_share_rose_while_the_index_fell",
+            "description": (
+                "The portfolio gains 10% while the index falls 40%, so the share is "
+                "negative. Rare but reachable, which is why level 6's lowest bucket has "
+                "no floor."
+            ),
+            "hand_derivable": True,
+            "dollars": [10000.0],
+            "returns": [[0.10]],
+            "index_returns": [-0.40],
+            "expected_exact": {"total_change": 0.10, "index_change": -0.40, "fall_share": -0.25},
+        },
+        {
+            "name": "fall_share_fell_harder_than_the_index",
+            "description": "The portfolio falls twice as far as the index: a share of exactly 2.",
+            "hand_derivable": True,
+            "dollars": [10000.0],
+            "returns": [[-0.50]],
+            "index_returns": [-0.25],
+            "expected_exact": {"total_change": -0.50, "index_change": -0.25, "fall_share": 2.0},
+        },
+        {
+            "name": "fall_share_index_did_not_fall",
+            "description": (
+                "The index ends above where it started, so there is no fall to take a "
+                "share of and the answer is no number at all."
+            ),
+            "hand_derivable": True,
+            "dollars": [10000.0],
+            "returns": [[-0.10]],
+            "index_returns": [0.05],
+            "expected_exact": {"total_change": -0.10, "index_change": 0.05, "fall_share": None},
+        },
+        {
+            "name": "fall_share_four_holdings_23_days",
+            "description": (
+                "Four holdings over 23 sampled days - the 2020 window's own length - "
+                "unevenly split, against a sampled index. Checks the arithmetic rather "
+                "than the shape: held dollars drift apart over 23 days, so this share is "
+                "not the one a rebalanced portfolio would give."
+            ),
+            "hand_derivable": False,
+            "dollars": [3000.0, 3000.0, 2000.0, 2000.0],
+            "returns": rng.normal(-0.004, 0.03, (23, 4)).tolist(),
+            "index_returns": rng.normal(-0.006, 0.025, 23).tolist(),
+            "expected_exact": None,
+        },
+    ]
+
+    out = []
+    for case in cases:
+        path = buy_and_hold_path(case["dollars"], case["returns"])
+        # The index line is one holding, started at the same money as the
+        # portfolio, exactly as js/crash.js's replay() draws it.
+        index_path = buy_and_hold_path([path[0]], [[r] for r in case["index_returns"]])
+        out.append({
+            "name": case["name"],
+            "description": case["description"],
+            "hand_derivable": case["hand_derivable"],
+            "dollars": case["dollars"],
+            "returns": case["returns"],
+            "index_returns": case["index_returns"],
+            "expected": {
+                "path": path,
+                "index_path": index_path,
+                "total_change": total_change(path),
+                "index_change": total_change(index_path),
+                "fall_share": fall_share(path, index_path),
+                # The same share off an index line started at $1 instead of the
+                # portfolio's money: a ratio of changes cannot depend on it.
+                "fall_share_unit_index": fall_share(path, buy_and_hold_path([1.0], [[r] for r in case["index_returns"]])),
+            },
+            "expected_exact": case["expected_exact"],
+        })
+    return out
+
+
 def build_replay_cases():
     """Known answers for what a replay draws and the falls under it.
 
@@ -589,6 +743,7 @@ def main():
     series_cases = build_series_cases()
     beta_cases = build_beta_cases()
     replay_cases = build_replay_cases()
+    fall_share_cases = build_fall_share_cases()
     out = []
     for case in cases:
         returns = case["returns"]
@@ -641,6 +796,7 @@ def main():
         "series_cases": series_cases,
         "beta_cases": beta_cases,
         "replay_cases": replay_cases,
+        "fall_share_cases": fall_share_cases,
     }
     with open(OUT, "w") as handle:
         json.dump(doc, handle, indent=1)
@@ -663,6 +819,10 @@ def main():
         print(f"  {case['name']:<32} {len(case['dollars'])} holdings, {len(case['returns'])} days, "
               f"change={case['expected']['total_change']:.12f} "
               f"low={case['expected']['deepest_fall']:.12f}")
+    for case in fall_share_cases:
+        share = case["expected"]["fall_share"]
+        print(f"  {case['name']:<32} {len(case['dollars'])} holdings, {len(case['returns'])} days, "
+              f"share={'none' if share is None else f'{share:.12f}'}")
 
 
 if __name__ == "__main__":

@@ -34,9 +34,18 @@ import {
 } from './math.js';
 import { gameWindow, windowMatrix } from './gameView.js';
 import { pickWhy, whyFacts } from './why.js';
+// Level 6 is replayed through a crash window, so this file reaches into Crash
+// replay's arithmetic rather than keeping a second copy of it: fallAgainstIndex()
+// is the measure, and replay() is bought-and-held against VOO, both already
+// checked against numpy. js/crash.js imports DOLLAR_STEP and evenSplit back out
+// of this file, so the two are a cycle - a safe one, because neither side reads
+// the other's bindings while the modules are still evaluating, only inside
+// functions. tests/round.test.js imports them in both orders to keep it that way.
+import { fallAgainstIndex, replay, unavailableIn, windowByKey } from './crash.js';
 import {
   bucketOf,
   displayFor,
+  kindFloorFor,
   levelById,
   passes,
   resultLine,
@@ -58,7 +67,18 @@ export const REVEAL = 'reveal';
  * that change nothing. Effective bets does depend on the weights, so levels 2
  * and 3 carry dollars.
  */
-export const WEIGHTED_MEASURES = new Set(['effectiveBets', 'beta', 'maxRiskShare']);
+export const WEIGHTED_MEASURES = new Set(['effectiveBets', 'beta', 'maxRiskShare', 'fallShare']);
+
+/**
+ * Measures read from a crash window in data/crashes.json rather than from the
+ * rolling window in data/game.json. Level 6's ratio of falls is the only one.
+ */
+export const CRASH_MEASURES = new Set(['fallShare']);
+
+/** Does this level replay a fixed crash window instead of the rolling window? */
+export function usesCrashWindow(level) {
+  return CRASH_MEASURES.has(level.guess?.measure) || CRASH_MEASURES.has(level.pass?.measure);
+}
 
 /** The money a player allocates, and the step the buttons move it in. */
 export const DOLLAR_STEP = 100;
@@ -178,6 +198,47 @@ export function splitWithFloors(tickers, total, floors = {}, step = DOLLAR_STEP)
 }
 
 /**
+ * Move money into a KIND of holding until it reaches its floor: level 6's "at
+ * least 60% in stocks".
+ *
+ * Steps come out of the largest holding that is NOT of the kind and go into the
+ * SMALLEST one that is, so both sides stay as level as whole $100 steps allow:
+ * two stocks and two bond funds open at $3,000 / $3,000 / $2,000 / $2,000 rather
+ * than at $3,500 / $2,500, which is what giving every step to one stock would
+ * produce. An even split is the plainest thing to hand a player, and this keeps
+ * it as even as the floor permits.
+ *
+ * IT DOES NOT THROW WHEN THE FLOOR CANNOT BE MET, and that is the difference
+ * from splitWithFloors(). A level's floor on a ticker it deals is always
+ * satisfiable, and validateLevels() has already proved it. This floor depends on
+ * what the PLAYER picked: four bond funds can never put 60% in stocks, and that
+ * is a build the player has to be told about, not an exception. So it moves as
+ * far as it can and leaves the rest to buildComplete().
+ *
+ * @param {Object<string, number>} dollars ticker -> dollars, as it stands
+ * @param {string[]} picks the holdings, in pick order
+ * @param {Function} inKind does this ticker count towards the floor?
+ * @param {number} floor the least dollars the kind must hold, a whole number of steps
+ * @param {Object<string, number>} floors each holding's own least dollars
+ */
+export function raiseToKindFloor(dollars, picks, inKind, floor, step = DOLLAR_STEP, floors = {}) {
+  const floorOf = (ticker) => floors[ticker] ?? step;
+  const inside = picks.filter((t) => inKind(t));
+  const held = () => inside.reduce((sum, t) => sum + dollars[t], 0);
+
+  while (inside.length > 0 && held() < floor) {
+    const to = inside.slice().sort((a, b) => dollars[a] - dollars[b])[0];
+    const from = picks
+      .filter((t) => !inKind(t) && dollars[t] - step >= floorOf(t))
+      .sort((a, b) => dollars[b] - dollars[a])[0];
+    if (from === undefined) break;     // nothing left to take from; the gate reports it
+    dollars[from] -= step;
+    dollars[to] += step;
+  }
+  return dollars;
+}
+
+/**
  * Pick one of the 20 pool portfolios.
  *
  * PREREG.md gives level 2 and level 7's first mystery portfolio one shared pool
@@ -202,8 +263,52 @@ export function drawFromPool(guessPool, random = Math.random) {
  * the unrounded value against the threshold: docs/PRD.md requires that a
  * displayed number never disagrees with the pass check.
  */
-export function measureFor(level, game, { tickers, weights }, window, { basket = null } = {}) {
+export function measureFor(level, game, { tickers, weights }, window, {
+  basket = null, crashes = null, dollars = null,
+} = {}) {
   const measure = level.pass.measure === 'guess' ? level.guess.measure : level.pass.measure;
+
+  // LEVEL 6 LEAVES HERE FIRST. Its prices are a fixed stretch of 2020 in
+  // data/crashes.json, not the rolling window in data/game.json, so none of what
+  // follows applies: no covariance, no 252-day minimum, and nothing that moves
+  // when the market does. The measure is Crash replay's own fallAgainstIndex(),
+  // over a portfolio bought and held against VOO with dividends.
+  if (measure === 'fallShare') {
+    if (!crashes) {
+      throw new Error(
+        `measureFor: level ${level.id} replays a crash, but no crash data was given. `
+        + `levels.json names its source as ${level.window?.source ?? 'nothing'}.`,
+      );
+    }
+    const money = dollars ?? Object.fromEntries(tickers.map((t, i) => [t, weights[i]]));
+    const result = replay(crashes, level.window.key, money);
+    const against = fallAgainstIndex(result);
+    if (!against.indexFell) {
+      // Not reachable with the registered windows - the 2020 crash's index fell
+      // 33.99% - but a share of a rise is not what this level asks about, and
+      // 0.4 of a gain would read on screen as if it were.
+      throw new Error(
+        `measureFor: the ${result.indexLabel} did not fall in ${result.window.title}, `
+        + 'so there is no fall for a portfolio to take a share of',
+      );
+    }
+    return {
+      measure,
+      value: against.share,
+      days: result.window.days,
+      startDate: result.window.from,
+      endDate: result.window.to,
+      basketReturns: null,
+      aboutTicker: null,
+      // No matrix: this measure is two paths, not a covariance. The "Why?" card
+      // for this level is written from the replay itself and is still to come.
+      matrix: null,
+      // The two lines and the numbers under them, for the reveal screen. Small -
+      // 24 points each - unlike the 756-by-5 matrix the other levels take off
+      // their result before storing it.
+      crash: result,
+    };
+  }
 
   // A beta is measured against a basket, so the window has to be one both the
   // portfolio and every basket member cover. Taking the portfolio's own window and
@@ -322,6 +427,12 @@ function buildWhyCard(level, {
   value, passed, stars,
 }) {
   if (!why) return { whyCard: null, whyFacts: null };
+  // A level measured over a crash window has no covariance matrix to read, and
+  // why.json's rules are all thresholded on one - over 23 crash days nearly
+  // everything correlates above 0.9, so every level 6 round would be handed the
+  // pair card. Its card is written from the replay instead, and is the next
+  // piece of work; until then the reveal carries no card rather than a wrong one.
+  if (!matrix) return { whyCard: null, whyFacts: null };
   const measure = level.pass.measure === 'guess' ? level.guess.measure : level.pass.measure;
   const onCorrelation = measure === 'correlation';
   const facts = whyFacts({ tickers, weights, matrix, groups, basketReturns, basketMembers });
@@ -366,7 +477,7 @@ function buildWhyCard(level, {
  */
 export function createRound({
   levels, levelId, game, universe = [], why = null, groups = null, basket = null,
-  random = Math.random,
+  crashes = null, random = Math.random,
 }) {
   const level = levelById(levels, levelId);
   const window = {
@@ -376,6 +487,40 @@ export function createRound({
   const total = levels.startingDollars ?? 10000;
   const pool = poolFor(level, universe);
   const wanted = holdingsWanted(level);
+
+  // Level 6's own window, from data/crashes.json. A round that replays a crash
+  // needs the file at BUILD time, not only at the reveal: which holdings can be
+  // held at all is a property of the window - PLTR had not listed in February
+  // 2020 - and a round that discovered that at the reveal would have let a
+  // player spend their build on a portfolio it cannot measure.
+  if (usesCrashWindow(level) && !crashes) {
+    throw new Error(
+      `level ${level.id} replays ${level.window?.key ?? 'a crash window'}, so it needs `
+      + `${level.window?.source ?? 'the crash data'}; none was given`,
+    );
+  }
+  const crashWindow = usesCrashWindow(level) ? windowByKey(crashes, level.window.key) : null;
+
+  /**
+   * Can this holding be held through this round's window?
+   *
+   * Always true off a crash window. On one it is the window's own rule, derived
+   * here rather than passed in, so the build screen and the round cannot
+   * disagree about which chips are live.
+   */
+  const canHold = (ticker) => crashWindow === null
+    || (crashWindow.tickers.includes(ticker) && !unavailableIn(crashWindow, ticker));
+
+  // Level 6's "at least 60% in stocks": a floor on a KIND of holding rather than
+  // on a named one. Any holding of the kind can carry it.
+  const kindRule = kindFloorFor(level, levels);
+  const kindSet = kindRule ? new Set(kindRule.tickers) : null;
+  const inKind = (ticker) => kindSet !== null && kindSet.has(ticker);
+  // Rounded UP to a whole step, as floorFor() does, so the floor the buttons stop
+  // at is never a hair under the share the level requires.
+  const kindFloorDollars = kindRule
+    ? Math.ceil((kindRule.share * total) / DOLLAR_STEP) * DOLLAR_STEP
+    : 0;
 
   // Level 2's portfolio is drawn here, once, when the round starts. The id is
   // kept so a later session can keep level 7 from drawing the same portfolio: it
@@ -411,6 +556,14 @@ export function createRound({
     /** The holdings this level deals and will not let go, and their dollar floors. */
     required,
     floors,
+    /** The crash window this level replays, or null on a level measured over the rolling window. */
+    crashWindow,
+    /**
+     * The floor on a kind of holding: level 6's 60% in stocks, as the share the
+     * level asks for, the dollars it works out to, and the tickers it counts.
+     * Null on every other level.
+     */
+    kindFloor: kindRule ? { ...kindRule, dollars: kindFloorDollars } : null,
     /** The player's picks, in the order they were picked, any required ones first. */
     picks: drawn ? Object.keys(drawn.dollars) : [...required],
     /** Dollars per holding, whole dollars summing to the total. Empty when a level uses no money. */
@@ -444,6 +597,15 @@ export function createRound({
     if (required.includes(ticker) && round.hasPick(ticker)) {
       throw new Error(`level ${level.id} is built around ${ticker}, so it cannot be removed`);
     }
+    // Enforced HERE and not only by the picker disabling a chip, the same way the
+    // required holding above is: a disabled button can stop a click, never a
+    // caller. js/crash.js's createBuild() refuses the same thing for Crash replay.
+    if (!round.hasPick(ticker) && !canHold(ticker)) {
+      const missing = crashWindow ? unavailableIn(crashWindow, ticker) : null;
+      throw new Error(missing?.firstDate
+        ? `${ticker} cannot be held through ${crashWindow.title}: its first trading day was ${missing.firstDate}`
+        : `${ticker} has no prices in ${crashWindow?.title ?? "this round's window"}`);
+    }
 
     if (round.hasPick(ticker)) {
       round.picks = round.picks.filter((t) => t !== ticker);
@@ -453,10 +615,15 @@ export function createRound({
     }
     // The money follows the holdings: a changed line-up gets an even split
     // again, which is the plainest starting point and the one a player can then
-    // nudge in $100 steps.
+    // nudge in $100 steps - then raised to meet any floor this level puts on a
+    // kind of holding, so level 6 opens AT its 60% in stocks rather than at an
+    // even split that breaks the rule before the player has touched anything.
     round.dollars = round.usesMoney && round.picks.length > 0
       ? splitWithFloors(round.picks, total, floors)
       : {};
+    if (kindRule && round.usesMoney && round.picks.length > 0) {
+      raiseToKindFloor(round.dollars, round.picks, inKind, kindFloorDollars, DOLLAR_STEP, floors);
+    }
     return round;
   };
 
@@ -466,10 +633,33 @@ export function createRound({
     if (round.picks.length === 0) return false;
     if (!round.usesMoney) return true;
     if (round.allocated() !== total) return false;
+    // The floor on a kind: level 6's 60% in stocks. UNLIKE the per-holding floors
+    // below, this one can genuinely be unmet - four bond funds can never reach it
+    // - and that is a build the player is told about rather than an exception.
+    if (kindRule && round.allocatedInKind() < kindFloorDollars) return false;
     // At or above its own floor: the $100 every holding has, and the level's own
     // floor on a holding it requires - level 4's 30% in QQQ.
     return round.picks.every((t) => (round.dollars[t] ?? 0) >= (floors[t] ?? DOLLAR_STEP));
   };
+
+  /** Can this holding be held through this round's window? Always true off a crash window. */
+  round.canHold = canHold;
+
+  /** Does this holding count towards the level's floor on a kind? */
+  round.inKind = inKind;
+
+  /** What the holdings of the floored kind hold between them, in whole dollars. */
+  round.allocatedInKind = () => round.picks
+    .filter((t) => inKind(t))
+    .reduce((sum, t) => sum + (round.dollars[t] ?? 0), 0);
+
+  /**
+   * How far short of the floor on the kind this build is, in whole dollars, or 0
+   * when it is met. What the build screen puts under the allocator.
+   */
+  round.shortOfKindFloor = () => (kindRule
+    ? Math.max(0, kindFloorDollars - round.allocatedInKind())
+    : 0);
 
   /** The least dollars this holding may carry on this level. */
   round.floorOf = (ticker) => floors[ticker] ?? DOLLAR_STEP;
@@ -482,15 +672,46 @@ export function createRound({
    * QQQ at its 30% floor is a button that cannot work, and a player who taps it
    * twice learns nothing from either tap.
    */
+  /**
+   * Would moving one step from `from` to `to` drop the kind below its floor?
+   *
+   * Only a step leaving the kind can: a step between two stocks, or into a stock,
+   * leaves the total in stocks the same or larger.
+   */
+  const breaksKindFloor = (from, to, step) => kindRule !== null
+    && inKind(from) && !inKind(to)
+    && round.allocatedInKind() - step < kindFloorDollars;
+
+  /**
+   * The holdings that could give `ticker` a step, largest first - and the
+   * holdings that could take one from it, smallest first.
+   *
+   * Both the buttons and adjustDollars() go through these, so a disabled button
+   * and a refused move are the same rule rather than two copies of it. That
+   * matters more now than it did: a - on a stock in level 6 can be illegal
+   * because of what the OTHER stocks hold, which is not something a player can
+   * read off the one row they are looking at.
+   */
+  const donorsFor = (ticker, step) => round.picks
+    .filter((other) => other !== ticker)
+    .filter((other) => round.dollars[other] - step >= round.floorOf(other))
+    .filter((other) => !breaksKindFloor(other, ticker, step))
+    .sort((a, b) => round.dollars[b] - round.dollars[a]);
+
+  const receiversFor = (ticker, step) => round.picks
+    .filter((other) => other !== ticker)
+    .filter((other) => !breaksKindFloor(ticker, other, step))
+    .sort((a, b) => round.dollars[a] - round.dollars[b]);
+
   round.canLower = (ticker, step = DOLLAR_STEP) => round.usesMoney
     && round.hasPick(ticker)
     && round.picks.length > 1
-    && (round.dollars[ticker] ?? 0) - step >= round.floorOf(ticker);
+    && (round.dollars[ticker] ?? 0) - step >= round.floorOf(ticker)
+    && receiversFor(ticker, step).length > 0;
 
   round.canRaise = (ticker, step = DOLLAR_STEP) => round.usesMoney
     && round.hasPick(ticker)
-    && round.picks.some((other) => other !== ticker
-      && round.dollars[other] - step >= round.floorOf(other));
+    && donorsFor(ticker, step).length > 0;
 
   /** What the player has allocated so far, in whole dollars. */
   round.allocated = () => round.picks.reduce((sum, t) => sum + (round.dollars[t] ?? 0), 0);
@@ -508,6 +729,11 @@ export function createRound({
    * below $3,000, and will not take it there from another holding either, so a
    * build that satisfies "at least 30% in QQQ" cannot be nudged out of satisfying
    * it. The gate is not the only thing holding the rule up; the controls are.
+   *
+   * SO IS A FLOOR ON A KIND. On level 6 the last $6,000 cannot leave stocks: a
+   * step out of a stock goes to another stock, and a step into a bond fund comes
+   * from another bond fund. A build that satisfies "at least 60% in stocks"
+   * cannot be nudged out of satisfying it either.
    */
   round.adjustDollars = (ticker, steps, step = DOLLAR_STEP) => {
     if (!round.usesMoney) throw new Error(`level ${level.id} allocates no money`);
@@ -516,8 +742,7 @@ export function createRound({
     if (!round.hasPick(ticker)) throw new Error(`${ticker} is not in this portfolio`);
     if (!Number.isInteger(steps)) throw new Error('adjustDollars: steps must be a whole number');
 
-    const others = round.picks.filter((t) => t !== ticker);
-    if (others.length === 0) return 0;
+    if (round.picks.length < 2) return 0;     // nothing to take from or give to
     const floorOf = (name) => floors[name] ?? step;
 
     let moved = 0;
@@ -525,16 +750,18 @@ export function createRound({
     for (let i = 0; i < Math.abs(steps); i += 1) {
       if (direction > 0) {
         // Take a step from the largest other holding that can spare one without
-        // dropping through its own floor.
-        const from = others
-          .filter((t) => round.dollars[t] - step >= floorOf(t))
-          .sort((a, b) => round.dollars[b] - round.dollars[a])[0];
+        // dropping through its own floor, or through the floor on the kind.
+        const from = donorsFor(ticker, step)[0];
         if (from === undefined) break;
         round.dollars[from] -= step;
         round.dollars[ticker] += step;
       } else {
         if (round.dollars[ticker] - step < floorOf(ticker)) break;
-        const to = others.sort((a, b) => round.dollars[a] - round.dollars[b])[0];
+        // Give it to the smallest other holding that can take it without the kind
+        // losing the step: on level 6, money leaving a stock has to go to another
+        // stock once the 60% is all that is left.
+        const to = receiversFor(ticker, step)[0];
+        if (to === undefined) break;
         round.dollars[ticker] -= step;
         round.dollars[to] += step;
       }
@@ -543,15 +770,41 @@ export function createRound({
     return moved;
   };
 
+  /**
+   * Why the build is not ready, in words a player can act on, or null when it is.
+   *
+   * It lives here and not on the screen because the gate and the message have to
+   * agree. With one rule per level, "wants exactly 4 holdings; this has 4" was
+   * impossible; level 6 has two rules, and a build of four bond funds read
+   * exactly that until this function existed - four holdings and $10,000
+   * allocated are both already true there, and neither is what is wrong.
+   */
+  round.whyIncomplete = () => {
+    if (round.buildComplete()) return null;
+    // The count first, and including an empty build: "wants exactly 5 holdings;
+    // this has 0" tells a player the target, where "nothing is picked yet" only
+    // tells them what they can already see.
+    if (wanted !== null && round.picks.length !== wanted) {
+      return `level ${level.id} wants exactly ${wanted} holdings; this has ${round.picks.length}`;
+    }
+    if (round.picks.length === 0) return 'nothing is picked yet';
+    if (round.usesMoney && round.allocated() !== total) {
+      return `the money has to add up to $${total}; this adds up to $${round.allocated()}`;
+    }
+    if (kindRule && round.allocatedInKind() < kindFloorDollars) {
+      // The kind's key is the word a player reads - "stocks" - which is why
+      // levels.json names its kinds in plain English.
+      return `level ${level.id} needs at least $${kindFloorDollars} of the $${total} in `
+        + `${kindRule.kind}; this has $${round.allocatedInKind()}`;
+    }
+    const low = round.picks.find((t) => (round.dollars[t] ?? 0) < (floors[t] ?? DOLLAR_STEP));
+    if (low) return `${low} has to hold at least $${floors[low] ?? DOLLAR_STEP}`;
+    return 'the portfolio is not ready yet';
+  };
+
   /** Move from building to guessing. */
   round.toGuess = () => {
-    if (!round.buildComplete()) {
-      throw new Error(
-        wanted === null
-          ? 'the portfolio is not ready yet'
-          : `level ${level.id} wants exactly ${wanted} holdings; this has ${round.picks.length}`,
-      );
-    }
+    if (!round.buildComplete()) throw new Error(round.whyIncomplete());
     round.state = GUESS;
     return round;
   };
@@ -610,7 +863,7 @@ export function createRound({
       : { tickers: [...round.picks], weights: round.picks.map(() => 1 / round.picks.length) };
 
     const { matrix, basketReturns, ...measured } = measureFor(
-      level, gameData, weighted, window, { basket },
+      level, gameData, weighted, window, { basket, crashes, dollars: round.dollars },
     );
     const passed = passes(level, measured.value);
     const stars = starsFor(level, { guess: round.guess, actual: measured.value, passed });

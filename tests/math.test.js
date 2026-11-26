@@ -17,6 +17,7 @@ import { dirname, join } from 'node:path';
 import {
   buyAndHoldPath,
   deepestFall,
+  fallAgainstIndex,
   totalChange,
   valuePath,
 } from '../js/crash.js';
@@ -267,4 +268,92 @@ test('the lowest point is not always the last day', () => {
   const path = buyAndHoldPath(c.dollars, c.returns);
   assertClose(deepestFall(path), -0.30, 'it fell 30% at the bottom');
   assertClose(totalChange(path), -0.076, 'and ended 7.6% down');
+});
+
+// --- level 6's measure: the portfolio's fall against the index's -------------
+//
+// "Fell less than half as much as the S&P 500" is a ratio of two total changes,
+// and these cases carry an index line of their own rather than reading it off
+// the portfolio's first holding, which is what a level 6 round has.
+
+for (const c of fixtures.fall_share_cases) {
+  const label = `${c.name} (${c.dollars.length} holdings, ${c.returns.length} days)`;
+
+  test(`${label}: the two paths and the share match numpy`, () => {
+    const path = buyAndHoldPath(c.dollars, c.returns);
+    const indexPath = buyAndHoldPath([path[0]], c.index_returns.map((r) => [r]));
+    assertVectorClose(path, c.expected.path, 'the portfolio path');
+    assertVectorClose(indexPath, c.expected.index_path, 'the index path');
+
+    const change = totalChange(path);
+    const indexChange = totalChange(indexPath);
+    assertClose(change, c.expected.total_change, 'the portfolio change');
+    assertClose(indexChange, c.expected.index_change, 'the index change');
+
+    const against = fallAgainstIndex({ change, indexChange });
+    if (c.expected.fall_share === null) {
+      // An index that did not fall has no fall to take a share of, and
+      // fallAgainstIndex() says so with null rather than with a number.
+      assert.equal(against.share, null, 'the share on an index that rose');
+      assert.equal(against.indexFell, false);
+    } else {
+      assertClose(against.share, c.expected.fall_share, 'the fall share');
+      assert.equal(against.indexFell, true);
+    }
+  });
+
+  test(`${label}: the share does not depend on the money the index line started with`, () => {
+    // A ratio of changes cancels the starting dollars, so the index line drawn
+    // from $1 gives the same answer as the one drawn from the player's $10,000.
+    const path = buyAndHoldPath(c.dollars, c.returns);
+    const unit = buyAndHoldPath([1], c.index_returns.map((r) => [r]));
+    const against = fallAgainstIndex({ change: totalChange(path), indexChange: totalChange(unit) });
+    if (c.expected.fall_share_unit_index === null) assert.equal(against.share, null);
+    else assertClose(against.share, c.expected.fall_share_unit_index, 'the share off a $1 index');
+  });
+
+  if (c.expected_exact) {
+    test(`${label}: the hand-worked share, exactly`, () => {
+      const path = buyAndHoldPath(c.dollars, c.returns);
+      const indexPath = buyAndHoldPath([path[0]], c.index_returns.map((r) => [r]));
+      assertClose(totalChange(path), c.expected_exact.total_change, 'the portfolio change by hand');
+      assertClose(totalChange(indexPath), c.expected_exact.index_change, 'the index change by hand');
+      const share = fallAgainstIndex({
+        change: totalChange(path), indexChange: totalChange(indexPath),
+      }).share;
+      if (c.expected_exact.fall_share === null) assert.equal(share, null);
+      else assertClose(share, c.expected_exact.fall_share, 'the share by hand');
+    });
+  }
+}
+
+/** The share a fixture case works out to, through the same code a replay uses. */
+function shareOf(c) {
+  const path = buyAndHoldPath(c.dollars, c.returns);
+  const indexPath = buyAndHoldPath([path[0]], c.index_returns.map((r) => [r]));
+  return fallAgainstIndex({
+    change: totalChange(path), indexChange: totalChange(indexPath),
+  }).share;
+}
+
+test("level 6's threshold sits on a real build, not on a limit", () => {
+  // A share of exactly 0.5 is reachable - 25% against the index's 50% - and the
+  // level's rule is "<", so that build misses. The fixture carries the case so
+  // the boundary is a tested number rather than a claim.
+  const c = fixtures.fall_share_cases.find((x) => x.name === 'fall_share_at_the_threshold');
+  assert.equal(shareOf(c), 0.5);
+  assert.equal(shareOf(c) < 0.5, false, 'exactly half as much is not less than half as much');
+});
+
+test('the threshold is one ulp wide, and both languages land on the same bit', () => {
+  // 20% against 40% is half as much in arithmetic but not in binary floating
+  // point: it comes out at 0.4999999999999999 and PASSES. Nothing is rounded to
+  // hide that - the number is what it is, and the display rule is what keeps the
+  // screen from reading "0.50 clears the 0.50 needed" (see js/levels.js).
+  const c = fixtures.fall_share_cases.find((x) => x.name === 'fall_share_one_ulp_under_the_threshold');
+  const share = shareOf(c);
+  assert.equal(share, 0.4999999999999999);
+  assert.equal(share, c.expected.fall_share, 'numpy produced the same bit');
+  assert.ok(share < 0.5, 'so this build clears a "<" check');
+  assert.notEqual(share, 0.5);
 });

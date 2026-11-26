@@ -1966,3 +1966,159 @@ either. 598 tests pass, and both check scripts are green.
   there does not need to be one yet.
 
 Educational, not investment advice.
+
+## Level 6, the rules and the math, 25 November 2026 (session 2.9)
+
+Session A of three. This is level 6's data, its measure and its build rule, with
+no screen in it: the reveal chart and the "Why?" card are sessions B and C. It
+opens with the wording fix session 2.8's "What to watch" asked for - "That is
+363% of the index's fall" now reads "about 3.6 times as much as the index fell",
+and the percent in that sentence can no longer pass 100%. The split is on the
+unrounded share, so the two forms cannot both claim the same number.
+
+(The three sessions above this one are dated 26 November in this log while their
+commits are all dated the 25th. The dates in the log are a day ahead; the commits
+are right. Not corrected here, only noted.)
+
+### What the PRD left open, and what was chosen
+
+| Open question | Chosen | Why |
+| --- | --- | --- |
+| Which tickers are "stocks" | Everything but BND, TLT, LQD and GLD - 36 of 40 | A stock fund is a stock: VOO, QQQ and VXUS are shares bought in one line. The other four are loans, or metal |
+| Holding count | Exactly 4 | Matches levels 4 and 5, and on real data it is the hardest of 3, 4 and 5 while still clearing the PRD's 3 winning designs many times over |
+| The buckets | 1.00 and 0.50 | The level's own pass threshold, and falling one for one with the index - which is the index itself here: all of VOO gives exactly 1.000 |
+| The three-star band | Within 0.10 | The band levels 1 and 4 already use, on a measure with a beta's units |
+| The guess slider | 0 to 2.00, step 0.05 | 1.00, the index, sits at the middle, so left is "held up" and right is "fell harder" |
+
+**Both kind lists are written out, and that redundancy is the point.** A file
+listing only the four exceptions would count a bond fund added next year as a
+stock in silence. levels.json carries `stocks` and `notStocks`, and
+tests/levels.test.js holds their union to tickers.json's own 40 playable tickers
+and the two to being disjoint - so a ticker classified nowhere fails the test
+rather than defaulting into one of them. tickers.json itself is part of the
+pre-registration and was not touched.
+
+**PLTR is listed as the stock it is.** It cannot be held in level 6 for a
+different reason - it had not listed in February 2020 - and the two reasons are
+kept apart deliberately: it *can* be held through the 2022 window.
+
+### A floor on a set, which is a build rule the game did not have
+
+Level 4's "at least 30% in QQQ" is a floor on one named holding. Level 6's "at
+least 60% in stocks" is a floor on whichever of the four holdings happen to be
+stocks, and any one of them can carry the whole thing. It is held up in the same
+three places level 4's is, because any one of them alone would be a rule in name
+only:
+
+- **The opening split.** An even split, then steps out of the largest holding
+  outside the kind into the smallest one inside it, so both sides stay as level
+  as whole $100 steps allow: two stocks and two bond funds open at
+  $3,000 / $3,000 / $2,000 / $2,000, not $3,500 / $2,500.
+- **The gate.** `buildComplete()` refuses a build under the floor.
+- **The buttons.** `canLower`, `canRaise` and `adjustDollars` now go through one
+  pair of helpers - `donorsFor` and `receiversFor` - so a disabled button and a
+  refused move are the same rule rather than two copies of it. That matters more
+  here than on level 4: a minus on a stock can be illegal because of what the
+  *other* stocks hold, which is not something a player can read off the row they
+  are looking at. A 400-move deterministic walk asserts the invariant and that
+  every button's offer matches what the move actually does.
+
+**It does not throw when the floor cannot be met, and that is the difference
+from splitWithFloors().** Four bond funds can never put 60% in stocks. That is a
+build to report, not an exception: the money still adds to $10,000, it is in the
+wrong place, and `whyIncomplete()` says so.
+
+**whyIncomplete() exists because the old message lied.** With one rule per level,
+"level 6 wants exactly 4 holdings; this has 4" was impossible to produce. With
+two rules it was exactly what four bond funds got - both facts in it true, and
+neither of them the problem. The message now names the rule that was missed, and
+the test for four bond funds asserts the wording, not just the refusal.
+
+### The threshold is one ulp wide
+
+20% against 40% is half as much in arithmetic and *not* in binary floating point:
+8000/10000 - 1 is -0.19999999999999996, so the share comes out at
+0.4999999999999999 and **passes** a `<` check. Python and JavaScript land on the
+same bit, which is why the fixture carries the case rather than hiding it. 25%
+against 50% is the honest boundary and gives exactly 0.5, which the `<` refuses.
+Both are in tests/fixtures/known_answers.json as named cases.
+
+The display rule already covers the consequence: a result within 0.005 of its
+threshold is shown to 4 decimals, so the screen reads "0.5000" and not "0.50",
+and docs/PRD.md's "a displayed number never disagrees with the pass check" holds
+without a new rule. Level 4's `<` against 0.50 has the same shape.
+
+### Level 6 does not read data/game.json at all
+
+Its window is 23 fixed days in data/crashes.json, so none of the rolling-window
+machinery applies: no covariance, no 252-day minimum, and nothing that moves when
+the market does. `measureFor()` leaves for the crash branch before any of it, and
+a round played with `game: null` still reveals - which is the test that proves it.
+The level's answers therefore cannot go stale, unlike levels 1 to 5, which the
+weekly job re-checks on live prices.
+
+js/round.js and js/crash.js are now a cycle: the round reaches into Crash
+replay's `replay()` and `fallAgainstIndex()` rather than keeping a second copy of
+the measure, and js/crash.js still imports `DOLLAR_STEP` and `evenSplit` back out
+of the round. It is safe because neither side touches the other's bindings while
+the modules are evaluating, only inside functions, and the tests import them in
+both orders to keep it that way.
+
+### How it was checked
+
+The numpy fixtures came first, as CLAUDE.md rule 3 asks: seven named cases for
+the fall share - passing, the exact boundary, the one-ulp boundary, a portfolio
+that rose while the index fell, one that fell twice as far, an index that did not
+fall at all, and four holdings over 23 sampled days. Regenerating
+known_answers.json changed no pre-existing key.
+
+Level 6 on the real 2020 window, scored at the allocation the game deals:
+
+| | |
+| --- | --- |
+| Winning designs | 50 of 1,079 4-holding draws (the PRD asks for 3) |
+| Skipped | 113 held something the window cannot replay; 0 held no stock; 0 fell short of the floor |
+| Hardest draw | 1.51, XOM + BAC + CVX + COP |
+| Holding TLT | 33 of 127 win; without it, 17 of 952 |
+| Reachable range | -0.117 (WMT-heavy with TLT, which *rose* 3.96%) to 1.714 (almost all COP) |
+
+Six named builds carry the lesson, each with the answer it has to give, and the
+script exits non-zero if one moves. The pair that is the lesson:
+
+| Build | Share | |
+| --- | --- | --- |
+| WMT 3,000 / PG 3,000 / TLT 2,000 / BND 2,000 | 0.1415 | passes |
+| JPM 3,000 / XOM 3,000 / **the same** TLT 2,000 / BND 2,000 | 0.7225 | misses |
+
+Same shape, same cushion, five times apart. A random sample would never have put
+those two side by side - it found 50 winners and could not say what made them
+win. 647 tests pass and both check scripts are green.
+
+### TLT did not protect anybody in 2022
+
+The level's own "why" says so, with the numbers read from data/crashes.json:
+TLT rose 14.23% through the 2020 crash while the index lost 33.99%, and fell
+**29.33%** through the 2022 bear market against the S&P 500's own 24.52% - more
+than the market it was supposed to cushion. The text points the player at Crash
+replay's 2022 window to watch it happen. The lesson level 6 teaches is not "hold
+bonds": it is that what protects a portfolio depends on what the crash is made
+of, and two thirds of this window's winners holding long Treasuries is a fact
+about February 2020, not a rule.
+
+### What to watch
+
+- **The level is hard: 50 winners in 1,079 draws, and 33 of them hold TLT.** The
+  count is a floor - it is scored at the dealt split, and a player free with the
+  $100 steps can only do better - but a playtest should check that a student who
+  fails it twice learns "which stocks" rather than "pick TLT". The "why" is
+  written against exactly that misreading.
+- **Both ends of the slider are unreachable by 0.02 and 0.21.** The real answer
+  runs from -0.117 to 1.714 and the slider from 0 to 2.00, so the two most
+  extreme tilts can score 2 stars but not 3. Level 5 makes the same trade.
+- **A level 6 reveal carries no "Why?" card yet.** why.json's rules are all
+  thresholded on a three-year covariance matrix; over 23 crash days nearly
+  everything correlates above 0.9, so every round would be handed the pair card.
+  The round returns no card rather than a wrong one, and a test asserts that so
+  session C has to change it deliberately.
+
+Educational, not investment advice.

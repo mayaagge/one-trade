@@ -34,9 +34,12 @@ import {
 } from '../js/math.js';
 import { makeRng } from '../js/rng.js';
 import {
-  passes, levelById, weightsFromDollars, formatMeasure, displayFor,
+  passes, levelById, weightsFromDollars, formatMeasure, displayFor, kindFloorFor,
 } from '../js/levels.js';
-import { splitWithFloors, floorFor } from '../js/round.js';
+import { splitWithFloors, floorFor, raiseToKindFloor, DOLLAR_STEP } from '../js/round.js';
+import {
+  validateCrashes, windowByKey, unavailableIn, replay, fallAgainstIndex,
+} from '../js/crash.js';
 import { betsFor, WINDOW_DAYS, MIN_DAYS, TOTAL_DOLLARS } from './make_pool.mjs';
 
 const root = new URL('..', import.meta.url);
@@ -200,6 +203,141 @@ export function checkLevel5(built, level, universe) {
   return { considered: results.length, winners: results.filter((r) => r.passed), all: results };
 }
 
+/**
+ * Level 6's NAMED builds, each with the answer it has to give.
+ *
+ * Not a sample of anything. The first two are the level's whole lesson in one
+ * pair: the same shape, the same cushion, and five times apart because of which
+ * stocks sit in the 60%. A random sample would have found neither - it found
+ * 67 winners out of 1,799 draws and could not say what made them win.
+ *
+ * The expected shares are exact, to 1e-9, because data/crashes.json is history
+ * and never refreshed: "these windows are history and never move, so this file
+ * is built once and committed" (its own meta). If one of these numbers moves,
+ * something has changed that should not have.
+ */
+export const LEVEL6_BUILDS = [
+  {
+    key: 'defensive-stocks-and-bonds',
+    what: 'Defensive stocks with a bond cushion',
+    lesson: 'What passes is which stocks, not how much was held back.',
+    dollars: { WMT: 3000, PG: 3000, TLT: 2000, BND: 2000 },
+    expect: { share: 0.14154467587923866, passes: true },
+  },
+  {
+    key: 'banks-and-oil-same-cushion',
+    what: 'Banks and oil behind the SAME cushion',
+    lesson: 'Same 60/40 shape, same two bond funds, five times the fall. The pair is the lesson.',
+    dollars: { JPM: 3000, XOM: 3000, TLT: 2000, BND: 2000 },
+    expect: { share: 0.7224685659490999, passes: false },
+  },
+  {
+    key: 'the-index-itself',
+    what: 'All of it in VOO',
+    lesson: 'The portfolio IS the index, so the answer is exactly 1 - the bucket edge, on real data.',
+    dollars: { VOO: 10000 },
+    expect: { share: 1, passes: false },
+  },
+  {
+    key: 'bonds-that-did-not-cushion',
+    what: '60% VOO with the broad bond fund instead of long Treasuries',
+    lesson: 'Holding bonds is not the answer: BND lost 1.43% in this window and TLT gained 14.23%.',
+    dollars: { VOO: 6000, BND: 4000 },
+    expect: { share: 0.6168445931328964, passes: false },
+  },
+  {
+    key: 'long-treasuries-cushioned-this-one',
+    what: '60% VOO with long Treasuries',
+    lesson: 'The plainest pass there is - and the one level 6\'s "why" warns not to learn too well.',
+    dollars: { VOO: 6000, TLT: 4000 },
+    expect: { share: 0.4325032943352791, passes: true },
+  },
+  {
+    key: 'five-ai-stocks-no-cushion',
+    what: 'Five AI stocks, the portfolio the game is named after',
+    lesson: 'One bet, no cushion: it fell with the market because it was the market.',
+    dollars: { NVDA: 2000, AMD: 2000, AVGO: 2000, MU: 2000, ANET: 2000 },
+    expect: { share: 0.9628513468667566, passes: false },
+  },
+];
+
+/**
+ * Level 6: distinct 4-holding sets replayed through the 2020 crash at the
+ * allocation the game deals them - an even split raised until 60% sits in stocks
+ * - and which fell less than half as much as the S&P 500.
+ *
+ * THE PRICES ARE data/crashes.json AND NEVER data/prices.json. This level's
+ * window is a fixed 23 days of history, so unlike levels 1 to 5 its answers do
+ * not move when the market does and --prices says nothing about it.
+ *
+ * Two kinds of draw are skipped rather than scored, and both are counted:
+ * a design holding something the window cannot replay (PLTR had not listed), and
+ * a design with no stock in it at all, which can never reach the 60% floor.
+ */
+export function checkLevel6(crashes, level, levels, universe) {
+  const rng = makeRng(CHECK_SEED);
+  const size = level.holdings.exactly;
+  const rule = kindFloorFor(level, levels);
+  const inKind = (ticker) => rule.tickers.includes(ticker);
+  const floorDollars = Math.ceil((rule.share * TOTAL_DOLLARS) / DOLLAR_STEP) * DOLLAR_STEP;
+  const window = windowByKey(crashes, level.window.key);
+  const canHold = (ticker) => window.tickers.includes(ticker) && !unavailableIn(window, ticker);
+
+  const seen = new Set();
+  const results = [];
+  const skipped = { unavailable: 0, noStock: 0, shortOfFloor: 0 };
+
+  for (let draw = 0; draw < SAMPLES; draw += 1) {
+    const bag = [...universe];
+    const picks = [];
+    while (picks.length < size) picks.push(...bag.splice(Math.floor(rng.uniform() * bag.length), 1));
+    const key = [...picks].sort().join(',');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (!picks.every(canHold)) { skipped.unavailable += 1; continue; }
+    if (!picks.some(inKind)) { skipped.noStock += 1; continue; }
+
+    const dollars = raiseToKindFloor(
+      splitWithFloors(picks, TOTAL_DOLLARS), picks, inKind, floorDollars,
+    );
+    const inStocks = picks.filter(inKind).reduce((sum, t) => sum + dollars[t], 0);
+    if (inStocks < floorDollars) { skipped.shortOfFloor += 1; continue; }
+
+    const result = replay(crashes, level.window.key, dollars);
+    const share = fallAgainstIndex(result).share;
+    results.push({
+      design: picks,
+      dollars,
+      value: share,
+      change: result.change,
+      stockShare: inStocks / TOTAL_DOLLARS,
+      days: result.window.days,
+      passed: passes(level, share),
+    });
+  }
+  results.sort((a, b) => a.value - b.value);
+  return { considered: results.length, winners: results.filter((r) => r.passed), all: results, skipped };
+}
+
+/** The named builds, each against the share it has to give. */
+export function checkLevel6Builds(crashes, level, builds = LEVEL6_BUILDS) {
+  return builds.map((build) => {
+    const total = Object.values(build.dollars).reduce((sum, d) => sum + d, 0);
+    if (total !== TOTAL_DOLLARS) {
+      throw new Error(`${build.key} allocates ${total}, not ${TOTAL_DOLLARS}`);
+    }
+    const result = replay(crashes, level.window.key, build.dollars);
+    const share = fallAgainstIndex(result).share;
+    return {
+      build,
+      value: share,
+      change: result.change,
+      passed: passes(level, share),
+      ok: Math.abs(share - build.expect.share) <= 1e-9 && passes(level, share) === build.expect.passes,
+    };
+  });
+}
+
 /** Level 2 passes on making a guess, so what matters is the pool's spread. */
 export function checkLevel2(built, level, guessPool) {
   const bets = guessPool.portfolios.map((portfolio) => {
@@ -240,12 +378,15 @@ function main(argv = []) {
   const tickersFile = JSON.parse(readFileSync(path('tickers.json'), 'utf8'));
   const levels = JSON.parse(readFileSync(path('levels.json'), 'utf8'));
   const basketFile = JSON.parse(readFileSync(path('basket.json'), 'utf8'));
+  // Level 6's prices, which are a different file and a fixed piece of history.
+  const crashes = validateCrashes(JSON.parse(readFileSync(path('data/crashes.json'), 'utf8')));
   const basket = basketFile.stocks.map((stock) => stock.ticker);
   const built = buildReturns(snapshot);
   const universe = universeFrom(tickersFile);
   const groupOf = groupsFrom(tickersFile);
 
   console.log(`Levels 1 to 5 against ${pricesPath}, ${WINDOW_DAYS}-day windows.`);
+  console.log('Level 6 against data/crashes.json, which is history and does not move.');
   console.log(`Each level needs at least ${REQUIRED_DESIGNS} different winning designs.`);
 
   const level1 = levelById(levels, 1);
@@ -298,6 +439,42 @@ function main(argv = []) {
       + ' - even risk is not several bets');
   }
 
+  const level6 = levelById(levels, 6);
+  const six = checkLevel6(crashes, level6, levels, universe);
+  const okSix = report(
+    `Level 6 - ${level6.title}: ${level6.pass.says}, 60% in stocks, as the game deals it`,
+    six, 10,
+    (w) => `${formatMeasure(w.value, { threshold: level6.pass.threshold })}`
+      + `  fell ${(100 * w.change).toFixed(2)}%  ${Math.round(100 * w.stockShare)}% in stocks`
+      + `  ${w.design.join(' + ')}`,
+  );
+  console.log(`    skipped: ${six.skipped.unavailable} held something the window cannot replay, `
+    + `${six.skipped.noStock} held no stock at all, ${six.skipped.shortOfFloor} could not reach the floor`);
+  const worstSix = six.all[six.all.length - 1];
+  if (worstSix) {
+    console.log(`    hardest draw: ${formatMeasure(worstSix.value, { threshold: level6.pass.threshold })}`
+      + `  ${worstSix.design.join(' + ')}`);
+  }
+  // What the winners have in common, which is the thing the level teaches and the
+  // thing its "why" is careful about: long Treasuries were THIS crash's cushion.
+  const withTlt = six.all.filter((r) => r.design.includes('TLT'));
+  const withoutTlt = six.all.filter((r) => !r.design.includes('TLT'));
+  const rate = (list) => `${list.filter((r) => r.passed).length} of ${list.length}`;
+  console.log(`    holding TLT: ${rate(withTlt)} win; without it: ${rate(withoutTlt)}`);
+
+  console.log(`\n  Named builds, each with the answer it has to give:`);
+  const sixBuilds = checkLevel6Builds(crashes, level6);
+  for (const result of sixBuilds) {
+    console.log(`    ${result.ok ? 'OK  ' : 'FAIL'} ${result.value.toFixed(4)} `
+      + `${result.passed ? 'passes' : 'misses'}  ${result.build.what}`);
+    console.log(`         ${result.build.lesson}`);
+    if (!result.ok) {
+      console.log(`         WRONG - wanted ${result.build.expect.share} `
+        + `${result.build.expect.passes ? 'passing' : 'missing'}`);
+    }
+  }
+  const okSixBuilds = sixBuilds.every((r) => r.ok);
+
   const level2 = levelById(levels, 2);
   const two = checkLevel2(built, level2, levels.guessPool);
   console.log(`\nLevel 2 - ${level2.title}: ${level2.pass.says}, so every guess passes`);
@@ -307,8 +484,12 @@ function main(argv = []) {
 
   console.log('\nEducational, not investment advice.');
 
-  if (!(okOne && okTwo && okThree && okFour && okFive)) {
+  if (!(okOne && okTwo && okThree && okFour && okFive && okSix)) {
     console.error('\nAt least one level does not have 3 winning designs.');
+    process.exit(1);
+  }
+  if (!okSixBuilds) {
+    console.error('\nA named level 6 build no longer gives the answer written down beside it.');
     process.exit(1);
   }
 }

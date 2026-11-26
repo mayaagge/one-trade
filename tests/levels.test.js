@@ -27,11 +27,18 @@ import {
   BAND_TOLERANCE,
   STARTING_DOLLARS,
   DISCLAIMER,
+  validateKinds,
+  kindTickers,
+  kindFloorFor,
+  CRASH_MEASURES,
 } from '../js/levels.js';
 
 import { buildReturns } from '../js/returns.js';
 import { betsFor, FUNDS, MIN_HOLDINGS, MAX_HOLDINGS } from '../scripts/make_pool.mjs';
-import { checkLevel4, checkLevel5, REQUIRED_DESIGNS } from '../scripts/check_levels.mjs';
+import {
+  checkLevel4, checkLevel5, checkLevel6, checkLevel6Builds, LEVEL6_BUILDS, REQUIRED_DESIGNS,
+} from '../scripts/check_levels.mjs';
+import { validateCrashes } from '../js/crash.js';
 
 const read = (name) => JSON.parse(readFileSync(fileURLToPath(new URL(name, import.meta.url)), 'utf8'));
 const LEVELS = read('../levels.json');
@@ -44,15 +51,16 @@ const KNOWN_TICKERS = new Set(
 const level1 = levelById(LEVELS, 1);
 const level2 = levelById(LEVELS, 2);
 const level3 = levelById(LEVELS, 3);
+const level6 = levelById(LEVELS, 6);
 
 /** A deep copy, so a test that breaks the file on purpose breaks only its copy. */
 const copy = () => JSON.parse(JSON.stringify(LEVELS));
 
 // ------------------------------------------------------------------ the file
 
-test('levels.json is valid, and holds levels 1 to 5', () => {
+test('levels.json is valid, and holds levels 1 to 6', () => {
   assert.equal(validateLevels(LEVELS), LEVELS);
-  assert.deepEqual(LEVELS.levels.map((l) => l.id), [1, 2, 3, 4, 5]);
+  assert.deepEqual(LEVELS.levels.map((l) => l.id), [1, 2, 3, 4, 5, 6]);
   assert.equal(LEVELS.startingDollars, STARTING_DOLLARS);
   assert.equal(LEVELS.disclaimer, DISCLAIMER);
 });
@@ -480,4 +488,187 @@ test('every level still has at least 3 winning designs on the frozen snapshot', 
   assert.ok(five.winners.length >= REQUIRED_DESIGNS,
     `level 5 has ${five.winners.length} winning designs, fewer than ${REQUIRED_DESIGNS}`);
   assert.ok(five.all.some((r) => !r.passed), 'level 5 would be no challenge if nothing failed it');
+});
+
+// ------------------------------------------------- level 6: what is a stock
+
+test('the kinds in levels.json cover the ticker list exactly once', () => {
+  // THE TEST THAT MAKES THE REDUNDANCY WORTH IT. levels.json writes out both
+  // lists, 36 stocks and 4 that are not, and the only thing that can hold them
+  // to the real ticker list is a test that reads both files. A ticker added to
+  // tickers.json and classified nowhere fails here, rather than counting as a
+  // stock - or not - by accident at the next level 6 round.
+  const stocks = kindTickers(LEVELS, 'stocks');
+  const notStocks = kindTickers(LEVELS, 'notStocks');
+  const classified = [...stocks, ...notStocks];
+
+  assert.equal(new Set(classified).size, classified.length, 'a ticker is classified twice');
+  for (const ticker of classified) {
+    assert.ok(KNOWN_TICKERS.has(ticker), `kinds has ${ticker}, which tickers.json does not`);
+  }
+  for (const ticker of KNOWN_TICKERS) {
+    assert.ok(classified.includes(ticker),
+      `${ticker} is in tickers.json but in no kind, so level 6 could not say whether it is a stock`);
+  }
+  assert.deepEqual([...notStocks].sort(), ['BND', 'GLD', 'LQD', 'TLT'],
+    'the holdings that are not stocks are the three bond funds and gold');
+});
+
+test('PLTR is classified as the stock it is, whatever level 6 can replay', () => {
+  // Two different reasons not to count: PLTR is a stock, and it had not listed in
+  // February 2020. Mixing them up would be a way to get the wrong answer later -
+  // in the 2022 window, which it can be held through.
+  assert.ok(kindTickers(LEVELS, 'stocks').includes('PLTR'));
+});
+
+test('a ticker in two kinds is refused, because reading order would decide it', () => {
+  assert.throws(() => validateKinds(((d) => { d.kinds.notStocks.push('VOO'); return d; })(copy())),
+    /VOO is in two kinds/);
+  assert.throws(() => validateKinds(((d) => { d.kinds.stocks.push(''); return d; })(copy())),
+    /has an entry that is not a ticker/);
+  assert.throws(() => validateKinds(((d) => { d.kinds.notStocks = []; return d; })(copy())),
+    /kind "notStocks" is empty/);
+});
+
+// --------------------------------------------- level 6: the rule and the stars
+
+test('level 6 asks what docs/PRD.md says it asks', () => {
+  assert.equal(level6.pass.measure, 'fallShare');
+  assert.equal(level6.pass.comparison, '<');
+  assert.equal(level6.pass.threshold, 0.5, 'fell less than HALF as much as the S&P 500');
+  assert.equal(level6.holdings.exactly, 4);
+  assert.equal(level6.holdings.minShareIn.kind, 'stocks');
+  assert.equal(level6.holdings.minShareIn.share, 0.6, 'at least 60% in stocks');
+  // The window is the one the PRD fixes, and it is read from the crash file
+  // rather than described here.
+  assert.equal(level6.window.key, 'crash2020');
+  assert.equal(level6.window.source, 'data/crashes.json');
+  assert.ok(CRASH_MEASURES.includes('fallShare'));
+});
+
+test("level 6's buckets are its own threshold and the index itself, nothing new", () => {
+  const edges = level6.buckets.map((b) => b.min);
+  assert.deepEqual(edges, [1, 0.5, null]);
+  assert.equal(edges[1], level6.pass.threshold, 'the middle edge is the level\'s own pass threshold');
+  assert.equal(edges[0], 1, 'the top edge is falling one for one with the index');
+  // A portfolio can rise while the index falls, which puts the answer below zero,
+  // so the lowest bucket cannot have a floor to name.
+  assert.equal(level6.buckets[level6.buckets.length - 1].min, null);
+  assert.equal(bucketOf(level6, -0.117), 'heldUp');
+  assert.equal(bucketOf(level6, 0.4999), 'heldUp');
+  assert.equal(bucketOf(level6, 0.5), 'withIt');
+  assert.equal(bucketOf(level6, 0.9999), 'withIt');
+  assert.equal(bucketOf(level6, 1), 'harder');
+  assert.equal(bucketOf(level6, 1.714), 'harder');
+});
+
+test("level 6's three-star band is the 0.10 levels 1 and 4 already use", () => {
+  assert.equal(level6.stars.three.of, 0.1);
+  assert.equal(level6.stars.three.of, levelById(LEVELS, 4).stars.three.of);
+  assert.equal(level6.stars.two.test, 'bucket');
+  // A passing build with a guess in the right bucket but 0.3 out: 2 stars.
+  assert.equal(starsFor(level6, { guess: 0.1, actual: 0.4, passed: true }), 2);
+  assert.equal(starsFor(level6, { guess: 0.35, actual: 0.4, passed: true }), 3);
+  // And a miss scores nothing, however good the guess was.
+  assert.equal(starsFor(level6, { guess: 0.72, actual: 0.72, passed: false }), 0);
+});
+
+test("level 6's slider puts the index in the middle and reaches both buckets", () => {
+  assert.equal(level6.guess.min, 0);
+  assert.equal(level6.guess.max, 2);
+  assert.equal(level6.guess.step, 0.05);
+  assert.equal((level6.guess.min + level6.guess.max) / 2, 1,
+    'falling one for one with the index sits at the middle of the slider');
+  // Every bucket has guesses in range that land in it, or a star would be
+  // unreachable by construction.
+  const reachable = new Set();
+  for (let g = level6.guess.min; g <= level6.guess.max + 1e-9; g += level6.guess.step) {
+    reachable.add(bucketOf(level6, Number(g.toFixed(2))));
+  }
+  assert.deepEqual([...reachable].sort(), ['harder', 'heldUp', 'withIt']);
+});
+
+test('a fall share on the threshold is shown to 4 decimals, not rounded onto it', () => {
+  // docs/PRD.md: "A displayed number never disagrees with the pass check." The
+  // boundary here is one ulp wide - 20% against 40% comes out at
+  // 0.4999999999999999 and passes - so the screen has to show the digits that
+  // say which side of 0.50 it is on.
+  assert.equal(formatMeasure(0.4999999999999999, { threshold: 0.5 }), '0.5000');
+  assert.equal(formatMeasure(0.5, { threshold: 0.5 }), '0.5000');
+  assert.equal(formatMeasure(0.4325032943352791, { threshold: 0.5 }), '0.43');
+  assert.equal(passes(level6, 0.4999999999999999), true);
+  assert.equal(passes(level6, 0.5), false, 'exactly half as much is not less than half as much');
+});
+
+test('a level that replays a crash has to name its window and its file', () => {
+  const sixth = (change) => {
+    const d = copy();
+    change(d.levels.find((l) => l.id === 6));
+    return d;
+  };
+  assert.throws(() => validateLevels(sixth((l) => { delete l.window; })),
+    /needs window.source and window.key/);
+  assert.throws(() => validateLevels(sixth((l) => { delete l.window.key; })),
+    /needs window.source and window.key/);
+  assert.throws(() => validateLevels(sixth((l) => { l.holdings.minShareIn.kind = 'bonds'; })),
+    /kinds block does not list/);
+  assert.throws(() => validateLevels(sixth((l) => { l.holdings.minShareIn.share = 1.2; })),
+    /share must be above 0 and at most 1/);
+  // A floor that leaves the other three holdings less than $100 each cannot be
+  // built at all, so the file is refused rather than the round failing later.
+  assert.throws(() => validateLevels(sixth((l) => { l.holdings.minShareIn.share = 0.98; })),
+    /leaves nothing for the other 3 holdings/);
+  // 0.97 is the most a 4-holding level can ask for: $9,700 and $100 each.
+  assert.equal(validateLevels(sixth((l) => { l.holdings.minShareIn.share = 0.97; })).version, LEVELS.version);
+});
+
+test("level 6's kind floor resolves to the tickers it counts", () => {
+  const rule = kindFloorFor(level6, LEVELS);
+  assert.equal(rule.kind, 'stocks');
+  assert.equal(rule.share, 0.6);
+  assert.equal(rule.tickers.length, 36);
+  assert.ok(rule.tickers.includes('VOO') && rule.tickers.includes('NVDA'));
+  assert.ok(!rule.tickers.includes('BND') && !rule.tickers.includes('GLD'));
+  // Every other level has no such rule, and must not grow one by accident.
+  for (const level of LEVELS.levels.filter((l) => l.id !== 6)) {
+    assert.equal(kindFloorFor(level, LEVELS), null, `level ${level.id} grew a floor on a kind`);
+  }
+});
+
+test('level 6 has at least 3 winning designs, and is not a walkover either', () => {
+  // The same check scripts/check_levels.mjs runs. The prices are
+  // data/crashes.json, which is history and never refreshed, so this one cannot
+  // go stale as the market moves - unlike levels 1 to 5, which the weekly job
+  // re-checks on live prices.
+  const crashes = validateCrashes(read('../data/crashes.json'));
+  const six = checkLevel6(crashes, level6, LEVELS, [...KNOWN_TICKERS]);
+  assert.ok(six.winners.length >= REQUIRED_DESIGNS,
+    `level 6 has ${six.winners.length} winning designs, fewer than ${REQUIRED_DESIGNS}`);
+  assert.ok(six.all.some((r) => !r.passed), 'level 6 would be no challenge if nothing failed it');
+  // Every draw that was not scored was counted, and counted draws are the ones
+  // the numbers above are out of.
+  assert.equal(six.skipped.noStock + six.skipped.shortOfFloor, 0,
+    'a 4-holding draw with no stock in it should be impossible from 36 stocks of 40');
+  assert.ok(six.skipped.unavailable > 0, 'PLTR draws exist and are skipped, not scored');
+});
+
+test('the named level 6 builds still give the answers written down beside them', () => {
+  // Named cases rather than a sample: the pair that carries the lesson - the same
+  // 60/40 shape with different stocks in it - is not something 1,000 random draws
+  // would ever have put side by side.
+  const crashes = validateCrashes(read('../data/crashes.json'));
+  for (const result of checkLevel6Builds(crashes, level6)) {
+    assert.ok(result.ok, `${result.build.key}: got ${result.value}, wanted ${result.build.expect.share}`);
+    assert.equal(passes(level6, result.value), result.build.expect.passes, result.build.key);
+  }
+  // The pair is the lesson, so it is asserted as a pair rather than as two rows.
+  const byKey = Object.fromEntries(
+    checkLevel6Builds(crashes, level6).map((r) => [r.build.key, r]),
+  );
+  const defensive = byKey['defensive-stocks-and-bonds'];
+  const banks = byKey['banks-and-oil-same-cushion'];
+  assert.ok(defensive.passed && !banks.passed);
+  assert.ok(banks.value > 4 * defensive.value,
+    'the same shape with different stocks in it should be several times apart');
+  assert.equal(LEVEL6_BUILDS.length, 6);
 });
