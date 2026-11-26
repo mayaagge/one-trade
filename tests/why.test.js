@@ -32,7 +32,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { validateLevels, levelById, bucketOf } from '../js/levels.js';
+import { validateLevels, levelById, bucketOf, weightsFromDollars } from '../js/levels.js';
+import { covariance, effectiveBets, maxRiskShare } from '../js/math.js';
+import { gameWindow, windowMatrix } from '../js/gameView.js';
 import {
   LESSON_PORTFOLIOS,
   cardFor,
@@ -139,12 +141,16 @@ test('every template in why.json uses only placeholders the code can fill', () =
   // validateWhy already throws on an unknown placeholder; this states the list
   // the files agree on, so a new placeholder cannot be added to why.json alone.
   assert.deepEqual(Object.keys(PLACEHOLDERS).sort(),
-    ['bucketCard', 'fallback', 'groupRisk', 'pair', 'pairLowRisk', 'riskGapOver', 'riskGapUnder'].sort());
+    ['bucketCard', 'fallback', 'fewBets', 'groupRisk', 'hiddenAi', 'hiddenAiAll', 'pair',
+      'pairLowRisk', 'riskGapOver', 'riskGapUnder'].sort());
 });
 
 test('validateWhy rejects a template with a placeholder the code cannot fill', () => {
   const broken = structuredClone(WHY);
-  broken.rules[1].template = 'The closest pair is {a} and {b}, at {volatility}.';
+  // Found by key, not by position: the rules list grows, and a test that edits
+  // rules[1] quietly starts testing a different rule when it does.
+  const pair = broken.rules.find((r) => r.key === 'pair');
+  pair.template = 'The closest pair is {a} and {b}, at {volatility}.';
   assert.throws(() => validateWhy(broken), /volatility/);
 });
 
@@ -358,7 +364,8 @@ test('the group rule fires when one group holds most of the risk', () => {
 
 test('the order in why.json settles a portfolio where several rules fire', () => {
   assert.deepEqual(WHY.order,
-    ['groupRisk', 'pair', 'riskGapOver', 'riskGapUnder', 'pairLowRisk']);
+    ['hiddenAiAll', 'hiddenAi', 'groupRisk', 'fewBets', 'pair', 'riskGapOver', 'riskGapUnder',
+      'pairLowRisk']);
   // p01 fires the group rule and the pair rule (QQQ and VOO correlate at 0.95);
   // the group card is the one shown.
   const { result } = play(2, [], 2, { random: () => 0 });
@@ -552,7 +559,10 @@ test('every lesson portfolio gets the card written down beside it', () => {
   // teach one thing, with the card a player who builds it has to be shown. The
   // script checks the same list and exits non-zero on a mismatch; this is the
   // same check inside the test suite, so CI catches it on every push.
-  const results = checkLessonPortfolios(GAME, GROUPS, WHY);
+  // The basket goes in because two of the lessons are about AI exposure held
+  // through a fund, and the card for that cannot be chosen without one.
+  const basket = readJson('basket.json').stocks.map((stock) => stock.ticker);
+  const results = checkLessonPortfolios(GAME, GROUPS, WHY, LESSON_PORTFOLIOS, basket);
   assert.equal(results.length, LESSON_PORTFOLIOS.length);
   for (const result of results) {
     assert.equal(result.ok, true,
@@ -620,4 +630,170 @@ test('every pool portfolio and a level 3 build get a card that reads', () => {
   const { result } = play(3, ['JNJ', 'TLT', 'GOOGL', 'LQD', 'COP'], 3.5);
   assert.equal(result.whyCard.text.length > 0, true);
   assert.equal(/\{[a-zA-Z]+\}/.test(result.whyCard.text), false);
+});
+
+// ------------------------------------------------- the two cards for levels 4 and 5
+
+const BASKET = readJson('basket.json').stocks.map((stock) => stock.ticker);
+
+/** Facts for a portfolio, with the basket behind them, as a level 4 round has. */
+function factsWithBasket(dollars) {
+  const { facts } = cardFor(GAME, GROUPS, WHY, dollars, { basket: BASKET });
+  return facts;
+}
+
+const hiddenAiRule = WHY.rules.find((r) => r.key === 'hiddenAi');
+const fewBetsRule = WHY.rules.find((r) => r.key === 'fewBets');
+
+test('hiddenAi names the fund, and states betas rather than shares of a beta', () => {
+  const facts = factsWithBasket({ QQQ: 3000, VTI: 2300, GLD: 2300, BND: 2400 });
+  const candidate = ruleCandidate(facts, hiddenAiRule, {});
+  assert.equal(candidate.fires, true);
+  assert.equal(candidate.values.ticker, 'QQQ');
+  assert.equal(candidate.values.dollarPct, '30%');
+  // Two betas: how far the portfolio moves, and how much of that is QQQ's.
+  assert.match(candidate.values.portfolioBeta, /^\d\.\d\d$/);
+  assert.match(candidate.values.contribution, /^\d\.\d\d$/);
+  assert.ok(Number(candidate.values.contribution) < Number(candidate.values.portfolioBeta));
+  // No percentage of a beta appears anywhere in the card.
+  assert.equal(Object.keys(candidate.values).includes('betaPct'), false);
+});
+
+test('hiddenAi stands down when the AI is held in the open', () => {
+  // QQQ beside three AI stocks: the biggest contributor is a basket member, so
+  // the fund is not what is carrying this, and the group card says it better.
+  const facts = factsWithBasket({ QQQ: 3000, NVDA: 2400, MSFT: 2300, AVGO: 2300 });
+  assert.equal(ruleCandidate(facts, hiddenAiRule, {}).fires, false);
+  const biggest = facts.basket.holdings.reduce((a, b) => (b.contribution > a.contribution ? b : a));
+  assert.equal(biggest.isMember, true, 'a basket member is carrying it, not the fund');
+});
+
+test('hiddenAi will not call a chipmaker a fund', () => {
+  // INTC is not in basket.json and carries a beta near 1 to it, so without the
+  // fundGroups condition this card would name INTC and say "inside the fund".
+  const facts = factsWithBasket({ QQQ: 3000, INTC: 2400, BND: 2300, PG: 2300 });
+  const biggest = facts.basket.holdings.reduce((a, b) => (b.contribution > a.contribution ? b : a));
+  assert.equal(biggest.ticker, 'INTC', 'INTC really is the biggest source of AI exposure here');
+  assert.equal(biggest.isMember, false, 'and it is not a basket member either');
+  assert.equal(ruleCandidate(facts, hiddenAiRule, {}).fires, false, 'but it is not a fund');
+});
+
+test('hiddenAi says nothing about a portfolio with no AI exposure to explain', () => {
+  // A share of a beta near zero means nothing, so the card is held off below
+  // portfolioBetaAtLeast rather than dividing by something tiny.
+  const facts = factsWithBasket({ BND: 4000, TLT: 2000, JNJ: 2000, PG: 2000 });
+  assert.ok(facts.basket.beta < hiddenAiRule.when.portfolioBetaAtLeast);
+  assert.equal(ruleCandidate(facts, hiddenAiRule, {}).fires, false);
+});
+
+test('a level that measures no beta gets no basket facts, and no fund card', () => {
+  const { facts, card } = cardFor(GAME, GROUPS, WHY, { QQQ: 3000, VTI: 2300, GLD: 2300, BND: 2400 });
+  assert.equal(facts.basket, null);
+  assert.equal(ruleCandidate(facts, hiddenAiRule, {}).fires, false);
+  assert.notEqual(card.key, 'hiddenAi');
+});
+
+test('fewBets fires on risk spread evenly over holdings that are one bet', () => {
+  const facts = factsWithBasket({ GLD: 2500, VEA: 2500, VXUS: 2500, VOO: 2500 });
+  const candidate = ruleCandidate(facts, fewBetsRule, {});
+  assert.equal(candidate.fires, true);
+  assert.equal(candidate.values.total, '4');
+  assert.ok(Number(candidate.values.bets) < 2);
+  assert.match(candidate.values.maxRiskPct, /^\d+%$/);
+  // The two numbers the card states are the two it was tested on.
+  assert.ok(facts.maxRiskShare < fewBetsRule.when.maxRiskShareBelow);
+  assert.ok(facts.bets < fewBetsRule.when.betsBelow);
+});
+
+test('fewBets is held off when one holding carries the risk', () => {
+  // The exact case level 5 fails on: the risk is not spread, so "the risk is
+  // spread evenly" would be false, and riskGapOver has the true card.
+  const facts = factsWithBasket({ BND: 2500, TLT: 2500, LQD: 2500, NVDA: 2500 });
+  assert.ok(facts.maxRiskShare > fewBetsRule.when.maxRiskShareBelow);
+  assert.equal(ruleCandidate(facts, fewBetsRule, {}).fires, false);
+});
+
+test('fewBets is held off on a portfolio that really does make several bets', () => {
+  const facts = factsWithBasket({ VOO: 2500, BND: 2500, GLD: 2500, XOM: 2500 });
+  assert.ok(facts.bets >= fewBetsRule.when.betsBelow,
+    `${facts.bets} bets should be at or above the card's ${fewBetsRule.when.betsBelow}`);
+  assert.equal(ruleCandidate(facts, fewBetsRule, {}).fires, false);
+});
+
+test('fewBets needs three holdings, like the group rule and for the same reason', () => {
+  assert.equal(fewBetsRule.when.minHoldings, 3);
+  const facts = factsWithBasket({ VOO: 5000, VTI: 5000 });
+  assert.ok(facts.bets < fewBetsRule.when.betsBelow, 'two near-identical funds are one bet');
+  assert.equal(ruleCandidate(facts, fewBetsRule, {}).fires, false, 'but two holdings is arithmetic');
+});
+
+test('fewBets borrows level 5’s own threshold for "the risk is spread"', () => {
+  assert.equal(fewBetsRule.when.maxRiskShareBelow, levelById(LEVELS, 5).pass.threshold);
+  assert.equal(fewBetsRule.when.betsBelow, 2);
+});
+
+test('the group card will not call one holding a group', () => {
+  // Three bond funds and NVDA: the AI "group" is one holding carrying 82% of the
+  // risk, which is a holding, not a group, and reads as "1 of your 4 holdings
+  // are AI stocks". It falls through to the risk-gap card instead.
+  const facts = factsWithBasket({ BND: 2500, TLT: 2500, LQD: 2500, NVDA: 2500 });
+  const groupRule = WHY.rules.find((r) => r.key === 'groupRisk');
+  const top = facts.groups[0];
+  assert.equal(top.count, 1);
+  assert.ok(top.riskShare >= groupRule.when.groupRiskAtLeast, 'it would otherwise fire');
+  assert.equal(ruleCandidate(facts, groupRule, {}).fires, false);
+  assert.equal(pickWhy(facts, WHY, {}).key, 'riskGapOver');
+});
+
+test('the bets and the biggest risk share in the facts are the game’s own measures', () => {
+  // The same two numbers levels 3 and 5 are scored on, computed over the same
+  // window and the same covariance matrix the risk shares come from.
+  const dollars = { GLD: 2500, VEA: 2500, VXUS: 2500, VOO: 2500 };
+  const facts = factsWithBasket(dollars);
+  const { tickers, weights } = weightsFromDollars(dollars);
+  const window = gameWindow(GAME, tickers, LEVELS.window.days);
+  const cov = covariance(windowMatrix(window, tickers));
+  assert.equal(facts.bets, effectiveBets(weights, cov));
+  assert.equal(facts.maxRiskShare, maxRiskShare(weights, cov));
+});
+
+test('the two fund cards are exact complements, so no portfolio falls between them', () => {
+  const all = WHY.rules.find((r) => r.key === 'hiddenAiAll');
+  // The same gate on both, so the pair of them covers every portfolio with a
+  // fund carrying the exposure, and neither covers one the other does.
+  assert.equal(all.when.portfolioBetaAtLeast, hiddenAiRule.when.portfolioBetaAtLeast);
+  assert.deepEqual(all.when.fundGroups, hiddenAiRule.when.fundGroups);
+
+  const cases = [
+    { QQQ: 3000, BND: 2400, PG: 2300, JNJ: 2300 },   // staples offset: the fund is all of it
+    { QQQ: 3000, VTI: 2300, GLD: 2300, BND: 2400 },  // gold and a broad fund add some
+    { QQQ: 3000, NVDA: 2400, MSFT: 2300, AVGO: 2300 },
+    { QQQ: 3000, INTC: 2400, BND: 2300, PG: 2300 },
+    { BND: 4000, TLT: 2000, JNJ: 2000, PG: 2000 },
+  ];
+  for (const dollars of cases) {
+    const facts = factsWithBasket(dollars);
+    const fired = [all, hiddenAiRule].filter((r) => ruleCandidate(facts, r, {}).fires);
+    assert.ok(fired.length <= 1,
+      `${Object.keys(dollars).join('/')} fired both fund cards: ${fired.map((r) => r.key).join('+')}`);
+  }
+});
+
+test('the fund card says "all of that" when the number it would print is the whole beta', () => {
+  // The case playing level 4 in a browser turned up: QQQ beside bonds and
+  // staples, where what the staples take off cancels what the rest adds, so the
+  // fund's part and the whole beta print as the same number.
+  const facts = factsWithBasket({ QQQ: 3000, BND: 2400, PG: 2300, JNJ: 2300 });
+  const card = pickWhy(facts, WHY, {});
+  assert.equal(card.key, 'hiddenAiAll');
+  assert.match(card.text, /all of that comes from QQQ alone/);
+  // And it never prints the same number twice, which is what it is here to stop.
+  assert.equal(/(\d\.\d\d).*\1/.test(card.text), false, card.text);
+});
+
+test('the fund card still names its two numbers when they really differ', () => {
+  const facts = factsWithBasket({ QQQ: 3000, VTI: 2300, GLD: 2300, BND: 2400 });
+  const card = pickWhy(facts, WHY, {});
+  assert.equal(card.key, 'hiddenAi');
+  assert.notEqual(card.values.contribution, card.values.portfolioBeta);
 });

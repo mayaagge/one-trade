@@ -1507,3 +1507,131 @@ the join by `10 * JOIN_TOLERANCE` and checks exactly that.
   does mean the line is worth a glance when the refresh log is open.
 
 Educational, not investment advice.
+
+## Levels 4 and 5, the screens and the cards, 26 November 2026 (session 2.6)
+
+Session B. The rules and the math landed in session 2.5; this is what a player
+sees, and two "Why?" cards for what levels 4 and 5 teach. Both defects worth
+recording were found by playing the levels in a browser, not by a test.
+
+### A holding the level keeps, and a button that cannot work
+
+Level 4 deals QQQ and will not let it go, so the chip is rendered **held and
+locked** rather than tappable and then refused - the round throws if it is
+removed, and a button whose only outcome is an error is not a button. It keeps
+the held colour at full strength and takes a lock glyph, because the disabled
+styling would have faded it to 0.35 and made a name the player definitely holds
+look like one they cannot reach.
+
+The same thinking runs through the money: `round.canLower()` and
+`round.canRaise()` mirror `adjustDollars()`'s own conditions exactly, and the
+screen disables a step rather than offering one that does nothing. QQQ's minus
+is off at $3,000, with the reason beside it: "QQQ stays at $3,000 or more: the
+30% this level asks you to keep in it."
+
+### The card for AI held through a fund, and why it is two rules
+
+`hiddenAi` fires when the biggest contributor to the portfolio's beta is a fund
+rather than a basket member, and brings at least half of it. Three conditions,
+and the third is the one that stops the card lying: **INTC is not in basket.json
+and carries a beta of about 1.0 to it**, so without a test that the holding is a
+fund, "The AI is inside the fund" would be printed about a chipmaker. The fund
+groups are listed in why.json, beside the claim they guard.
+
+Playing level 4 showed what no test had: on the ordinary passing build the card
+read
+
+> Your portfolio moves 0.17% when AI stocks move 1%, and **0.17** of that comes
+> from QQQ alone
+
+Both numbers were right. PG, JNJ, KO and XOM all move slightly against the
+basket, so what they take off cancels what gold and a broad fund add, and the
+fund's part of the beta *is* the beta. True, and it reads as a typo. So there are
+two rules, as with `pair` and `pairLowRisk`: `hiddenAiAll` says "all of that
+comes from QQQ alone" and `hiddenAi` keeps the two numbers for when they really
+differ. **The test is what the card would print**, not the raw values: a fund at
+0.1692 of a 0.1707 beta prints "0.17 of 0.17". A test holds the two rules to
+being exact complements over five portfolios.
+
+### The card level 5 needed, so that passing teaches the right thing
+
+`fewBets` fires under **2.00 effective bets** with the risk spread (no holding
+over 35%, level 5's own threshold) and at least 3 holdings. Of 2,000 seeded
+4-holding builds, the 213 that pass level 5 have a median of 1.31 bets and 92%
+are under 2.00, so without this card the usual way to pass level 5 teaches the
+opposite of the truth. It goes after `groupRisk` and before `pair`, which is what
+lets it answer on four funds that each carry a quarter of the risk: the top group
+holds about half, so the group card is silent, and the 0.99 pair inside would
+otherwise take the card and say the smaller thing.
+
+### A group of one holding is a holding
+
+The new lesson portfolio for level 5's failing build - three bond funds and NVDA
+- turned up a fault in the **existing** group rule:
+
+> 1 of your 4 holdings are AI stocks. They are 25% of your money and 82% of your
+> risk
+
+Bad grammar, and a weaker claim than the truth, which is that one holding carries
+four fifths of the risk - which `riskGapOver` already has the template for. So
+`groupRisk` gained `minHoldingsInGroup: 2`, and a one-holding group falls through
+to the risk-gap card. This is the first case in the lesson set where a single
+holding dominates a portfolio of three or more, which is why five sessions of
+that rule never showed it.
+
+The frequency table moved with it, over the same 420 portfolios:
+
+| rule | fires | shown |
+| --- | --- | --- |
+| hiddenAiAll, hiddenAi | 0 | 0 — the table's builds carry no basket |
+| groupRisk | 176 (42%) | 176 (42%) |
+| fewBets | 83 (20%) | 46 (11%) |
+| pair | 84 (20%) | 51 (12%) |
+| riskGapOver | 240 (57%) | 111 (26%) |
+| riskGapUnder | 219 (52%) | 13 (3%) |
+| pairLowRisk | 23 (5%) | 1 (0%) |
+| fallback | 22 (5%) | 22 (5%) |
+
+The fallback is down from 9% to 5%, and `fewBets` took 46 cards that were mostly
+the pair card before. The level 4 and 5 builds are deliberately **not** drawn into
+this table: it is the record of how the older thresholds were set, and adding
+draws would move every number in it for reasons that have nothing to do with the
+rules. The new cards are held by their lesson portfolios instead, which is now 11.
+
+### Level 5 now says whose 38% it was
+
+The reveal showed "38%" against a threshold of 35% and never named the holding -
+the one thing the level asks about. `topRiskShare()` returns the index with the
+share, and the panel carries a line under the number: "That holding is GLD."
+
+### How it was checked
+
+The screens are the part the tests cannot prove, so both levels were played end
+to end in headless Chrome at 390x844 over the DevTools protocol: the locked chip,
+the floor note, the disabled minus (computed opacity 0.45, cursor default), the
+blank slider, the percent readout, the reveal panel, the bucket line and the
+card. No console errors on either level. 535 tests pass, and both check scripts
+are green.
+
+One trap in that harness, recorded because it wasted a pass: **ES modules are
+cached by the browser** even when the JSON beside them is fetched no-cache, and a
+crashed run leaves Chrome holding the port, so the next run attaches to the old
+page. A card that had already been fixed kept printing its old text. The harness
+now disables the cache and the stray browser gets killed first.
+
+### What to watch
+
+- **Level 5's card can name the quiet holding on a failed build.** GLD carried
+  37.9% and failed the level; the card named BND at 25% of the money and 3% of
+  the risk, because GLD's gap is 12.9 points and `riskGapOver` asks for 20, while
+  BND's is 22 points under. Both statements are true and both are level 5's own
+  concept, but the card is about the other end of the portfolio from the one that
+  failed. Worth deciding deliberately rather than by threshold.
+- **`hiddenAi`'s two-number form is rare on level 4.** It needs a holding beside
+  the fund that adds real exposure without being a basket member, which is mostly
+  another fund. Its lesson portfolio is what keeps it honest.
+- **`fewBets` is shown on 11% of the old 420 and will be far higher on level 5.**
+  As recorded in session 2.5, that is the finding rather than a flaw, but it is
+  the card most likely to be read as repetitive in a playtest.
+
+Educational, not investment advice.

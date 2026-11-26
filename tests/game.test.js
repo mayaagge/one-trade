@@ -22,6 +22,8 @@ import { GAME_DAYS } from '../scripts/build_game_data.mjs';
 import { validateLevels, levelById } from '../js/levels.js';
 import { createRound } from '../js/round.js';
 import {
+  basketFrom,
+  floorNotes,
   guessPlaces,
   guessSliderState,
   guessStep,
@@ -36,6 +38,7 @@ const root = new URL('..', import.meta.url);
 const readJson = (name) => JSON.parse(readFileSync(fileURLToPath(new URL(name, root)), 'utf8'));
 const LEVELS = validateLevels(readJson('levels.json'));
 const TICKERS = readJson('tickers.json');
+const BASKET = readJson('basket.json').stocks.map((stock) => stock.ticker);
 const UNIVERSE = TICKERS.groups.flatMap((g) => g.tickers.map((t) => (typeof t === 'string' ? t : t.ticker)));
 
 // Prices from the frozen snapshot, shaped like data/game.json: the round needs
@@ -51,6 +54,13 @@ const GAME = (() => {
     rows: dates.map((date, i) => [date, ...tickers.map((t) => built.byTicker[t][from + i])]),
   };
 })();
+
+/** A fresh round on a level, with the draw pinned. */
+function round(levelId) {
+  return createRound({
+    levels: LEVELS, levelId, game: GAME, universe: UNIVERSE, basket: BASKET, random: () => 0,
+  });
+}
 
 /** A round sitting on the guess screen, built and waiting for a guess. */
 function atGuess(levelId, picks = []) {
@@ -241,4 +251,79 @@ test('money reads the way a player writes it', () => {
   assert.equal(money(2000), '$2,000');
   assert.equal(money(100), '$100');
   assert.equal(money(0), '$0');
+});
+
+// -------------------------------------------- the screens for levels 4 and 5
+
+test('a level that deals a holding shows it held and locked, not tappable', () => {
+  // The chip for QQQ on level 4. It is disabled because removing it throws, and
+  // a button whose only outcome is an error is not a button.
+  const r = round(4);
+  assert.deepEqual(r.required, ['QQQ']);
+  assert.equal(r.hasPick('QQQ'), true);
+  assert.throws(() => r.togglePick('QQQ'), /cannot be removed/);
+});
+
+test('the money buttons are offered only when they would do something', () => {
+  const r = round(4);
+  for (const ticker of ['BND', 'GLD', 'JNJ']) r.togglePick(ticker);
+
+  // QQQ sits at its floor, so - is off and + is on.
+  assert.equal(r.canLower('QQQ'), false);
+  assert.equal(r.canRaise('QQQ'), true);
+  // The others can give and take.
+  assert.equal(r.canLower('BND'), true);
+  assert.equal(r.canRaise('BND'), true);
+
+  // What the buttons say matches what the round will actually do.
+  for (const ticker of r.picks) {
+    assert.equal(r.canLower(ticker), r.adjustDollars(ticker, -1) === 1,
+      `${ticker}: the - button and adjustDollars disagree`);
+    if (r.canLower(ticker)) r.adjustDollars(ticker, 1);     // put it back
+  }
+});
+
+test('the floor under a holding is named in the level’s own numbers', () => {
+  const r = round(4);
+  assert.deepEqual(floorNotes(r), [
+    'QQQ stays at $3,000 or more: the 30% this level asks you to keep in it.',
+  ]);
+  // A level with no floor says nothing about floors.
+  assert.deepEqual(floorNotes(round(5)), []);
+  assert.deepEqual(floorNotes(round(3)), []);
+});
+
+test('every level names its own reveal panel, and none of them is the old ternary', () => {
+  for (const level of LEVELS.levels) {
+    assert.ok(level.revealLabel.length > 10, `level ${level.id} has no reveal label`);
+  }
+  assert.match(levelById(LEVELS, 4).revealLabel, /AI basket/);
+  assert.match(levelById(LEVELS, 5).revealLabel, /risk/i);
+});
+
+test('the slider on each level reads the step and the units from levels.json', () => {
+  assert.equal(guessStep(levelById(LEVELS, 4)), 0.05);
+  assert.equal(guessStep(levelById(LEVELS, 5)), 0.01);
+  // Level 5's guess is a share of 1 and reads as a percent on the screen.
+  const five = round(5);
+  for (const ticker of ['VOO', 'BND', 'GLD', 'XOM']) five.togglePick(ticker);
+  five.toGuess();
+  five.setGuess(0.38);
+  assert.equal(guessSliderState(five).readout, '38%');
+  const four = round(4);
+  for (const ticker of ['BND', 'GLD', 'JNJ']) four.togglePick(ticker);
+  four.toGuess();
+  four.setGuess(0.55);
+  assert.equal(guessSliderState(four).readout, '0.55');
+});
+
+test('basketFrom() accepts the registered basket and refuses anything else', () => {
+  const basket = basketFrom(readJson('basket.json'));
+  assert.equal(basket.length, 13);
+  assert.deepEqual(basket, BASKET);
+  // Level 4 is a beta TO this basket, so a round measured against some other
+  // list of names would be a different level wearing level 4's title.
+  assert.throws(() => basketFrom({ stocks: [] }), /carries no stocks/);
+  assert.throws(() => basketFrom({}), /carries no stocks/);
+  assert.throws(() => basketFrom({ stocks: [{ layer: 'chips' }] }), /no ticker/);
 });

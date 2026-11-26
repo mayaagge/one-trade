@@ -37,6 +37,7 @@ import { makeRng } from '../js/rng.js';
 import { validateLevels, weightsFromDollars } from '../js/levels.js';
 import { gameWindow, windowMatrix } from '../js/gameView.js';
 import { groupIndex, pickWhy, ruleCandidate, validateWhy, whyFacts } from '../js/why.js';
+import { equalWeightBasket } from '../js/math.js';
 import { GAME_DAYS } from './build_game_data.mjs';
 import { WINDOW_DAYS, MIN_DAYS, TOTAL_DOLLARS } from './make_pool.mjs';
 
@@ -119,6 +120,58 @@ export const LESSON_PORTFOLIOS = [
     decided: 'Keeps the pair card. No threshold separates it from a 0.99 pair worth naming',
   },
   {
+    key: 'hidden-ai-in-a-fund',
+    what: 'Level 4 passed: QQQ at its 30% floor, with a broad fund, gold and bonds',
+    lesson: 'The AI exposure a player cannot see on their own screen: it is inside the fund.',
+    // The allocation js/round.js deals a level 4 round, so this is the portfolio
+    // a player is looking at when the round starts, not one built for the rule.
+    dollars: { QQQ: 3000, VTI: 2300, GLD: 2300, BND: 2400 },
+    needsBasket: true,
+    expect: { key: 'hiddenAi', values: { ticker: 'QQQ', dollarPct: '30%' } },
+    note: 'Beta 0.29, and QQQ alone brings 0.17 of it while being 30% of the money',
+  },
+  {
+    key: 'hidden-ai-all-of-it',
+    what: 'Level 4 passed the ordinary way: QQQ at its floor, with bonds and two staples',
+    lesson: 'Every bit of the AI exposure came through the fund. The plainest version of level 4.',
+    // What the quiet holdings take off cancels what the rest add, so the fund's
+    // part of the beta IS the beta. Found by playing the level, where the
+    // two-number card read "0.17 of 0.17" and looked like a typo.
+    dollars: { QQQ: 3000, BND: 2400, PG: 2300, JNJ: 2300 },
+    needsBasket: true,
+    expect: { key: 'hiddenAiAll', values: { ticker: 'QQQ', dollarPct: '30%' } },
+    note: 'PG and JNJ move slightly against the basket, so QQQ accounts for the whole of it',
+  },
+  {
+    key: 'ai-held-in-the-open',
+    what: 'Level 4 failed: QQQ beside three AI stocks',
+    lesson: 'When the AI is held in the open, the group card says it better than the fund card.',
+    dollars: { QQQ: 3000, NVDA: 2400, MSFT: 2300, AVGO: 2300 },
+    needsBasket: true,
+    expect: { key: 'groupRisk', values: { group: 'AI stocks' } },
+    // hiddenAi stands itself down here: the biggest contributor to the beta is
+    // NVDA, a basket member, not the fund. That is the condition doing its job.
+    note: 'Beta 0.79. The fund is only a fifth of it, so hiddenAi does not fire at all',
+  },
+  {
+    key: 'even-risk-one-bet',
+    what: 'Level 5 passed: four funds, each carrying about a quarter of the risk',
+    lesson: 'Spreading the risk evenly is not making several bets. The trap level 5 sets.',
+    dollars: { GLD: 2500, VEA: 2500, VXUS: 2500, VOO: 2500 },
+    expect: { key: 'fewBets', values: { total: '4' } },
+    note: '27% in the biggest holding and 1.03 bets: it passes level 5 and would fail level 3',
+  },
+  {
+    key: 'one-holding-carries-it-all',
+    what: 'Level 5 failed: three bond funds and one volatile holding',
+    lesson: 'A quarter of the money can be four fifths of the risk.',
+    dollars: { BND: 2500, TLT: 2500, LQD: 2500, NVDA: 2500 },
+    expect: { key: 'riskGapOver', values: { ticker: 'NVDA', dollarPct: '25%' } },
+    // fewBets cannot reach this one: NVDA holds 82% of the risk, so the risk is
+    // not spread, which is exactly the condition that separates the two cards.
+    note: 'NVDA is 25% of the money and 82% of the risk, so fewBets is held off by its own test',
+  },
+  {
     key: 'tight-pair-in-a-corner',
     what: 'A 0.94 pair carrying 13% of the risk, beside a holding that carries 45%',
     lesson: 'A pair can be the same bet and still not be the bet that decided the number.',
@@ -156,17 +209,28 @@ export function frozenGameDoc(prices) {
  * which fits neither level 1's two nor level 3's five. What is being checked is
  * which rule explains the portfolio, and that is a question about the rules.
  */
-export function cardFor(game, groups, why, dollars, { days = WINDOW_DAYS } = {}) {
+export function cardFor(game, groups, why, dollars, { days = WINDOW_DAYS, basket = null } = {}) {
   const total = Object.values(dollars).reduce((sum, d) => sum + d, 0);
   if (total !== TOTAL_DOLLARS) {
     throw new Error(`cardFor: ${Object.keys(dollars).join('/')} allocates ${total}, not ${TOTAL_DOLLARS}`);
   }
   const { tickers, weights } = weightsFromDollars(dollars);
-  const window = gameWindow(game, tickers, days);
+  // The basket's members share the window with the portfolio, exactly as
+  // js/round.js does it: a beta read off days the basket may not have is a
+  // different measure.
+  const needed = basket ? [...new Set([...tickers, ...basket])] : tickers;
+  const window = gameWindow(game, needed, days);
   if (window.days < MIN_DAYS) {
-    throw new Error(`cardFor: ${tickers.join('/')} overlap on only ${window.days} days`);
+    throw new Error(`cardFor: ${needed.join('/')} overlap on only ${window.days} days`);
   }
-  const facts = whyFacts({ tickers, weights, matrix: windowMatrix(window, tickers), groups });
+  const facts = whyFacts({
+    tickers,
+    weights,
+    matrix: windowMatrix(window, tickers),
+    groups,
+    basketReturns: basket ? equalWeightBasket(window.byTicker, basket) : null,
+    basketMembers: basket,
+  });
   return { facts, card: pickWhy(facts, why, {}), days: window.days };
 }
 
@@ -184,9 +248,13 @@ export function firedRules(facts, why) {
  * named says so, and one that only cares which rule answered does not have to
  * list every percent.
  */
-export function checkLessonPortfolios(game, groups, why, portfolios = LESSON_PORTFOLIOS) {
+export function checkLessonPortfolios(game, groups, why, portfolios = LESSON_PORTFOLIOS, basket = null) {
   return portfolios.map((lesson) => {
-    const { card, facts } = cardFor(game, groups, why, lesson.dollars);
+    // A lesson about AI exposure needs the basket; the rest are measured without
+    // one, which is also how a level that does not ask for a beta plays.
+    const { card, facts } = cardFor(game, groups, why, lesson.dollars, {
+      basket: lesson.needsBasket ? basket : null,
+    });
     const wrongValues = Object.entries(lesson.expect.values ?? {})
       .filter(([name, want]) => card.values[name] !== want)
       .map(([name, want]) => `${name}: wanted ${want}, got ${card.values[name]}`);
@@ -235,7 +303,11 @@ export function frequencies(game, levels, groups, why, universe, { samples = SAM
   const pool = counted;
 
   // Seeded 5-holding level 3 builds at an even split, the plainest allocation a
-  // player can type.
+  // player can type. Level 4's and 5's builds are not drawn here: this table is
+  // what set the thresholds for the rules that existed when it was written, and
+  // adding draws to it would change every number in it for reasons that have
+  // nothing to do with the rules. The two new rules are measured by their lesson
+  // portfolios and by the per-level counts in scripts/check_levels.mjs instead.
   const rng = makeRng(seed);
   let drawn = 0;
   let skipped = 0;
@@ -271,7 +343,8 @@ function main() {
 
   console.log(`The "Why?" cards, over the frozen snapshot through ${game.meta.liveThrough}.`);
 
-  const lessons = checkLessonPortfolios(game, groups, why);
+  const basket = readJson('basket.json').stocks.map((stock) => stock.ticker);
+  const lessons = checkLessonPortfolios(game, groups, why, LESSON_PORTFOLIOS, basket);
   console.log(`\nLesson portfolios (${lessons.length}), each with the card it has to get\n`);
   for (const result of lessons) {
     const { lesson, card } = result;

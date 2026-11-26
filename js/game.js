@@ -30,6 +30,13 @@ import { WHY_URL, groupIndex, validateWhy } from './why.js';
 export const TICKERS_URL = 'tickers.json';
 
 /**
+ * The AI basket, frozen at the prereg tag. Level 4 measures a beta to it, and it
+ * is read from the registered file rather than repeated in the game's own data:
+ * basket.json is authoritative, and a test holds the level to its 13 names.
+ */
+export const BASKET_URL = 'basket.json';
+
+/**
  * How fine the guess slider is, from levels.json.
  *
  * This used to be a branch on the measure's name - hundredths for a correlation,
@@ -72,6 +79,22 @@ function footNotes(game) {
   wrap.append(h('p', 'live-chip', game.meta.liveLabel ?? `Live prices through ${game.meta.liveThrough}`));
   wrap.append(h('p', 'disclaimer-inline', DISCLAIMER));
   return wrap;
+}
+
+/**
+ * The basket's members, from basket.json.
+ *
+ * It throws on a file that is not the registered basket, because level 4's
+ * measure is a beta TO that basket: a round measured against some other list of
+ * names would be a different level wearing level 4's title.
+ */
+export function basketFrom(doc) {
+  const members = (doc?.stocks ?? []).map((stock) => stock.ticker);
+  if (members.length === 0) throw new Error(`${BASKET_URL} carries no stocks`);
+  if (members.some((ticker) => typeof ticker !== 'string' || ticker.length === 0)) {
+    throw new Error(`${BASKET_URL} has a stock with no ticker`);
+  }
+  return members;
 }
 
 /** Stars as text, so they copy and read aloud sensibly. */
@@ -129,7 +152,7 @@ function renderMenu(ctx) {
   const list = h('div', 'level-list');
   for (const level of ctx.levels.levels) list.append(levelCard(ctx, level));
   view.append(list);
-  view.append(h('p', 'note', 'Levels 4 to 7 are still being built. Returns never score anything here, and there is no leaderboard.'));
+  view.append(h('p', 'note', 'Levels 6 and 7 are still being built. Returns never score anything here, and there is no leaderboard.'));
   view.append(footNotes(ctx.game));
   return view;
 }
@@ -152,14 +175,22 @@ function tickerPicker(ctx, round) {
     const row = h('div', 'picker-row');
     for (const ticker of names) {
       const held = round.hasPick(ticker);
-      const node = button(ticker, held ? 'chip chip-on' : 'chip', () => {
+      // A holding the level deals and keeps - level 4's QQQ - is shown held and
+      // locked rather than tappable and then refused. The round throws if it is
+      // removed, and a button whose only outcome is an error is not a button.
+      const locked = round.required.includes(ticker);
+      const node = button(ticker, [
+        'chip', held ? 'chip-on' : null, locked ? 'chip-locked' : null,
+      ].filter(Boolean).join(' '), () => {
         round.togglePick(ticker);
         ctx.draw();
       }, {
         // A full pool stays tappable for the names already held, so a player can
         // always swap one out; the rest go flat rather than vanishing.
-        disabled: !held && !round.canAddPick(),
-        aria: `${held ? 'Remove' : 'Add'} ${ticker}`,
+        disabled: locked || (!held && !round.canAddPick()),
+        aria: locked
+          ? `${ticker} is required on this level`
+          : `${held ? 'Remove' : 'Add'} ${ticker}`,
       });
       node.setAttribute('aria-pressed', String(held));
       row.append(node);
@@ -183,19 +214,39 @@ function allocator(ctx, round) {
     amount.append(h('span', 'alloc-share', `${Math.round((dollars / round.total) * 100)}%`));
     row.append(amount);
     const buttons = h('div', 'alloc-buttons');
+    // A step that cannot be taken is not offered. On level 4 that is QQQ at its
+    // $3,000 floor, and on every level it is the last $100 of any holding: the
+    // level asked for this many holdings, and a holding of nothing is one fewer.
     buttons.append(button('−', 'btn btn-step', () => {
       round.adjustDollars(ticker, -1);
       ctx.draw();
-    }, { aria: `Take ${money(DOLLAR_STEP)} off ${ticker}` }));
+    }, { aria: `Take ${money(DOLLAR_STEP)} off ${ticker}`, disabled: !round.canLower(ticker) }));
     buttons.append(button('+', 'btn btn-step', () => {
       round.adjustDollars(ticker, 1);
       ctx.draw();
-    }, { aria: `Add ${money(DOLLAR_STEP)} to ${ticker}` }));
+    }, { aria: `Add ${money(DOLLAR_STEP)} to ${ticker}`, disabled: !round.canRaise(ticker) }));
     row.append(buttons);
     wrap.append(row);
   }
   wrap.append(h('p', 'note', `Moves in ${money(DOLLAR_STEP)} steps, always adding up to ${money(round.total)}. It starts split evenly.`));
+  // The floors a level puts under a holding, named with the number the level
+  // asks for and the dollars it comes to, so the locked - button has a reason
+  // beside it rather than just being flat.
+  for (const line of floorNotes(round)) wrap.append(h('p', 'note note-floor', line));
   return wrap;
+}
+
+/**
+ * One line per holding the level puts a floor under: level 4's "at least 30% in
+ * QQQ", as a share and as the money it works out to.
+ */
+export function floorNotes(round) {
+  const shares = round.level.holdings?.minShare ?? {};
+  return Object.entries(shares).map(([ticker, share]) => {
+    const floor = round.floorOf(ticker);
+    return `${ticker} stays at ${money(floor)} or more: the ${Math.round(share * 100)}% `
+      + `this level asks you to keep in it.`;
+  });
 }
 
 function renderBuild(ctx, round) {
@@ -229,7 +280,10 @@ function renderBuild(ctx, round) {
     ctx.draw();
   }, { disabled: !ready }));
   if (!ready && !round.fixed) {
-    view.append(h('p', 'note', `Pick ${round.wanted} holdings to carry on.`));
+    const left = round.wanted === null ? null : round.wanted - round.picks.length;
+    view.append(h('p', 'note', left === null
+      ? 'Pick your holdings to carry on.'
+      : `Pick ${left} more ${left === 1 ? 'holding' : 'holdings'} to carry on.`));
   }
   view.append(button('Back to the levels', 'btn btn-quiet btn-wide', () => ctx.toMenu()));
   view.append(footNotes(ctx.game));
@@ -344,10 +398,15 @@ function renderReveal(ctx, round) {
   view.append(roundHead(ctx, round, 'Reveal'));
 
   const panel = h('div', 'reveal-panel');
-  panel.append(h('p', 'reveal-label', level.guess.measure === 'correlation'
-    ? 'How closely they really move together'
-    : 'Separate bets this portfolio really makes'));
+  // The level's own words for what the number is. It used to be a ternary on the
+  // measure's name, which could only ever name two of the four measures.
+  panel.append(h('p', 'reveal-label', level.revealLabel));
   panel.append(h('p', 'reveal-value', result.shown));
+  // Which holding the number is about, on a level whose measure names one. Level
+  // 5 shows "38%", and without this the player never learns whose 38% it was.
+  if (result.aboutTicker) {
+    panel.append(h('p', 'reveal-about', `That holding is ${result.aboutTicker}.`));
+  }
   panel.append(h('p', 'reveal-guess', `You guessed ${formatGuess(level, result.guess)}`));
   if (result.line) {
     panel.append(h('p', result.passed ? 'reveal-line reveal-pass' : 'reveal-line reveal-fail', result.line));
@@ -438,19 +497,23 @@ export async function mountLearn(root, { session = newSession() } = {}) {
   let levels;
   let tickers;
   let why;
+  let basket;
   let game;
   try {
-    const [levelsResponse, tickersResponse, whyResponse] = await Promise.all([
+    const [levelsResponse, tickersResponse, whyResponse, basketResponse] = await Promise.all([
       fetch(LEVELS_URL, { cache: 'no-cache' }),
       fetch(TICKERS_URL, { cache: 'no-cache' }),
       fetch(WHY_URL, { cache: 'no-cache' }),
+      fetch(BASKET_URL, { cache: 'no-cache' }),
     ]);
     if (!levelsResponse.ok) throw new Error(`${LEVELS_URL} returned ${levelsResponse.status}`);
     if (!tickersResponse.ok) throw new Error(`${TICKERS_URL} returned ${tickersResponse.status}`);
     if (!whyResponse.ok) throw new Error(`${WHY_URL} returned ${whyResponse.status}`);
+    if (!basketResponse.ok) throw new Error(`${BASKET_URL} returned ${basketResponse.status}`);
     levels = validateLevels(await levelsResponse.json());
     tickers = await tickersResponse.json();
     why = validateWhy(await whyResponse.json());
+    basket = basketFrom(await basketResponse.json());
     game = await loadGameData();
   } catch (error) {
     root.replaceChildren();
@@ -470,6 +533,7 @@ export async function mountLearn(root, { session = newSession() } = {}) {
     levels,
     tickers,
     why,
+    basket,
     game,
     session,
     round: null,
@@ -479,7 +543,7 @@ export async function mountLearn(root, { session = newSession() } = {}) {
       return at >= 0 && at + 1 < ids.length ? ids[at + 1] : null;
     },
     startRound(levelId) {
-      ctx.round = createRound({ levels, levelId, game, universe, groups, why });
+      ctx.round = createRound({ levels, levelId, game, universe, groups, why, basket });
       ctx.draw();
     },
     toMenu() {

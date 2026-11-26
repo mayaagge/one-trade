@@ -51,6 +51,7 @@ import {
   equalWeightBasket,
   maxRiskShare,
   portfolioReturns,
+  riskShares,
 } from '../js/math.js';
 import { gameWindow, windowMatrix } from '../js/gameView.js';
 
@@ -674,4 +675,23 @@ test('level 5 can be passed, and passing says nothing about the number of bets',
     windowMatrix(gameWindow(GAME, result.tickers, LEVELS.window.days), result.tickers),
   ));
   assert.ok(bets < 1.2, `${bets} bets - even risk is not several bets`);
+});
+
+test('level 5 names the holding its number is about', () => {
+  const { result } = play(5, ['VOO', 'BND', 'GLD', 'XOM'], 0.3);
+  assert.ok(result.tickers.includes(result.aboutTicker), 'the holding has to be one of the holdings');
+  // It is the one carrying the biggest share, computed a second way.
+  const expected = independently(result.tickers, result.dollars);
+  assert.ok(Math.abs(result.value - expected.maxRiskShare) <= 1e-9);
+  const shares = riskShares(
+    result.weights,
+    covariance(windowMatrix(gameWindow(GAME, result.tickers, LEVELS.window.days), result.tickers)),
+  );
+  assert.equal(result.aboutTicker, result.tickers[shares.indexOf(Math.max(...shares))]);
+});
+
+test('a measure about a pair or a whole portfolio names no single holding', () => {
+  assert.equal(play(1, ['VOO', 'VTI'], 0.9).result.aboutTicker, null);
+  assert.equal(play(4, ['BND', 'GLD', 'JNJ'], 0.2).result.aboutTicker, null);
+  assert.equal(play(3, ['VOO', 'BND', 'GLD', 'XOM', 'JNJ'], 2.5).result.aboutTicker, null);
 });

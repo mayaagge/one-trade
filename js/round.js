@@ -24,13 +24,13 @@
 // Educational, not investment advice.
 
 import {
-  betaTo,
+  betaContributions,
   correlation,
   covariance,
   effectiveBets,
   equalWeightBasket,
   maxRiskShare,
-  portfolioReturns,
+  topRiskShare,
 } from './math.js';
 import { gameWindow, windowMatrix } from './gameView.js';
 import { pickWhy, whyFacts } from './why.js';
@@ -226,6 +226,13 @@ export function measureFor(level, game, { tickers, weights }, window, { basket =
   const matrix = windowMatrix(slice, tickers);
 
   let value;
+  // The basket's own daily returns, on a level that has one. The "Why?" card
+  // reads the same series the measure was taken over rather than rebuilding it.
+  let basketReturns = null;
+  // The holding a measure is ABOUT, when it is about one. Level 5's measure is
+  // one holding's share of the risk; a correlation is about a pair and a beta is
+  // about the whole portfolio, so both leave this null.
+  let aboutTicker = null;
   if (measure === 'correlation') {
     if (tickers.length !== 2) {
       throw new Error(`measureFor: a correlation needs exactly 2 holdings, not ${tickers.length}`);
@@ -234,11 +241,22 @@ export function measureFor(level, game, { tickers, weights }, window, { basket =
   } else if (measure === 'effectiveBets') {
     value = effectiveBets(weights, covariance(matrix));
   } else if (measure === 'maxRiskShare') {
-    value = maxRiskShare(weights, covariance(matrix));
+    const top = topRiskShare(weights, covariance(matrix));
+    value = top.share;
+    // The screen names the holding: "38%" without "that holding is GLD" leaves a
+    // player to guess at the one thing level 5 asked them about.
+    aboutTicker = tickers[top.index];
   } else if (measure === 'beta') {
     // The same equal-weight basket Hypothesis 2 measures, built by the same
     // function in js/math.js, over the same days as the portfolio.
-    value = betaTo(portfolioReturns(matrix, weights), equalWeightBasket(slice.byTicker, basket));
+    basketReturns = equalWeightBasket(slice.byTicker, basket);
+    // SUMMED FROM THE HOLDINGS' OWN CONTRIBUTIONS rather than taken from the
+    // portfolio's return series. The two are the same identity - beta is linear
+    // in the weights - and agree to about 1e-17, but the "Why?" card names one
+    // holding's part of this number, and a card that decomposes a number the
+    // panel above it worked out a different way could in principle print a
+    // different last digit. One computation, one number on the screen.
+    value = betaContributions(matrix, weights, basketReturns).beta;
   } else {
     throw new Error(`measureFor: level ${level.id} asks for an unknown measure "${measure}"`);
   }
@@ -249,6 +267,8 @@ export function measureFor(level, game, { tickers, weights }, window, { basket =
     days: slice.days,
     startDate: slice.startDate,
     endDate: slice.endDate,
+    basketReturns,
+    aboutTicker,
     // The "Why?" card reads the same window the measure was taken over, so the
     // matrix is handed back rather than built a second time. reveal() takes it
     // off before storing the result: a 756-by-5 array does not belong on
@@ -297,11 +317,14 @@ function leadInKey(level, { passed, stars }) {
  * tests/why.test.js checks against numpy, and they are small - a few numbers per
  * holding, no matrix.
  */
-function buildWhyCard(level, { tickers, weights, matrix, groups, why, value, passed, stars }) {
+function buildWhyCard(level, {
+  tickers, weights, matrix, groups, why, basketReturns = null, basketMembers = null,
+  value, passed, stars,
+}) {
   if (!why) return { whyCard: null, whyFacts: null };
   const measure = level.pass.measure === 'guess' ? level.guess.measure : level.pass.measure;
   const onCorrelation = measure === 'correlation';
-  const facts = whyFacts({ tickers, weights, matrix, groups });
+  const facts = whyFacts({ tickers, weights, matrix, groups, basketReturns, basketMembers });
   return {
     whyCard: pickWhy(facts, why, {
       bucket: onCorrelation && Array.isArray(level.buckets) ? bucketOf(level, value) : null,
@@ -439,6 +462,27 @@ export function createRound({
     return round.picks.every((t) => (round.dollars[t] ?? 0) >= (floors[t] ?? DOLLAR_STEP));
   };
 
+  /** The least dollars this holding may carry on this level. */
+  round.floorOf = (ticker) => floors[ticker] ?? DOLLAR_STEP;
+
+  /**
+   * Can this holding give up a step, or take one?
+   *
+   * These mirror adjustDollars()'s own conditions exactly, and exist so the
+   * screen can disable a button rather than offer one that does nothing. A - on
+   * QQQ at its 30% floor is a button that cannot work, and a player who taps it
+   * twice learns nothing from either tap.
+   */
+  round.canLower = (ticker, step = DOLLAR_STEP) => round.usesMoney
+    && round.hasPick(ticker)
+    && round.picks.length > 1
+    && (round.dollars[ticker] ?? 0) - step >= round.floorOf(ticker);
+
+  round.canRaise = (ticker, step = DOLLAR_STEP) => round.usesMoney
+    && round.hasPick(ticker)
+    && round.picks.some((other) => other !== ticker
+      && round.dollars[other] - step >= round.floorOf(other));
+
   /** What the player has allocated so far, in whole dollars. */
   round.allocated = () => round.picks.reduce((sum, t) => sum + (round.dollars[t] ?? 0), 0);
 
@@ -556,7 +600,9 @@ export function createRound({
       ? weightsFromDollars(round.dollars)
       : { tickers: [...round.picks], weights: round.picks.map(() => 1 / round.picks.length) };
 
-    const { matrix, ...measured } = measureFor(level, gameData, weighted, window, { basket });
+    const { matrix, basketReturns, ...measured } = measureFor(
+      level, gameData, weighted, window, { basket },
+    );
     const passed = passes(level, measured.value);
     const stars = starsFor(level, { guess: round.guess, actual: measured.value, passed });
 
@@ -586,7 +632,10 @@ export function createRound({
         }
         : null,
       drawnId: round.drawnId,
-      ...buildWhyCard(level, { ...weighted, matrix, groups, why, value: measured.value, passed, stars }),
+      ...buildWhyCard(level, {
+        ...weighted, matrix, groups, why, basketReturns, basketMembers: basket,
+        value: measured.value, passed, stars,
+      }),
     };
     round.state = REVEAL;
     return round.result;

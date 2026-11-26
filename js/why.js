@@ -36,7 +36,14 @@
 //
 // Educational, not investment advice.
 
-import { correlation, covariance, riskShares } from './math.js';
+import {
+  betaContributions,
+  correlation,
+  covariance,
+  effectiveBets,
+  equalWeightBasket,
+  riskShares,
+} from './math.js';
 import { formatMeasure } from './levels.js';
 
 export const WHY_URL = 'why.json';
@@ -58,11 +65,17 @@ export const PLACEHOLDERS = {
   groupRisk: ['group', 'count', 'total', 'dollarPct', 'riskPct'],
   riskGapOver: ['ticker', 'dollarPct', 'riskPct'],
   riskGapUnder: ['ticker', 'dollarPct', 'riskPct'],
+  hiddenAi: ['ticker', 'dollarPct', 'portfolioBeta', 'contribution'],
+  hiddenAiAll: ['ticker', 'dollarPct', 'portfolioBeta'],
+  fewBets: ['total', 'bets', 'maxRiskPct'],
   fallback: [],
 };
 
 /** The rule keys this file knows how to apply. why.json may not invent one. */
-export const RULE_KEYS = ['groupRisk', 'pair', 'pairLowRisk', 'riskGapOver', 'riskGapUnder'];
+export const RULE_KEYS = [
+  'hiddenAiAll', 'hiddenAi', 'groupRisk', 'fewBets', 'pair', 'pairLowRisk',
+  'riskGapOver', 'riskGapUnder',
+];
 
 /**
  * The lead-in lines, one of which opens a card on the levels that take one.
@@ -222,6 +235,20 @@ export function formatCorrelation(r, threshold = null) {
   return formatMeasure(r, { threshold });
 }
 
+/**
+ * A beta, as the hiddenAi card shows it: two decimals, which is what level 4's
+ * own slider and reveal panel show.
+ *
+ * It is NOT formatted against level 4's threshold, because the numbers on this
+ * card are not the pass-checked number. The card names the portfolio's beta and
+ * one holding's part of it; the reveal panel above it states the beta that was
+ * checked, through formatMeasure() and against the threshold, as it must.
+ */
+export function formatBeta(beta) {
+  if (!Number.isFinite(beta)) throw new Error('formatBeta: expected a number');
+  return beta.toFixed(2);
+}
+
 // -------------------------------------------------------------------- facts
 
 /**
@@ -232,13 +259,16 @@ export function formatCorrelation(r, threshold = null) {
  * @param {number[][]} options.matrix daily returns, one row per day
  * @param {Map} [options.groups]      ticker -> {key, label}; without it the group rule is skipped
  */
-export function whyFacts({ tickers, weights, matrix, groups = null }) {
+export function whyFacts({
+  tickers, weights, matrix, groups = null, basketReturns = null, basketMembers = null,
+}) {
   if (!Array.isArray(tickers) || tickers.length === 0) throw new Error('whyFacts: no holdings');
   if (tickers.length !== weights.length) {
     throw new Error(`whyFacts: ${tickers.length} holdings and ${weights.length} weights`);
   }
 
-  const shares = riskShares(weights, covariance(matrix));
+  const cov = covariance(matrix);
+  const shares = riskShares(weights, cov);
   const holdings = tickers.map((ticker, i) => ({
     ticker,
     dollarShare: weights[i],
@@ -297,7 +327,46 @@ export function whyFacts({ tickers, weights, matrix, groups = null }) {
     groupFacts = [...byKey.values()].sort((a, b) => b.riskShare - a.riskShare);
   }
 
-  return { tickers: [...tickers], total: tickers.length, holdings, pair, groups: groupFacts };
+  // The portfolio's beta to the basket, and where it comes from. Only a level
+  // that measures a beta hands these over; without them the hiddenAi rule has
+  // nothing to look at and says so, the way the group rule does without groups.
+  //
+  // The contributions are in BETA UNITS and are never turned into shares of the
+  // total: several holdings move slightly against the AI basket, so a share can
+  // run past 100% and below 0%. See js/math.js's betaContributions().
+  let basket = null;
+  if (Array.isArray(basketReturns)) {
+    const { betas, contributions, beta } = betaContributions(matrix, weights, basketReturns);
+    const members = new Set(basketMembers ?? []);
+    basket = {
+      beta,
+      holdings: tickers.map((ticker, i) => ({
+        ticker,
+        beta: betas[i],
+        contribution: contributions[i],
+        dollarShare: weights[i],
+        isMember: members.has(ticker),
+        group: groups ? groups.get(ticker) ?? null : null,
+      })),
+    };
+  }
+
+  return {
+    tickers: [...tickers],
+    total: tickers.length,
+    holdings,
+    pair,
+    groups: groupFacts,
+    basket,
+    // How many separate bets this portfolio really makes, over the same window
+    // and the same covariance matrix as the risk shares above. The fewBets rule
+    // is the one card that speaks to a portfolio which has spread its risk and
+    // still made one bet.
+    bets: effectiveBets(weights, cov),
+    // The biggest holding's share of the risk, which is level 5's own measure and
+    // the fewBets rule's test that the risk really is spread.
+    maxRiskShare: shares.reduce((most, share) => (share > most ? share : most), -Infinity),
+  };
 }
 
 // -------------------------------------------------------------------- rules
@@ -312,6 +381,67 @@ export function whyFacts({ tickers, weights, matrix, groups = null }) {
 export function ruleCandidate(facts, rule, { pairThreshold = null } = {}) {
   const when = rule.when;
   const none = { key: rule.key, fires: false, values: null };
+
+  if (rule.key === 'hiddenAi' || rule.key === 'hiddenAiAll') {
+    // The AI a player is holding WITHOUT having picked an AI name: the exposure
+    // arrives through a fund. Three conditions, and each one is about whether
+    // that sentence is true of this portfolio rather than about how it reads.
+    if (!facts.basket) return none;
+    const { beta, holdings } = facts.basket;
+    // A portfolio that barely moves with the basket, or moves against it, has no
+    // exposure to explain, and a share of a beta near zero means nothing.
+    if (!(beta >= when.portfolioBetaAtLeast)) return none;
+    const biggest = holdings.reduce(
+      (found, holding) => (found === null || holding.contribution > found.contribution ? holding : found),
+      null,
+    );
+    if (biggest === null || biggest.contribution <= 0) return none;
+    // IT HAS TO BE A FUND. "The AI is inside the fund" is false of a chipmaker,
+    // and INTC is not in basket.json but carries a beta of 1.0 to it, so without
+    // this the card would name INTC and say something untrue. why.json lists the
+    // fund groups, so the claim and the test that guards it sit together.
+    const fundGroups = when.fundGroups ?? [];
+    const isFund = biggest.group !== null && fundGroups.includes(biggest.group.key);
+    const qualifies = isFund && !biggest.isMember;
+
+    // ALL OF IT, or part of it. The two rules are exact complements, and the test
+    // is what the card will PRINT rather than the raw numbers: a fund at 0.1692
+    // of a 0.1707 beta prints "0.17 of 0.17", which reads as a typo and not as a
+    // measurement. Holdings that move against the basket are what make this the
+    // ordinary case on level 4 rather than a rare one.
+    const carriesAll = biggest.contribution >= beta
+      || formatBeta(biggest.contribution) === formatBeta(beta);
+    const values = {
+      ticker: biggest.ticker,
+      dollarPct: percent(biggest.dollarShare),
+      portfolioBeta: formatBeta(beta),
+    };
+    if (rule.key === 'hiddenAiAll') {
+      return { key: rule.key, fires: qualifies && carriesAll, values };
+    }
+    return {
+      key: rule.key,
+      fires: qualifies && !carriesAll && biggest.contribution >= when.shareOfBetaAtLeast * beta,
+      values: { ...values, contribution: formatBeta(biggest.contribution) },
+    };
+  }
+
+  if (rule.key === 'fewBets') {
+    // Risk spread evenly, and still one bet. The card level 5 needs, because a
+    // player who passes that level without being told this learns the opposite.
+    if (!Number.isFinite(facts.bets) || !Number.isFinite(facts.maxRiskShare)) return none;
+    return {
+      key: rule.key,
+      fires: facts.total >= when.minHoldings
+        && facts.maxRiskShare < when.maxRiskShareBelow
+        && facts.bets < when.betsBelow,
+      values: {
+        total: String(facts.total),
+        bets: facts.bets.toFixed(2),
+        maxRiskPct: percent(facts.maxRiskShare),
+      },
+    };
+  }
 
   if (rule.key === 'pairLowRisk') {
     // The pair card demoted: the same two holdings, named with what they are
@@ -351,6 +481,9 @@ export function ruleCandidate(facts, rule, { pairThreshold = null } = {}) {
     if (!top) return none;
     const fires = facts.total >= when.minHoldings
       && facts.groups.length >= when.minGroups
+      // A group of one holding is a holding, not a group: it reads as "1 of your
+      // 4 holdings are AI stocks" and says less than the risk-gap card would.
+      && top.count >= (when.minHoldingsInGroup ?? 1)
       && top.riskShare >= when.groupRiskAtLeast;
     return {
       key: rule.key,

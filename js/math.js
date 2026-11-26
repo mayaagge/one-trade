@@ -404,11 +404,25 @@ export function betaContributions(holdingReturns, weights, basketReturns) {
 }
 
 /**
- * The biggest share of portfolio variance any one holding carries, which is
- * level 5's measure: "no holding carries more than 35% of the risk".
+ * The biggest share of portfolio variance any one holding carries, and WHICH
+ * holding carries it: level 5's measure, "no holding carries more than 35% of
+ * the risk".
+ *
+ * The index comes back with the share because the screen has to name the holding
+ * - a reveal that says 38% without saying whose 38% it is leaves the player to
+ * guess at the one thing the level is asking about. Ties keep the first, which is
+ * the order the portfolio was built in.
  */
+export function topRiskShare(weights, cov) {
+  const shares = riskShares(weights, cov);
+  let index = 0;
+  for (let i = 1; i < shares.length; i += 1) if (shares[i] > shares[index]) index = i;
+  return { index, share: shares[index], shares };
+}
+
+/** Just the share, for the callers that do not need to name the holding. */
 export function maxRiskShare(weights, cov) {
-  return riskShares(weights, cov).reduce((most, share) => (share > most ? share : most), -Infinity);
+  return topRiskShare(weights, cov).share;
 }
 
 /** Daily portfolio returns from holding returns and dollar weights. */

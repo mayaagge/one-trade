@@ -506,6 +506,18 @@ main { outline: none; }
   color: #ffffff;
   font-weight: 600;
 }
+/* A holding the level deals and keeps - level 4's QQQ. It is disabled, so the
+   rule above would fade it to 0.35 and make it look like a name the player
+   cannot reach. It is the opposite: a name they definitely hold. So it keeps the
+   held colour at full strength and shows a lock instead. */
+.chip-locked:disabled { opacity: 1; cursor: default; }
+.chip-locked::after { content: ' \1F512'; font-size: 0.85em; }
+
+/* The floor under a holding, beside the - button that stops at it. */
+.note-floor { margin-top: 2px; }
+
+/* Which holding the revealed number is about, under the number itself. */
+.reveal-about { margin: 0 0 4px; color: var(--text-secondary); font-size: 0.95rem; }
 
 /* --- splitting the money ------------------------------------------------- */
 

@@ -30,27 +30,75 @@
     "wideGuess": "Here's what made this one tricky:"
   },
   "order": [
+    "hiddenAiAll",
+    "hiddenAi",
     "groupRisk",
+    "fewBets",
     "pair",
     "riskGapOver",
     "riskGapUnder",
     "pairLowRisk"
   ],
-  "orderNote": "The first rule in this list whose test passes is the card that gets shown. One card, not a list: on a phone, one cause a player can carry away beats three they skim. Group concentration comes first because it is the fullest version of the lesson - five AI stocks is both 'your closest pair moves together' and 'one group holds the risk', and the second says more. The risk-gap rules come last because they are about the split rather than about what a player picked.",
+  "orderNote": "The first rule in this list whose test passes is the card that gets shown. One card, not a list: on a phone, one cause a player can carry away beats three they skim. hiddenAi answers first because the exposure it names is the one a player cannot see on their own screen - the AI inside a fund they chose for being broad - and its own conditions stand it down whenever the AI is held in the open, where the group card says it better. Group concentration comes next because it is the fullest version of the lesson: five AI stocks is both 'your closest pair moves together' and 'one group holds the risk', and the second says more. fewBets comes after it and before pair, which is the placement that lets it win on four funds that each carry a quarter of the risk and still make one bet: the top group holds about half, so groupRisk is silent, and the 0.99 pair inside it would otherwise take the card and say the smaller thing. The risk-gap rules come last because they are about the split rather than about what a player picked.",
   "rules": [
+    {
+      "key": "hiddenAiAll",
+      "says": "a fund is carrying all of the AI exposure",
+      "when": {
+        "portfolioBetaAtLeast": 0.05,
+        "fundGroups": [
+          "core_us_funds",
+          "international_funds",
+          "bonds_and_gold"
+        ]
+      },
+      "whenNote": "The same card as hiddenAi for the case where the fund accounts for the WHOLE beta, which on level 4 is the ordinary way to pass rather than an edge case: QQQ at its floor beside bonds and staples, several of which move slightly against the basket, so what they take off cancels what gold and the broad fund add. It fires when the fund's part of the beta is at least the whole of it, or rounds to the whole of it at the two decimals the card prints. It sits directly before hiddenAi in the order, and the two are exact complements: every portfolio one of them would speak to is spoken to by exactly one of them.",
+      "wordingNote": "Without this, the card read 'Your portfolio moves 0.17% when AI stocks move 1%, and 0.17 of that comes from QQQ alone' - true, and it reads as a typo. Found by playing level 4 in a browser, not by a test: both numbers were right.",
+      "template": "Your portfolio moves {portfolioBeta}% when AI stocks move 1%, and all of that comes from {ticker} alone, which is only {dollarPct} of your money. The AI is inside the fund."
+    },
+    {
+      "key": "hiddenAi",
+      "says": "a fund is carrying the AI exposure",
+      "when": {
+        "portfolioBetaAtLeast": 0.05,
+        "shareOfBetaAtLeast": 0.5,
+        "fundGroups": [
+          "core_us_funds",
+          "international_funds",
+          "bonds_and_gold"
+        ]
+      },
+      "whenNote": "Three conditions, and each one has to hold for the sentence to be true of this portfolio. portfolioBetaAtLeast keeps the card off a portfolio that barely moves with the basket at all, where a part of a beta near zero means nothing. shareOfBetaAtLeast asks that the one holding brings at least half of what there is. fundGroups is the one that stops the card lying: 'The AI is inside the fund' is false of a chipmaker, and INTC is not in basket.json but carries a beta of about 1.0 to it, so without this the card would name INTC and call it a fund.",
+      "unitsNote": "Both numbers are betas, never shares of a beta. JNJ, PG, KO and XOM all move slightly AGAINST the AI basket, so a holding's share of the total can run past 100% and below 0%: QQQ beside staples comes to 148% of its own portfolio's beta. {portfolioBeta} is how far the portfolio moves when the basket moves 1%, and {contribution} is how much of that one holding brings.",
+      "template": "Your portfolio moves {portfolioBeta}% when AI stocks move 1%, and {contribution} of that comes from {ticker} alone, which is only {dollarPct} of your money. The AI is inside the fund."
+    },
     {
       "key": "groupRisk",
       "says": "one group holds most of the risk",
       "when": {
         "groupRiskAtLeast": 0.7,
         "minHoldings": 3,
+        "minHoldingsInGroup": 2,
         "minGroups": 1
       },
       "whenNote": "Below 3 holdings, 'one group holds most of the risk' is true by arithmetic and teaches nothing: two Core US funds are 100% of their own risk. That is why minHoldings is 3.",
       "minGroupsNote": "minGroups was 2 in the first draft, to keep the card off a portfolio that is all one group. That was wrong, and a browser check caught it: five AI stocks make 1.03 bets, the lesson this whole game is named after, and the card read 'nothing stands out here'. A portfolio that is ALL one group is the most concentrated one a player can build, not the least worth mentioning. The case the guard was written for - two holdings from one group - is level 1, and level 1 takes the bucket path and never reaches these rules at all.",
       "thresholdNote": "70% of the risk, chosen on real prices rather than guessed. At the 50% first drafted, this card won 73% of 420 test portfolios - a player would read very nearly the same sentence every round, and 'most of the risk' is a weak claim when a 5-holding portfolio spans only two or three groups. At 70% it wins 38%, and the claim is one a player can see in the numbers. BUILD_LOG.md carries the table.",
       "template": "{count} of your {total} holdings are {group}. They are {dollarPct} of your money and {riskPct} of your risk, so that is where this portfolio's fortunes are decided - and where the damage lands on a bad day.",
-      "templateNote": "The tail has to read as well at 100% as at 71%, because a portfolio that is all one group now reaches this card. An earlier draft ended 'they are doing most of the work', which understates it when the answer is all of it."
+      "templateNote": "The tail has to read as well at 100% as at 71%, because a portfolio that is all one group now reaches this card. An earlier draft ended 'they are doing most of the work', which understates it when the answer is all of it.",
+      "minHoldingsInGroupNote": "A group of ONE holding is not a group, it is a holding. Without this, three bond funds beside NVDA read '1 of your 4 holdings are AI stocks. They are 25% of your money and 82% of your risk' - bad grammar, and a weaker claim than the truth, which is that one holding carries four fifths of the risk. riskGapOver already has the template for that, so a one-holding group falls through to it. Found by the lesson portfolio added for level 5's failing build, which is the first case in the set where a single holding dominates a 3-or-more-holding portfolio."
+    },
+    {
+      "key": "fewBets",
+      "says": "the risk is spread evenly and it is still one bet",
+      "when": {
+        "betsBelow": 2.0,
+        "maxRiskShareBelow": 0.35,
+        "minHoldings": 3
+      },
+      "thresholdNote": "2.00 bets, derived rather than tuned: with 4 holdings it is the claim that four collapsed to fewer than two, which a player can check against the number the reveal panel just showed them. It also sits below level 3's own 3-bet bar, so nothing this card calls mostly one bet is a portfolio the game elsewhere calls diversified. Measured on the frozen snapshot: of 2,000 seeded 4-holding builds, the 213 that pass level 5 have a median of 1.31 bets, and 92% of them are under 2.00. At 1.50 it would catch 69% of them and at 2.25, 97%. BUILD_LOG.md session 2.5 carries the table.",
+      "whenNote": "maxRiskShareBelow is level 5's own pass threshold, so 'the risk is spread' means the same thing on the card as it does in the level that checks it. minHoldings is groupRisk's guard, for the same reason: with two holdings, evenly spread risk and one bet is arithmetic rather than a lesson.",
+      "template": "No holding carries more than {maxRiskPct} of the risk, yet your {total} holdings make only {bets} separate bets. The risk is spread evenly, but it's still mostly one bet, because these holdings move together."
     },
     {
       "key": "pair",
