@@ -329,6 +329,15 @@ function buildWhyCard(level, {
     whyCard: pickWhy(facts, why, {
       bucket: onCorrelation && Array.isArray(level.buckets) ? bucketOf(level, value) : null,
       pairThreshold: onCorrelation ? level.pass.threshold ?? null : null,
+      // WHAT THIS ROUND WAS, so that a card written for one kind of round can
+      // lead on it and stay silent everywhere else. Level 5 missed means one
+      // holding went past the limit, and naming it is the whole answer to
+      // "where's the risk?"; nothing leads on any other round, and those get
+      // why.json's order exactly as before.
+      outcome: { measure, passed },
+      // The level's own threshold, so a card that states the limit states the
+      // same number the pass check used.
+      limit: level.pass.threshold ?? null,
       // Only the rule path takes a lead-in. A level 1 reveal already says
       // whether the pair cleared its threshold and which bucket the guess
       // named, so a third verdict line would be the same news a third time.

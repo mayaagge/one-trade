@@ -42,6 +42,19 @@
   "orderNote": "The first rule in this list whose test passes is the card that gets shown. One card, not a list: on a phone, one cause a player can carry away beats three they skim. hiddenAi answers first because the exposure it names is the one a player cannot see on their own screen - the AI inside a fund they chose for being broad - and its own conditions stand it down whenever the AI is held in the open, where the group card says it better. Group concentration comes next because it is the fullest version of the lesson: five AI stocks is both 'your closest pair moves together' and 'one group holds the risk', and the second says more. fewBets comes after it and before pair, which is the placement that lets it win on four funds that each carry a quarter of the risk and still make one bet: the top group holds about half, so groupRisk is silent, and the 0.99 pair inside it would otherwise take the card and say the smaller thing. The risk-gap rules come last because they are about the split rather than about what a player picked.",
   "rules": [
     {
+      "key": "overRiskLimit",
+      "says": "one holding is over the level’s risk limit",
+      "leads": {
+        "measure": "maxRiskShare",
+        "passed": false
+      },
+      "leadsNote": "This card LEADS on one kind of round and is in no order at all: a level 5 round that missed. There, the holding with the biggest share of the risk is the holding that failed the level, and naming it is the whole answer to 'where's the risk?'. On a level 5 round that passed there is nothing over the limit to name, and on any other level the limit is not what was being checked, so the card would be answering a question nobody asked. js/why.js matches `leads` against what the round was; a round that matches nothing uses this file's order exactly as before.",
+      "when": {},
+      "whenNote": "No thresholds of its own. The limit is the LEVEL'S - levels.json's own pass threshold, handed in by js/round.js - so the card states the same number the reveal panel checked against, and a change to the level cannot leave the card quoting the old one. It fires only when the biggest share really is over that limit, which on a missed level 5 it is by definition.",
+      "template": "{ticker} carries {riskPct} of your risk on {dollarPct} of your money - past the {limitPct} this level allows. That is the holding to shrink or swap.",
+      "templateNote": "Both shares and the limit, because the gap between the two shares is the lesson and the limit is what the round turned on. No percentage here is a difference between two others, so nothing on the card can disagree with the numbers beside it."
+    },
+    {
       "key": "hiddenAiAll",
       "says": "a fund is carrying all of the AI exposure",
       "when": {

@@ -36,7 +36,9 @@ import { buildReturns } from '../js/returns.js';
 import { makeRng } from '../js/rng.js';
 import { validateLevels, weightsFromDollars } from '../js/levels.js';
 import { gameWindow, windowMatrix } from '../js/gameView.js';
-import { groupIndex, pickWhy, ruleCandidate, validateWhy, whyFacts } from '../js/why.js';
+import {
+  groupIndex, leadingRules, pickWhy, ruleCandidate, validateWhy, whyFacts,
+} from '../js/why.js';
 import { equalWeightBasket } from '../js/math.js';
 import { GAME_DAYS } from './build_game_data.mjs';
 import { WINDOW_DAYS, MIN_DAYS, TOTAL_DOLLARS } from './make_pool.mjs';
@@ -162,6 +164,22 @@ export const LESSON_PORTFOLIOS = [
     note: '27% in the biggest holding and 1.03 bets: it passes level 5 and would fail level 3',
   },
   {
+    key: 'over-the-risk-limit',
+    what: 'Level 5 missed by a little: GLD at 37.9% of the risk against a 35% limit',
+    lesson: 'The holding that failed the level, named. The answer to "where is the risk?" is a ticker.',
+    dollars: { VOO: 2500, BND: 2500, GLD: 2500, XOM: 2500 },
+    // What the round was. This card leads on a missed level 5 and is in no order
+    // at all, so without the outcome it cannot be reached - which is the point:
+    // on every other round the portfolio gets the card it got before.
+    outcome: { measure: 'maxRiskShare', passed: false },
+    limit: 0.35,
+    expect: { key: 'overRiskLimit', values: { ticker: 'GLD', riskPct: '38%', dollarPct: '25%', limitPct: '35%' } },
+    // Before this card, the round named BND - 25% of the money and 3% of the
+    // risk - which is true, is level 5's own concept, and is about the other end
+    // of the portfolio from the holding that failed.
+    note: 'Without the card leading, this round named BND, the quietest holding, instead of GLD',
+  },
+  {
     key: 'one-holding-carries-it-all',
     what: 'Level 5 failed: three bond funds and one volatile holding',
     lesson: 'A quarter of the money can be four fifths of the risk.',
@@ -209,7 +227,9 @@ export function frozenGameDoc(prices) {
  * which fits neither level 1's two nor level 3's five. What is being checked is
  * which rule explains the portfolio, and that is a question about the rules.
  */
-export function cardFor(game, groups, why, dollars, { days = WINDOW_DAYS, basket = null } = {}) {
+export function cardFor(game, groups, why, dollars, {
+  days = WINDOW_DAYS, basket = null, outcome = null, limit = null,
+} = {}) {
   const total = Object.values(dollars).reduce((sum, d) => sum + d, 0);
   if (total !== TOTAL_DOLLARS) {
     throw new Error(`cardFor: ${Object.keys(dollars).join('/')} allocates ${total}, not ${TOTAL_DOLLARS}`);
@@ -231,12 +251,18 @@ export function cardFor(game, groups, why, dollars, { days = WINDOW_DAYS, basket
     basketReturns: basket ? equalWeightBasket(window.byTicker, basket) : null,
     basketMembers: basket,
   });
-  return { facts, card: pickWhy(facts, why, {}), days: window.days };
+  // `outcome` is what the round WAS, for a lesson about a card that leads on one
+  // kind of round rather than sitting in why.json's order.
+  return { facts, card: pickWhy(facts, why, { outcome, limit }), days: window.days };
 }
 
-/** Which rules fire on these facts, in why.json's order. */
-export function firedRules(facts, why) {
-  return why.order.filter((key) => ruleCandidate(facts, why.rules.find((r) => r.key === key), {}).fires);
+/**
+ * Which rules fire on these facts, in the order they would be asked: any rule
+ * leading on this round first, then why.json's own order.
+ */
+export function firedRules(facts, why, { outcome = null, limit = null } = {}) {
+  const keys = [...leadingRules(why, outcome), ...why.order];
+  return keys.filter((key) => ruleCandidate(facts, why.rules.find((r) => r.key === key), { limit }).fires);
 }
 
 // ------------------------------------------------------------- the checks
@@ -254,6 +280,8 @@ export function checkLessonPortfolios(game, groups, why, portfolios = LESSON_POR
     // one, which is also how a level that does not ask for a beta plays.
     const { card, facts } = cardFor(game, groups, why, lesson.dollars, {
       basket: lesson.needsBasket ? basket : null,
+      outcome: lesson.outcome ?? null,
+      limit: lesson.limit ?? null,
     });
     const wrongValues = Object.entries(lesson.expect.values ?? {})
       .filter(([name, want]) => card.values[name] !== want)
@@ -261,7 +289,7 @@ export function checkLessonPortfolios(game, groups, why, portfolios = LESSON_POR
     return {
       lesson,
       card,
-      fired: firedRules(facts, why),
+      fired: firedRules(facts, why, { outcome: lesson.outcome ?? null, limit: lesson.limit ?? null }),
       ok: card.key === lesson.expect.key && wrongValues.length === 0,
       wrongValues,
     };
@@ -365,6 +393,14 @@ function main() {
   for (const key of table.keys) {
     const share = (n) => `${n} (${Math.round((100 * n) / table.counted)}%)`;
     console.log(`  ${pad(key, 15)}${pad(share(table.fired[key]), 14)}${share(table.won[key])}`);
+  }
+  // A rule that leads on one kind of round cannot appear in a table of
+  // portfolios measured without one, so say so rather than printing a silent 0.
+  const leading = why.rules.filter((rule) => rule.leads);
+  for (const rule of leading) {
+    console.log(`\n  ${rule.key} is not in this table: it leads on one kind of round `
+      + `(${Object.entries(rule.leads).map(([k, v]) => `${k} ${v}`).join(', ')}), and these `
+      + 'portfolios are measured without a round. Its lesson portfolio is what holds it.');
   }
   if (table.skipped > 0) {
     console.log(`\n  ${table.skipped} draws skipped: a late listing left fewer than ${MIN_DAYS} overlapping days.`);

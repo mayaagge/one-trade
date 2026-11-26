@@ -46,6 +46,7 @@ import {
   PLACEHOLDERS,
   fillTemplate,
   groupIndex,
+  leadingRules,
   pickWhy,
   ruleCandidate,
   validateWhy,
@@ -92,7 +93,8 @@ const GAME = frozenGameDoc(readJson('data/prices.json'));
 /** Play a whole round on the frozen document, and hand back its result. */
 function play(levelId, picks, guess, { random = () => 0 } = {}) {
   const round = createRound({
-    levels: LEVELS, levelId, game: GAME, universe: UNIVERSE, groups: GROUPS, why: WHY, random,
+    levels: LEVELS, levelId, game: GAME, universe: UNIVERSE, groups: GROUPS, why: WHY,
+    basket: readJson('basket.json').stocks.map((stock) => stock.ticker), random,
   });
   for (const ticker of picks) round.togglePick(ticker);
   round.toGuess();
@@ -141,8 +143,8 @@ test('every template in why.json uses only placeholders the code can fill', () =
   // validateWhy already throws on an unknown placeholder; this states the list
   // the files agree on, so a new placeholder cannot be added to why.json alone.
   assert.deepEqual(Object.keys(PLACEHOLDERS).sort(),
-    ['bucketCard', 'fallback', 'fewBets', 'groupRisk', 'hiddenAi', 'hiddenAiAll', 'pair',
-      'pairLowRisk', 'riskGapOver', 'riskGapUnder'].sort());
+    ['bucketCard', 'fallback', 'fewBets', 'groupRisk', 'hiddenAi', 'hiddenAiAll',
+      'overRiskLimit', 'pair', 'pairLowRisk', 'riskGapOver', 'riskGapUnder'].sort());
 });
 
 test('validateWhy rejects a template with a placeholder the code cannot fill', () => {
@@ -796,4 +798,104 @@ test('the fund card still names its two numbers when they really differ', () => 
   const card = pickWhy(facts, WHY, {});
   assert.equal(card.key, 'hiddenAi');
   assert.notEqual(card.values.contribution, card.values.portfolioBeta);
+});
+
+// ------------------------------- the card that leads on a missed level 5
+
+const overRiskRule = WHY.rules.find((r) => r.key === 'overRiskLimit');
+const MISSED_FIVE = { measure: 'maxRiskShare', passed: false };
+const LIMIT = levelById(LEVELS, 5).pass.threshold;
+
+test('a leading rule is in no order, so it cannot answer a round it was not written for', () => {
+  assert.deepEqual(overRiskRule.leads, { measure: 'maxRiskShare', passed: false });
+  assert.equal(WHY.order.includes('overRiskLimit'), false);
+  assert.deepEqual(leadingRules(WHY, MISSED_FIVE), ['overRiskLimit']);
+  // Every other kind of round leads nothing at all, so the order is why.json's.
+  assert.deepEqual(leadingRules(WHY, { measure: 'maxRiskShare', passed: true }), []);
+  assert.deepEqual(leadingRules(WHY, { measure: 'effectiveBets', passed: false }), []);
+  assert.deepEqual(leadingRules(WHY, { measure: 'beta', passed: false }), []);
+  assert.deepEqual(leadingRules(WHY, null), []);
+});
+
+test('the missed-level-5 card names the holding that failed, and the limit it passed', () => {
+  const dollars = { VOO: 2500, BND: 2500, GLD: 2500, XOM: 2500 };
+  const { card } = cardFor(GAME, GROUPS, WHY, dollars, { outcome: MISSED_FIVE, limit: LIMIT });
+  assert.equal(card.key, 'overRiskLimit');
+  assert.equal(card.values.ticker, 'GLD');
+  assert.equal(card.values.riskPct, '38%');
+  assert.equal(card.values.dollarPct, '25%');
+  assert.equal(card.values.limitPct, '35%');
+  assert.match(card.text, /GLD carries 38% of your risk on 25% of your money/);
+});
+
+test('the limit on the card is the level’s own, not a number why.json keeps', () => {
+  // why.json holds no threshold for this rule at all: the level's pass threshold
+  // is handed in, so the card and the pass check cannot quote different limits.
+  assert.deepEqual(overRiskRule.when, {});
+  const dollars = { VOO: 2500, BND: 2500, GLD: 2500, XOM: 2500 };
+  const { card } = cardFor(GAME, GROUPS, WHY, dollars, { outcome: MISSED_FIVE, limit: 0.3 });
+  assert.equal(card.values.limitPct, '30%');
+  // And with no limit to state, the rule says nothing rather than inventing one.
+  const facts = cardFor(GAME, GROUPS, WHY, dollars).facts;
+  assert.equal(ruleCandidate(facts, overRiskRule, { limit: null }).fires, false);
+});
+
+test('the same portfolio on any other round gets the card it got before', () => {
+  const dollars = { VOO: 2500, BND: 2500, GLD: 2500, XOM: 2500 };
+  // No outcome at all: this is what the portfolio answered with before the card
+  // existed, and it must not have moved.
+  assert.equal(cardFor(GAME, GROUPS, WHY, dollars).card.key, 'riskGapUnder');
+  // A level 5 round that PASSED has nothing over the limit to name.
+  const passed = cardFor(GAME, GROUPS, WHY, dollars, {
+    outcome: { measure: 'maxRiskShare', passed: true }, limit: LIMIT,
+  });
+  assert.equal(passed.card.key, 'riskGapUnder');
+  // A missed round on another measure does not lead it either.
+  const missedBets = cardFor(GAME, GROUPS, WHY, dollars, {
+    outcome: { measure: 'effectiveBets', passed: false }, limit: 3,
+  });
+  assert.equal(missedBets.card.key, 'riskGapUnder');
+});
+
+test('validateWhy holds a leading rule to leading only where it says it does', () => {
+  const inOrder = structuredClone(WHY);
+  inOrder.order.push('overRiskLimit');
+  assert.throws(() => validateWhy(inOrder), /must not also be in the order/);
+
+  const empty = structuredClone(WHY);
+  empty.rules.find((r) => r.key === 'overRiskLimit').leads = {};
+  assert.throws(() => validateWhy(empty), /would lead on every round/);
+
+  const invented = structuredClone(WHY);
+  invented.rules.find((r) => r.key === 'overRiskLimit').leads = { stars: 3 };
+  assert.throws(() => validateWhy(invented), /not something a round reports/);
+});
+
+test('a missed level 5 names the holding that failed it, in the card', () => {
+  const { result } = play(5, ['VOO', 'BND', 'GLD', 'XOM'], 0.3);
+  assert.equal(result.passed, false);
+  assert.equal(result.whyCard.key, 'overRiskLimit');
+  // The card names the same holding the reveal panel does, and the same limit
+  // the pass check used.
+  assert.equal(result.whyCard.values.ticker, result.aboutTicker);
+  assert.equal(result.whyCard.values.limitPct, '35%');
+  assert.match(result.whyCard.text, new RegExp(`^${result.aboutTicker} carries`));
+});
+
+test('a passed level 5 is not told a holding went over the limit', () => {
+  const { result } = play(5, ['GLD', 'VEA', 'VXUS', 'VOO'], 0.3);
+  assert.equal(result.passed, true);
+  assert.notEqual(result.whyCard.key, 'overRiskLimit');
+  assert.equal(result.whyCard.key, 'fewBets', 'it gets the card for passing with one bet');
+});
+
+test('a missed round on another level is unchanged by the level 5 card', () => {
+  // Level 3 with one holding over 35% of the risk: the card for that round is
+  // whatever it was before, because nothing leads on a missed bets count.
+  const { result } = play(3, ['BND', 'TLT', 'LQD', 'NVDA', 'JNJ'], 2);
+  assert.equal(result.passed, false);
+  assert.notEqual(result.whyCard.key, 'overRiskLimit');
+  const { result: four } = play(4, ['NVDA', 'AVGO', 'MU'], 0.5);
+  assert.equal(four.passed, false);
+  assert.notEqual(four.whyCard.key, 'overRiskLimit');
 });

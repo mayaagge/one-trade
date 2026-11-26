@@ -1626,12 +1626,71 @@ now disables the cache and the stray browser gets killed first.
   the risk, because GLD's gap is 12.9 points and `riskGapOver` asks for 20, while
   BND's is 22 points under. Both statements are true and both are level 5's own
   concept, but the card is about the other end of the portfolio from the one that
-  failed. Worth deciding deliberately rather than by threshold.
+  failed. **Decided in session 2.6a below: a card of its own, rather than a looser
+  threshold.**
 - **`hiddenAi`'s two-number form is rare on level 4.** It needs a holding beside
   the fund that adds real exposure without being a basket member, which is mostly
   another fund. Its lesson portfolio is what keeps it honest.
 - **`fewBets` is shown on 11% of the old 420 and will be far higher on level 5.**
   As recorded in session 2.5, that is the finding rather than a flaw, but it is
   the card most likely to be read as repetitive in a playtest.
+
+Educational, not investment advice.
+
+## The card for a missed level 5, 26 November 2026 (session 2.6a)
+
+A level 5 round that missed now gets a card naming the holding that failed it:
+
+> GLD carries 38% of your risk on 25% of your money - past the 35% this level
+> allows. That is the holding to shrink or swap.
+
+### Why not a looser threshold
+
+The alternative was to lower `riskGapOver`'s 20-point gap until it reached GLD at
+12.9 points. That would have changed the card on a quarter of every level's
+portfolios to fix one level's worst case, and the 20 points is itself a measured
+number (session 2.4: at 15 points the rule had something to say about three
+quarters of all portfolios). A card for the case is cheaper and says more than a
+gap rule can: the gap rules talk about a holding's two shares, and what a missed
+level 5 needs said is which holding went past the limit.
+
+### A rule that leads, instead of a place in the order
+
+`why.json`'s `order` is the order for every portfolio, and this card does not
+belong in it. On a level 5 round that passed there is nothing over the limit to
+name; on any other level the limit is not what was checked. So the rule carries a
+**`leads` block** rather than a place in the order:
+
+```json
+"leads": { "measure": "maxRiskShare", "passed": false }
+```
+
+`js/round.js` hands `pickWhy()` what the round WAS - its measure and whether it
+passed - and any rule whose `leads` matches is asked before `why.json`'s own
+order. A round that matches nothing uses that order exactly as before, which is
+the whole point: **the frequency table over the 420 portfolios is byte-identical
+to session 2.6's**, because those portfolios are measured without a round.
+
+Two guards came with the mechanism, both in `validateWhy()`: a rule with `leads`
+must NOT also be in the order, or it could answer rounds it was not written for;
+and `leads` may only match on fields in `LEAD_MATCHES`, so a condition cannot be
+invented in the JSON alone - the same rule the placeholders already follow.
+
+### The limit is the level's, not the card's
+
+The rule has no `when` thresholds at all. `levels.json`'s own pass threshold is
+handed in, so the card states the number the pass check used, and a change to
+level 5 cannot leave the card quoting the old limit. With no limit to state the
+rule says nothing rather than inventing one.
+
+### What was checked
+
+The twelfth lesson portfolio is the GLD case itself, with the round written down
+beside it, and it is the only way the card can be reached in the check script -
+which is the test that the mechanism works. Three more tests hold the other side:
+the same portfolio with no round, with a passed round, and with a missed round on
+another measure all get `riskGapUnder`, the card they got before. 543 tests pass,
+both check scripts are green, and the card was read off a real missed level 5 in
+headless Chrome.
 
 Educational, not investment advice.

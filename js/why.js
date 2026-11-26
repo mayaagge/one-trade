@@ -67,15 +67,33 @@ export const PLACEHOLDERS = {
   riskGapUnder: ['ticker', 'dollarPct', 'riskPct'],
   hiddenAi: ['ticker', 'dollarPct', 'portfolioBeta', 'contribution'],
   hiddenAiAll: ['ticker', 'dollarPct', 'portfolioBeta'],
+  overRiskLimit: ['ticker', 'riskPct', 'dollarPct', 'limitPct'],
   fewBets: ['total', 'bets', 'maxRiskPct'],
   fallback: [],
 };
 
 /** The rule keys this file knows how to apply. why.json may not invent one. */
 export const RULE_KEYS = [
-  'hiddenAiAll', 'hiddenAi', 'groupRisk', 'fewBets', 'pair', 'pairLowRisk',
+  'overRiskLimit', 'hiddenAiAll', 'hiddenAi', 'groupRisk', 'fewBets', 'pair', 'pairLowRisk',
   'riskGapOver', 'riskGapUnder',
 ];
+
+/**
+ * A rule may say that it LEADS in one situation, and otherwise never speaks.
+ *
+ * why.json's `order` is the order for every portfolio. One card does not belong
+ * in it: the card for a level 5 round that MISSED names the holding that failed
+ * the level, and on any other level - or on a level 5 round that passed - it
+ * would either be false or be answering a question nobody asked. So it carries a
+ * `leads` block instead of a place in the order, matched against what the round
+ * actually was. A rule with `leads` is deliberately absent from `order`, and
+ * validateWhy() holds it to that.
+ *
+ * These are the facts about a round a `leads` block may match on. Keeping the
+ * list here, rather than letting why.json name any field it likes, is the same
+ * rule the placeholders follow: a condition cannot be invented in the JSON alone.
+ */
+export const LEAD_MATCHES = ['measure', 'passed'];
 
 /**
  * The lead-in lines, one of which opens a card on the levels that take one.
@@ -136,6 +154,19 @@ export function validateWhy(data) {
     }
     if (byKey.has(rule.key)) throw new Error(`why: duplicate rule ${rule.key}`);
     if (!rule.when || typeof rule.when !== 'object') throw new Error(`why: rule ${rule.key} has no "when"`);
+    if (rule.leads !== undefined) {
+      if (!rule.leads || typeof rule.leads !== 'object' || Object.keys(rule.leads).length === 0) {
+        throw new Error(`why: rule ${rule.key} has an empty "leads", which would lead on every round`);
+      }
+      for (const field of Object.keys(rule.leads)) {
+        if (!LEAD_MATCHES.includes(field)) {
+          throw new Error(
+            `why: rule ${rule.key} leads on "${field}", which is not something a round reports `
+            + `(${LEAD_MATCHES.join(', ')})`,
+          );
+        }
+      }
+    }
     checkCard(rule, PLACEHOLDERS[rule.key], `why: rule ${rule.key}`);
     byKey.set(rule.key, rule);
   }
@@ -146,7 +177,16 @@ export function validateWhy(data) {
   for (const key of data.order) {
     if (!byKey.has(key)) throw new Error(`why: the order names ${key}, which has no rule`);
   }
-  for (const key of byKey.keys()) {
+  for (const [key, rule] of byKey.entries()) {
+    if (rule.leads) {
+      // A leading rule is OUT of the order on purpose: it speaks on one kind of
+      // round and stays silent on every other, so a place in the order would let
+      // it answer questions nobody asked.
+      if (data.order.includes(key)) {
+        throw new Error(`why: rule ${key} leads on a round of its own, so it must not also be in the order`);
+      }
+      continue;
+    }
     if (!data.order.includes(key)) throw new Error(`why: rule ${key} is in no order, so it could never be shown`);
   }
 
@@ -378,9 +418,32 @@ export function whyFacts({
  * something to talk about, even when it does not fire, so a test can see the
  * number that fell short.
  */
-export function ruleCandidate(facts, rule, { pairThreshold = null } = {}) {
+export function ruleCandidate(facts, rule, { pairThreshold = null, limit = null } = {}) {
   const when = rule.when;
   const none = { key: rule.key, fires: false, values: null };
+
+  if (rule.key === 'overRiskLimit') {
+    // The holding that failed level 5: the biggest share of the risk, named with
+    // both of its shares and with the limit it went past. It needs the LEVEL'S
+    // OWN limit, which is not why.json's to know, so the number is passed in and
+    // the card states the same one the reveal panel checked against.
+    if (!Number.isFinite(limit)) return none;
+    const worst = facts.holdings.reduce(
+      (found, holding) => (found === null || holding.riskShare > found.riskShare ? holding : found),
+      null,
+    );
+    if (worst === null) return none;
+    return {
+      key: rule.key,
+      fires: worst.riskShare > limit,
+      values: {
+        ticker: worst.ticker,
+        riskPct: percent(worst.riskShare),
+        dollarPct: percent(worst.dollarShare),
+        limitPct: percent(limit),
+      },
+    };
+  }
 
   if (rule.key === 'hiddenAi' || rule.key === 'hiddenAiAll') {
     // The AI a player is holding WITHOUT having picked an AI name: the exposure
@@ -527,6 +590,21 @@ export function ruleCandidate(facts, rule, { pairThreshold = null } = {}) {
 }
 
 /**
+ * The rules that LEAD on this round, in the order why.json lists them.
+ *
+ * A rule leads when every field of its `leads` block matches the round. An
+ * `outcome` that says nothing - which is every level that is not asking - leads
+ * nothing, so the order is why.json's own and every other level is untouched.
+ */
+export function leadingRules(why, outcome = null) {
+  if (!outcome) return [];
+  return (why.rules ?? [])
+    .filter((rule) => rule.leads && Object.entries(rule.leads)
+      .every(([field, wanted]) => outcome[field] === wanted))
+    .map((rule) => rule.key);
+}
+
+/**
  * The card for one revealed portfolio.
  *
  * @param {object} facts            from whyFacts()
@@ -537,8 +615,14 @@ export function ruleCandidate(facts, rule, { pairThreshold = null } = {}) {
  *                                      the level's measure is a correlation
  * @param {string|null} options.leadIn which of LEAD_IN_KEYS opens the card, or
  *                                      null on a level that takes no lead-in
+ * @param {object|null} options.outcome what this round WAS - {measure, passed} -
+ *                                      which decides whether any rule leads
+ * @param {number|null} options.limit   the level's own pass threshold, for a card
+ *                                      that states the limit a holding went past
  */
-export function pickWhy(facts, why, { bucket = null, pairThreshold = null, leadIn = null } = {}) {
+export function pickWhy(facts, why, {
+  bucket = null, pairThreshold = null, leadIn = null, outcome = null, limit = null,
+} = {}) {
   // The lead-in is kept BESIDE the card text and never joined to it. Two
   // templates, each rendered as written, is still no generated prose; one string
   // built out of two would not be, and the test that holds the card text to its
@@ -560,9 +644,11 @@ export function pickWhy(facts, why, { bucket = null, pairThreshold = null, leadI
     return asCard(bucket, card, values, leadInLine);
   }
 
-  for (const key of why.order) {
+  // A rule that leads on this round speaks before why.json's own order. On every
+  // round that nothing leads on, this is exactly why.json's order.
+  for (const key of [...leadingRules(why, outcome), ...why.order]) {
     const rule = why.rules.find((r) => r.key === key);
-    const candidate = ruleCandidate(facts, rule, { pairThreshold });
+    const candidate = ruleCandidate(facts, rule, { pairThreshold, limit });
     if (candidate.fires) return asCard(rule.key, rule, candidate.values, leadInLine);
   }
   return asCard(why.fallback.key ?? 'fallback', why.fallback, {}, leadInLine);
