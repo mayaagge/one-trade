@@ -2217,3 +2217,90 @@ was. No console errors on any screen, no horizontal overflow.
   number - but it is a guess about what reads best, not something that was tested.
 
 Educational, not investment advice.
+
+## Level 6's "Why?" card, 25 November 2026 (session 2.9c)
+
+Session C of three, and the last of level 6. A replayed round gets a card read
+off the replay: which holding moved the money, and - when that holding is one
+that rose - what the same holding did in another crash in the same file.
+
+### Why the existing rules could not be asked
+
+why.json's ordered rules are thresholded on a covariance matrix over three
+years. A replay is 23 days of one particular February, and over a crash nearly
+everything correlates above 0.9: every level 6 round would have been handed the
+pair card and told its holdings move together, which is both true and useless.
+So the crash rules LEAD on the round, like the missed-level-5 card, and sit in no
+order at all. `crashFacts()` is a separate facts builder with no covariance in it
+- the facts are the per-holding dollars the replay already computes.
+
+### Three rules, and what decides between them
+
+| Rule | Leads on | Names |
+| --- | --- | --- |
+| `crashCushionElsewhere` | a pass, where the cushion ROSE here and fell harder than the index somewhere else | the cushion, plus the window where it was not one |
+| `crashCushion` | any other pass | the holding that moved the most dollars the player's way |
+| `crashDrag` | a miss | the holding that lost the most dollars |
+
+**Dollars, not percent.** A holding's own move does not say how much of the fall
+it accounts for: 20% of the money rising 14% matters more than 1% of it doubling.
+AMZN fell 12% and BND fell 1% in one tested build, and BND - the smaller holding
+- still lost less in dollars, so BND is what held that portfolio up. A card that
+ranked by percent would have named AMZN and been wrong about why the portfolio
+survived.
+
+**The TLT warning is computed, not typed.** The condition is general: the cushion
+rose in this window, and in another window of data/crashes.json it fell harder
+than the index did there. On the 2020 window that is TLT and nothing else, because
+TLT is the only holding of the 39 that rose at all - up 14.23% here, down 29.33%
+against the index's 24.52% through 2022. The card states both pairs of numbers
+and points at the window: "You can watch that one in Crash replay." If the data
+ever stopped supporting the warning, the card would stop appearing rather than
+keep asserting it. A test holds its numbers to the file.
+
+**Signed percents, so no template has to say "rose" or "fell".** The holding that
+cushions a fall sometimes rose and sometimes merely fell least - TLT +14%, WMT
+-2% - and a template with "rose" in it would be wrong half the time. The direction
+lives in the number, which keeps every card a template filled in rather than a
+sentence chosen by code. `signedPercent(-0.001)` is "0%", not "-0%".
+
+### The lesson portfolios
+
+Three, in scripts/check_why_cards.mjs, checked by the script and by
+tests/why.test.js. The first two are the pair: the same $2,000 TLT and $2,000 BND
+behind defensive stocks and behind banks and oil, passing at 0.1415 and missing
+at 0.7225. The third is a build where nothing rose at all, which is what holds
+`crashCushionElsewhere` to standing itself down rather than overclaiming.
+
+They do not go through `cardFor()` - there is no game window and no covariance in
+a replay - so they have their own checker, `checkCrashLessons()`, and the script
+exits non-zero on any of the six lesson sets.
+
+### How it was checked
+
+662 tests pass; both check scripts are green. Driven at a true 390px in headless
+Chrome, no console errors and no horizontal overflow:
+
+| Round | The card |
+| --- | --- |
+| Pass, WMT/PG/TLT/BND | "You passed. One thing to notice:" / "TLT is what held this portfolio up: it moved +14% while the index fell 34%, on 20% of your money. It was not a cushion every time - in The 2022 bear market it moved -29% while the index fell 25%. You can watch that one in Crash replay." |
+| Miss, JPM/XOM/TLT/BND | "Here's what held you back:" / "XOM is what took this portfolio down: it moved -48% while the index fell 34%, on 30% of your money." |
+| Level 4, unchanged | its hiddenAi card, word for word as before |
+| Crash replay, unchanged | the 2022 window still reads "about 1.1 times as much as the index fell" for TLT and VOO |
+
+### What to watch
+
+- **"in The 2022 bear market" reads oddly**, because the window titles in
+  data/crashes.json are written to stand alone as headings ("The 2022 bear
+  market") and this template puts one mid-sentence. Left as the file's own words
+  rather than giving the card a second name for the same window.
+- **The drag card can name a holding the player would defend.** XOM fell 48% and
+  is named; JPM fell 43% on the same money and is not. The card is about the
+  biggest single loss, not about the two together, and a player who spread the
+  damage over two holdings sees only the worse one.
+- **Level 6 is now complete**, and the three "What to watch" notes from sessions A
+  and B still stand: the level is hard (50 winners in 1,079 draws), both ends of
+  the slider are unreachable by 0.02 and 0.21, and the reveal mixes ISO dates with
+  the chart's "Feb 19".
+
+Educational, not investment advice.

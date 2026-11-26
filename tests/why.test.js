@@ -36,19 +36,26 @@ import { validateLevels, levelById, bucketOf, weightsFromDollars } from '../js/l
 import { covariance, effectiveBets, maxRiskShare } from '../js/math.js';
 import { gameWindow, windowMatrix } from '../js/gameView.js';
 import {
+  CRASH_LESSONS,
   LESSON_PORTFOLIOS,
   cardFor,
+  checkCrashLessons,
   checkLessonPortfolios,
   frozenGameDoc,
 } from '../scripts/check_why_cards.mjs';
+import {
+  validateCrashes, replay, fallAgainstIndex, elsewhereFor,
+} from '../js/crash.js';
 import { createRound } from '../js/round.js';
 import {
   PLACEHOLDERS,
+  crashFacts,
   fillTemplate,
   groupIndex,
   leadingRules,
   pickWhy,
   ruleCandidate,
+  signedPercent,
   validateWhy,
   whyFacts,
 } from '../js/why.js';
@@ -143,8 +150,9 @@ test('every template in why.json uses only placeholders the code can fill', () =
   // validateWhy already throws on an unknown placeholder; this states the list
   // the files agree on, so a new placeholder cannot be added to why.json alone.
   assert.deepEqual(Object.keys(PLACEHOLDERS).sort(),
-    ['bucketCard', 'fallback', 'fewBets', 'groupRisk', 'hiddenAi', 'hiddenAiAll',
-      'overRiskLimit', 'pair', 'pairLowRisk', 'riskGapOver', 'riskGapUnder'].sort());
+    ['bucketCard', 'crashCushion', 'crashCushionElsewhere', 'crashDrag', 'fallback', 'fewBets',
+      'groupRisk', 'hiddenAi', 'hiddenAiAll', 'overRiskLimit', 'pair', 'pairLowRisk',
+      'riskGapOver', 'riskGapUnder'].sort());
 });
 
 test('validateWhy rejects a template with a placeholder the code cannot fill', () => {
@@ -898,4 +906,154 @@ test('a missed round on another level is unchanged by the level 5 card', () => {
   const { result: four } = play(4, ['NVDA', 'AVGO', 'MU'], 0.5);
   assert.equal(four.passed, false);
   assert.notEqual(four.whyCard.key, 'overRiskLimit');
+});
+
+// ------------------------------------------------- the cards for a replay
+//
+// Level 6's round has no covariance matrix in it, and these rules read the
+// replay instead: which holding moved the money, and what that holding did in
+// the file's other windows.
+
+const CRASHES = validateCrashes(readJson('data/crashes.json'));
+const LEVEL6 = levelById(LEVELS, 6);
+
+/** The facts a level 6 round produces for these dollars. */
+function crashRoundFacts(dollars) {
+  const result = replay(CRASHES, LEVEL6.window.key, dollars);
+  return {
+    result,
+    facts: crashFacts(result, {
+      elsewhere: Object.fromEntries(result.tickers.map(
+        (ticker) => [ticker, elsewhereFor(CRASHES, LEVEL6.window.key, ticker)],
+      )),
+    }),
+  };
+}
+
+/** The card a level 6 round with these dollars is shown. */
+function crashCard(dollars) {
+  const { result, facts } = crashRoundFacts(dollars);
+  const share = fallAgainstIndex(result).share;
+  return pickWhy(facts, WHY, { outcome: { measure: 'fallShare', passed: share < 0.5 } });
+}
+
+test('signedPercent puts the direction in the number, so no template has to', () => {
+  // The holding that cushions a fall sometimes rose and sometimes merely fell
+  // least, so "rose" and "fell" cannot be written into a template.
+  assert.equal(signedPercent(0.1423), '+14%');
+  assert.equal(signedPercent(-0.0246), '-2%');
+  assert.equal(signedPercent(0), '0%');
+  // A fall too small to round to a percent reads as 0%, not as -0%.
+  assert.equal(signedPercent(-0.001), '0%');
+  assert.equal(signedPercent(0.001), '0%');
+  assert.throws(() => signedPercent(Number.NaN), /expected a number/);
+});
+
+test('the crash rules lead on a replayed round and are in no order at all', () => {
+  for (const key of ['crashCushionElsewhere', 'crashCushion', 'crashDrag']) {
+    assert.ok(!WHY.order.includes(key), `${key} must not sit in the order`);
+  }
+  assert.deepEqual(leadingRules(WHY, { measure: 'fallShare', passed: true }),
+    ['crashCushionElsewhere', 'crashCushion']);
+  assert.deepEqual(leadingRules(WHY, { measure: 'fallShare', passed: false }), ['crashDrag']);
+  // And they say nothing about any other round.
+  assert.deepEqual(leadingRules(WHY, { measure: 'maxRiskShare', passed: false }), ['overRiskLimit']);
+  assert.deepEqual(leadingRules(WHY, { measure: 'effectiveBets', passed: true }), []);
+});
+
+test('the cushion is the holding that moved the most DOLLARS, not the most percent', () => {
+  // AMZN fell 12% and BND fell 1%, but AMZN is $3,000 of the money and BND
+  // $2,000: BND still lost less in dollars, so BND is what held this up. A card
+  // that named the biggest percent mover would name AMZN and be wrong about why
+  // the portfolio held up.
+  const card = crashCard({ AMZN: 3000, VWO: 3000, BND: 2000, GLD: 2000 });
+  assert.equal(card.key, 'crashCushion');
+  assert.equal(card.values.ticker, 'BND');
+  const { facts } = crashRoundFacts({ AMZN: 3000, VWO: 3000, BND: 2000, GLD: 2000 });
+  const byTicker = Object.fromEntries(facts.crash.holdings.map((h) => [h.ticker, h]));
+  assert.ok(byTicker.AMZN.change < byTicker.BND.change, 'AMZN fell the further of the two');
+  assert.ok(byTicker.AMZN.gain < byTicker.BND.gain, 'and lost the more of the two in dollars');
+});
+
+test('a cushion that rose here and fell harder elsewhere carries the warning', () => {
+  // The lesson portfolio. TLT rose 14% through February 2020 and fell 29%
+  // against the index's 25% through 2022, and both halves are read from
+  // data/crashes.json rather than written into why.json.
+  const card = crashCard({ WMT: 3000, PG: 3000, TLT: 2000, BND: 2000 });
+  assert.equal(card.key, 'crashCushionElsewhere');
+  assert.deepEqual(card.values, {
+    ticker: 'TLT',
+    move: '+14%',
+    indexMove: '34%',
+    dollarPct: '20%',
+    otherWindow: 'The 2022 bear market',
+    otherMove: '-29%',
+    otherIndexMove: '25%',
+  });
+  assert.match(card.text, /You can watch that one in Crash replay\.$/);
+
+  // The numbers are the file's, to the percent: a card that quoted a stale
+  // figure would be the one thing this rule exists to prevent.
+  const bear = replay(CRASHES, 'bear2022', { TLT: 10000 });
+  assert.equal(signedPercent(bear.change), card.values.otherMove);
+  assert.equal(Math.round(Math.abs(bear.indexChange) * 100), 25);
+  assert.ok(bear.change < bear.indexChange, 'TLT really did fall harder than the index in 2022');
+});
+
+test('the warning stands itself down when the cushion only fell least', () => {
+  // Nothing rose in this build, so "it was not a cushion every time" would be
+  // claiming more than the data says. The plain cushion card answers instead.
+  const card = crashCard({ WMT: 2500, JNJ: 2500, AMZN: 2500, QQQ: 2500 });
+  assert.equal(card.key, 'crashCushion');
+  assert.equal(card.values.ticker, 'WMT');
+  assert.equal(card.values.move, '-2%');
+  assert.ok(!card.text.includes('not a cushion'));
+});
+
+test('a missed replay names what took the portfolio down', () => {
+  const card = crashCard({ JPM: 3000, XOM: 3000, TLT: 2000, BND: 2000 });
+  assert.equal(card.key, 'crashDrag');
+  assert.equal(card.values.ticker, 'XOM');
+  assert.equal(card.values.move, '-48%');
+  assert.equal(card.values.dollarPct, '30%');
+  // TLT rose in this round too, and is NOT what the card talks about: on a
+  // missed round the question is what did the damage.
+  assert.ok(!card.text.includes('TLT'));
+});
+
+test('the crash cards are templates filled in, like every other card', () => {
+  for (const dollars of [
+    { WMT: 3000, PG: 3000, TLT: 2000, BND: 2000 },
+    { JPM: 3000, XOM: 3000, TLT: 2000, BND: 2000 },
+    { WMT: 2500, JNJ: 2500, AMZN: 2500, QQQ: 2500 },
+  ]) {
+    const card = crashCard(dollars);
+    assert.equal(card.text, fillTemplate(card.template, card.values),
+      'the card text must be its own template with the values put in');
+    const rule = WHY.rules.find((r) => r.key === card.key);
+    assert.equal(card.template, rule.template, 'and the template must be why.json\'s own');
+  }
+});
+
+test('a replay with no holdings to talk about gets no crash card', () => {
+  // The guards, rather than a card describing a portfolio that does not exist.
+  const rule = WHY.rules.find((r) => r.key === 'crashCushion');
+  assert.equal(ruleCandidate({}, rule).fires, false, 'no crash facts at all');
+  assert.equal(ruleCandidate({ crash: { holdings: [], indexChange: -0.34 } }, rule).fires, false);
+  // An index that did not fall has no fall to hold up against.
+  assert.equal(ruleCandidate({
+    crash: { holdings: [{ ticker: 'VOO', gain: 1, change: 0.1, dollarShare: 1, elsewhere: [] }], indexChange: 0.02 },
+  }, rule).fires, false);
+});
+
+test('the crash lesson portfolios still get the cards written down beside them', () => {
+  for (const result of checkCrashLessons(CRASHES, LEVEL6, WHY)) {
+    assert.ok(result.ok, `${result.lesson.key}: got ${result.card.key} ${JSON.stringify(result.card.values)}`);
+  }
+  assert.equal(CRASH_LESSONS.length, 3);
+  // The pair that is the lesson: same shape, same cushion, opposite verdicts.
+  const [cushion, drag] = CRASH_LESSONS;
+  assert.equal(cushion.dollars.TLT, drag.dollars.TLT);
+  assert.equal(cushion.dollars.BND, drag.dollars.BND);
+  assert.notEqual(cushion.expect.key, drag.expect.key);
 });

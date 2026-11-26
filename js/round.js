@@ -33,7 +33,7 @@ import {
   topRiskShare,
 } from './math.js';
 import { gameWindow, windowMatrix } from './gameView.js';
-import { pickWhy, whyFacts } from './why.js';
+import { crashFacts, pickWhy, whyFacts } from './why.js';
 // Level 6 is replayed through a crash window, so this file reaches into Crash
 // replay's arithmetic rather than keeping a second copy of it: fallAgainstIndex()
 // is the measure, and replay() is bought-and-held against VOO, both already
@@ -41,7 +41,9 @@ import { pickWhy, whyFacts } from './why.js';
 // of this file, so the two are a cycle - a safe one, because neither side reads
 // the other's bindings while the modules are still evaluating, only inside
 // functions. tests/round.test.js imports them in both orders to keep it that way.
-import { fallAgainstIndex, replay, unavailableIn, windowByKey } from './crash.js';
+import {
+  elsewhereFor, fallAgainstIndex, replay, unavailableIn, windowByKey,
+} from './crash.js';
 import {
   bucketOf,
   displayFor,
@@ -424,14 +426,32 @@ function leadInKey(level, { passed, stars }) {
  */
 function buildWhyCard(level, {
   tickers, weights, matrix, groups, why, basketReturns = null, basketMembers = null,
-  value, passed, stars,
+  crash = null, crashes = null, value, passed, stars,
 }) {
   if (!why) return { whyCard: null, whyFacts: null };
-  // A level measured over a crash window has no covariance matrix to read, and
-  // why.json's rules are all thresholded on one - over 23 crash days nearly
-  // everything correlates above 0.9, so every level 6 round would be handed the
-  // pair card. Its card is written from the replay instead, and is the next
-  // piece of work; until then the reveal carries no card rather than a wrong one.
+
+  // A REPLAYED ROUND TAKES THE CRASH PATH. Level 6 has no covariance matrix, and
+  // why.json's ordered rules are all thresholded on one: over 23 crash days
+  // nearly everything correlates above 0.9, so every round would be handed the
+  // pair card and told its holdings move together. The crash rules read the
+  // replay itself instead - which holding moved the money, and what that holding
+  // did in the file's other windows - and they lead on the round rather than
+  // sitting in an order, exactly as the missed-level-5 card does.
+  if (crash) {
+    const facts = crashFacts(crash, {
+      elsewhere: Object.fromEntries(crash.tickers.map(
+        (ticker) => [ticker, crashes ? elsewhereFor(crashes, crash.window.key, ticker) : []],
+      )),
+    });
+    return {
+      whyCard: pickWhy(facts, why, {
+        outcome: { measure: 'fallShare', passed },
+        leadIn: leadInKey(level, { passed, stars }),
+      }),
+      whyFacts: facts,
+    };
+  }
+
   if (!matrix) return { whyCard: null, whyFacts: null };
   const measure = level.pass.measure === 'guess' ? level.guess.measure : level.pass.measure;
   const onCorrelation = measure === 'correlation';
@@ -896,6 +916,12 @@ export function createRound({
       drawnId: round.drawnId,
       ...buildWhyCard(level, {
         ...weighted, matrix, groups, why, basketReturns, basketMembers: basket,
+        // The replay, on a level that is one, and the file it came from: the
+        // crash card names what one holding did here AND what it did in the
+        // other windows, which is the warning that keeps "bonds cushion a
+        // crash" from being the lesson a player takes away.
+        crash: measured.crash ?? null,
+        crashes,
         value: measured.value, passed, stars,
       }),
     };

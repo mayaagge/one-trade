@@ -57,6 +57,7 @@ import {
 } from '../js/math.js';
 import { gameWindow, windowMatrix } from '../js/gameView.js';
 import { validateCrashes, fallAgainstIndex, replay, windowByKey } from '../js/crash.js';
+import { groupIndex, validateWhy } from '../js/why.js';
 
 const root = new URL('..', import.meta.url);
 const readJson = (name) => JSON.parse(readFileSync(fileURLToPath(new URL(name, root)), 'utf8'));
@@ -928,23 +929,49 @@ test('level 6 reads no prices from data/game.json at all', () => {
   assert.equal(result.days, 23, 'and 23 days is fewer than the 252 every other level needs');
 });
 
-test('a level 6 reveal carries no rule card yet, rather than a wrong one', () => {
-  // why.json's rules are all thresholded on a covariance matrix over three years.
-  // Over 23 crash days nearly everything correlates above 0.9, so every round
-  // would be handed the pair card. Level 6's card is written from the replay
-  // instead, and is the next piece of work - this test is here to be changed by
-  // it, not to stand for ever.
-  const why = readJson('why.json');
+test('a level 6 reveal gets a card read off the replay, not off a covariance matrix', () => {
+  // This test used to assert there was NO card, because why.json's ordered rules
+  // are all thresholded on a three-year covariance matrix and over 23 crash days
+  // nearly everything correlates above 0.9 - every round would have been told its
+  // holdings move together. The crash rules read the replay itself, so the card
+  // is now about which holding moved the money.
+  const why = validateWhy(readJson('why.json'));
+  const groups = groupIndex(readJson('tickers.json'));
   const r = createRound({
-    levels: LEVELS, levelId: 6, game: GAME, universe: UNIVERSE, crashes: CRASHES, why,
+    levels: LEVELS, levelId: 6, game: GAME, universe: UNIVERSE, crashes: CRASHES, why, groups,
   });
   for (const ticker of ['WMT', 'PG', 'TLT', 'BND']) r.togglePick(ticker);
   r.toGuess();
   r.setGuess(0.15);
   const result = r.reveal();
-  assert.equal(result.whyCard, null);
-  assert.equal(result.whyFacts, null);
-  assert.ok(Number.isFinite(result.value), 'the round still works without a card');
+
+  assert.equal(result.whyCard.key, 'crashCushionElsewhere');
+  assert.equal(result.whyCard.values.ticker, 'TLT');
+  assert.equal(result.whyCard.leadIn, why.leadIn.passed);
+  // The facts are the replay's own per-holding numbers, and nothing else: no
+  // covariance, no correlations, no risk shares to be read off 23 days.
+  assert.deepEqual(Object.keys(result.whyFacts), ['crash']);
+  assert.equal(result.whyFacts.crash.holdings.length, 4);
+  assert.ok(!('cov' in result.whyFacts) && !('pair' in result.whyFacts));
+  // The card's own numbers come from the same replay the panel above it reports.
+  assert.equal(result.whyCard.values.dollarPct, '20%', 'TLT is $2,000 of the $10,000');
+});
+
+test('a missed level 6 round names the holding that took it down', () => {
+  const why = validateWhy(readJson('why.json'));
+  const r = createRound({
+    levels: LEVELS, levelId: 6, game: GAME, universe: UNIVERSE, crashes: CRASHES, why,
+  });
+  // The same shape and the same cushion as the round above, with banks and oil in
+  // place of the defensive stocks.
+  for (const ticker of ['JPM', 'XOM', 'TLT', 'BND']) r.togglePick(ticker);
+  r.toGuess();
+  r.setGuess(0.6);
+  const result = r.reveal();
+  assert.equal(result.passed, false);
+  assert.equal(result.whyCard.key, 'crashDrag');
+  assert.equal(result.whyCard.values.ticker, 'XOM', 'XOM lost the most dollars, not the most percent');
+  assert.equal(result.whyCard.leadIn, why.leadIn.missed);
 });
 
 test('the bought-and-held rule is what level 6 measures, not a rebalanced portfolio', () => {

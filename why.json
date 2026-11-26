@@ -55,6 +55,45 @@
       "templateNote": "Both shares and the limit, because the gap between the two shares is the lesson and the limit is what the round turned on. No percentage here is a difference between two others, so nothing on the card can disagree with the numbers beside it."
     },
     {
+      "key": "crashCushionElsewhere",
+      "says": "one holding cushioned this crash, and did not cushion another one",
+      "leads": {
+        "measure": "fallShare",
+        "passed": true
+      },
+      "leadsNote": "Leads on a level 6 round that passed, ahead of crashCushion, and is in no order at all. A replay has 23 days of one particular February in it, so this file's own order - which is thresholded on a three-year covariance matrix - says nothing about it: over a crash nearly everything correlates above 0.9, and every round would be told its holdings move together. What a player who has just watched two lines wants is which holding did that, which is arithmetic on the replay itself.",
+      "when": {},
+      "whenNote": "No thresholds of its own, and nothing about any particular holding. It fires when the holding that held the portfolio up ROSE in this window - which makes the claim unarguable - and fell harder than the index in another window of data/crashes.json. Both halves are read from the file by js/why.js, so the warning is the data's and not a sentence somebody typed: in February 2020 it is TLT, up 14% here and down 29% against the index's 25% through 2022. If that ever stopped being true of the data, the card would stop appearing rather than keep saying it.",
+      "template": "{ticker} is what held this portfolio up: it moved {move} while the index fell {indexMove}, on {dollarPct} of your money. It was not a cushion every time - in {otherWindow} it moved {otherMove} while the index fell {otherIndexMove}. You can watch that one in Crash replay.",
+      "templateNote": "Every move is signed and stated beside the index's own fall for the same window, so no number here is a difference between two others and nothing on the card can disagree with the chart above it. The last line points at a window the game already has rather than asking the player to take the warning on trust."
+    },
+    {
+      "key": "crashCushion",
+      "says": "one holding is what held the portfolio up",
+      "leads": {
+        "measure": "fallShare",
+        "passed": true
+      },
+      "leadsNote": "Leads on a level 6 round that passed, behind crashCushionElsewhere. Same reason as that rule: a replay is not a covariance matrix, and this file's order has nothing to say about one.",
+      "when": {},
+      "whenNote": "No thresholds. The holding named is the one whose own dollars moved the most in the portfolio's favour - which on a passing round is what held it up, whether it rose or merely fell least. Dollars rather than percent, because a holding's move does not say how much of the fall it accounts for: 20% of the money rising 14% matters more than 1% of it doubling.",
+      "template": "{ticker} is what held this portfolio up: it moved {move} while the index fell {indexMove}, on {dollarPct} of your money.",
+      "templateNote": "The holding's own move beside the index's fall, and its share of the money. A holding that fell, but fell far less than the market, reads correctly here because the two numbers are both on the card."
+    },
+    {
+      "key": "crashDrag",
+      "says": "one holding is what took the portfolio down",
+      "leads": {
+        "measure": "fallShare",
+        "passed": false
+      },
+      "leadsNote": "Leads on a level 6 round that MISSED. The mirror of crashCushion, and the same shape as overRiskLimit: on a round that failed, the holding that failed it is the whole answer.",
+      "when": {},
+      "whenNote": "No thresholds. The holding named is the one whose own dollars lost the most, which on a missed round is what took the portfolio down with the market.",
+      "template": "{ticker} is what took this portfolio down: it moved {move} while the index fell {indexMove}, on {dollarPct} of your money.",
+      "templateNote": "Deliberately the same sentence as crashCushion with one clause turned around, because it is the same fact about the opposite end of the portfolio, and a player who meets both should recognise the second."
+    },
+    {
       "key": "hiddenAiAll",
       "says": "a fund is carrying all of the AI exposure",
       "when": {

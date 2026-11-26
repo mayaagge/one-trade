@@ -239,6 +239,24 @@ export function replay(doc, key, dollars) {
   const { matrix, dates } = readWindow(window, tickers);
   const path = buyAndHoldPath(amounts, matrix);
 
+  // What each holding did on its own, and what that was worth in dollars. The
+  // dollars are the point: a holding's move does not say how much of the fall it
+  // accounts for, and 20% of the money rising 14% matters more than 1% of it
+  // doubling. `gain` is signed - positive is what cushioned the fall, negative is
+  // what drove it - and the gains sum to the portfolio's own change in dollars.
+  const holdings = tickers.map((ticker, i) => {
+    const own = buyAndHoldPath([amounts[i]], matrix.map((day) => [day[i]]));
+    const change = totalChange(own);
+    return {
+      ticker,
+      dollars: amounts[i],
+      dollarShare: amounts[i] / start,
+      change,
+      gain: own[own.length - 1] - own[0],
+      end: own[own.length - 1],
+    };
+  });
+
   // The index, from the same window and the same starting money. It is read as a
   // portfolio of one holding so that both lines go through one code path.
   const indexTicker = doc.meta.indexTicker;
@@ -254,6 +272,7 @@ export function replay(doc, key, dollars) {
     dollars: { ...dollars },
     start,
     path,
+    holdings,
     indexPath,
     indexTicker,
     indexLabel: doc.meta.indexLabel,
@@ -264,6 +283,35 @@ export function replay(doc, key, dollars) {
     end: path[path.length - 1],
     indexEnd: indexPath[indexPath.length - 1],
   };
+}
+
+/**
+ * What one holding did in the file's OTHER windows, against the index there.
+ *
+ * The 2020 crash is not every crash, and a card that says "long Treasuries held
+ * this portfolio up" is true of February 2020 and false of 2022, where TLT fell
+ * 29.33% against the index's 24.52%. This is how a card can say so from the data
+ * rather than from a sentence somebody typed: the same file, the same
+ * bought-and-held arithmetic, the other windows.
+ *
+ * A window the holding cannot be replayed through is left out rather than
+ * reported as a zero - PLTR in February 2020 is the case - so a caller gets only
+ * windows where the comparison is real.
+ */
+export function elsewhereFor(doc, key, ticker, money = STARTING_DOLLARS) {
+  return doc.windows
+    .filter((window) => window.key !== key)
+    .map((window) => {
+      if (!window.tickers.includes(ticker) || unavailableIn(window, ticker)) return null;
+      const held = replay(doc, window.key, { [ticker]: money });
+      return {
+        key: window.key,
+        title: window.title,
+        change: held.change,
+        indexChange: held.indexChange,
+      };
+    })
+    .filter((found) => found !== null);
 }
 
 /**

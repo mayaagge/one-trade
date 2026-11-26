@@ -69,12 +69,18 @@ export const PLACEHOLDERS = {
   hiddenAiAll: ['ticker', 'dollarPct', 'portfolioBeta'],
   overRiskLimit: ['ticker', 'riskPct', 'dollarPct', 'limitPct'],
   fewBets: ['total', 'bets', 'maxRiskPct'],
+  crashCushion: ['ticker', 'move', 'indexMove', 'dollarPct'],
+  crashCushionElsewhere: [
+    'ticker', 'move', 'indexMove', 'dollarPct', 'otherWindow', 'otherMove', 'otherIndexMove',
+  ],
+  crashDrag: ['ticker', 'move', 'indexMove', 'dollarPct'],
   fallback: [],
 };
 
 /** The rule keys this file knows how to apply. why.json may not invent one. */
 export const RULE_KEYS = [
-  'overRiskLimit', 'hiddenAiAll', 'hiddenAi', 'groupRisk', 'fewBets', 'pair', 'pairLowRisk',
+  'overRiskLimit', 'crashCushionElsewhere', 'crashCushion', 'crashDrag',
+  'hiddenAiAll', 'hiddenAi', 'groupRisk', 'fewBets', 'pair', 'pairLowRisk',
   'riskGapOver', 'riskGapUnder',
 ];
 
@@ -263,6 +269,24 @@ export function percent(share) {
 }
 
 /**
+ * A move over a window, as a signed whole percent: "+14%", "-2%", "0%".
+ *
+ * SIGNED, AND NOT WORDED. The crash cards name one holding's own move, and the
+ * holding that cushioned a fall is sometimes one that rose and sometimes one that
+ * merely fell least - TLT rose 14% through February 2020 and WMT fell 2% - so a
+ * template cannot say "rose" or "fell" without being wrong half the time. Putting
+ * the direction in the number keeps the sentence true either way, and keeps the
+ * card a template filled in rather than a sentence chosen by code.
+ */
+export function signedPercent(change) {
+  if (!Number.isFinite(change)) throw new Error('signedPercent: expected a number');
+  const whole = Math.round(change * 100);
+  // -0% is an artefact of rounding a tiny fall, and reads as a mistake.
+  if (whole === 0) return '0%';
+  return `${whole > 0 ? '+' : ''}${whole}%`;
+}
+
+/**
  * A correlation, as the card shows it.
  *
  * When the correlation IS the level's pass-checked measure - which is level 1,
@@ -409,6 +433,40 @@ export function whyFacts({
   };
 }
 
+/**
+ * The facts for a REPLAYED round - level 6 - which are a different kind of fact
+ * from everything above.
+ *
+ * whyFacts() reads a covariance matrix over three years. A replay has 23 days of
+ * one particular February, and asking those rules about it would be a category
+ * error dressed as a number: over a crash nearly everything correlates above 0.9,
+ * so every round would be told its holdings move together. What a player who just
+ * watched two lines actually wants to know is WHICH HOLDING did that to them, and
+ * that is arithmetic on the replay itself - no covariance, no thresholds tuned on
+ * a short window, nothing that could be subtly wrong.
+ *
+ * @param {object} result   a js/crash.js replay(), with its per-holding gains
+ * @param {object} elsewhere ticker -> the other windows it can be replayed in,
+ *                           from js/crash.js's elsewhereFor()
+ */
+export function crashFacts(result, { elsewhere = {} } = {}) {
+  if (!result || !Array.isArray(result.holdings)) {
+    throw new Error('crashFacts: expected a replay result with its holdings');
+  }
+  return {
+    crash: {
+      window: result.window,
+      change: result.change,
+      indexChange: result.indexChange,
+      indexLabel: result.indexLabel,
+      holdings: result.holdings.map((holding) => ({
+        ...holding,
+        elsewhere: elsewhere[holding.ticker] ?? [],
+      })),
+    },
+  };
+}
+
 // -------------------------------------------------------------------- rules
 
 /**
@@ -441,6 +499,63 @@ export function ruleCandidate(facts, rule, { pairThreshold = null, limit = null 
         riskPct: percent(worst.riskShare),
         dollarPct: percent(worst.dollarShare),
         limitPct: percent(limit),
+      },
+    };
+  }
+
+  if (rule.key === 'crashCushion' || rule.key === 'crashCushionElsewhere' || rule.key === 'crashDrag') {
+    if (!facts.crash) return none;
+    const { holdings, indexChange } = facts.crash;
+    if (holdings.length === 0 || !(indexChange < 0)) return none;
+
+    // THE HOLDING THAT MOVED THE MONEY, in dollars rather than in percent. On a
+    // round that passed, the one that made the most (or lost the least) is what
+    // held the portfolio up; on one that missed, the one that lost the most is
+    // what took it down. Ties go to the first picked, as everywhere else here.
+    const drag = rule.key === 'crashDrag';
+    const pick = holdings.reduce(
+      (found, holding) => (found === null
+        || (drag ? holding.gain < found.gain : holding.gain > found.gain)
+        ? holding
+        : found),
+      null,
+    );
+    const values = {
+      ticker: pick.ticker,
+      move: signedPercent(pick.change),
+      indexMove: percent(Math.abs(indexChange)),
+      dollarPct: percent(pick.dollarShare),
+    };
+
+    if (rule.key !== 'crashCushionElsewhere') {
+      // A cushion that did not actually cushion, or a drag that did not drag,
+      // would be a card describing the opposite of what happened. On a passing
+      // round the best holding can still have lost money - a portfolio can fall
+      // 14% with every holding down - and "held this up" is then about holding up
+      // BETTER, which the card's own numbers show: its move beside the index's.
+      return { key: rule.key, fires: true, values };
+    }
+
+    // THE CUSHION THAT WAS NOT ONE EVERY TIME. It fires only when the holding
+    // ROSE here - which makes "this is what held you up" unarguable - and fell
+    // harder than the index in another window of the same file. Then the card can
+    // warn without a word of it being typed in: in February 2020 that is TLT, up
+    // 14% here and down 29% against the index's 25% through 2022.
+    if (!(pick.change > 0)) return none;
+    const failed = (pick.elsewhere ?? [])
+      .filter((window) => window.indexChange < 0 && window.change < window.indexChange)
+      // The window it underperformed by the most, so the warning is the strongest
+      // true one rather than whichever window the file happens to list first.
+      .sort((a, b) => (a.change - a.indexChange) - (b.change - b.indexChange))[0];
+    if (!failed) return none;
+    return {
+      key: rule.key,
+      fires: true,
+      values: {
+        ...values,
+        otherWindow: failed.title,
+        otherMove: signedPercent(failed.change),
+        otherIndexMove: percent(Math.abs(failed.indexChange)),
       },
     };
   }

@@ -37,9 +37,13 @@ import { makeRng } from '../js/rng.js';
 import { validateLevels, weightsFromDollars } from '../js/levels.js';
 import { gameWindow, windowMatrix } from '../js/gameView.js';
 import {
-  groupIndex, leadingRules, pickWhy, ruleCandidate, validateWhy, whyFacts,
+  crashFacts, groupIndex, leadingRules, pickWhy, ruleCandidate, validateWhy, whyFacts,
 } from '../js/why.js';
 import { equalWeightBasket } from '../js/math.js';
+import {
+  validateCrashes, replay, fallAgainstIndex, elsewhereFor,
+} from '../js/crash.js';
+import { passes, levelById } from '../js/levels.js';
 import { GAME_DAYS } from './build_game_data.mjs';
 import { WINDOW_DAYS, MIN_DAYS, TOTAL_DOLLARS } from './make_pool.mjs';
 
@@ -204,6 +208,49 @@ export const LESSON_PORTFOLIOS = [
   },
 ];
 
+/**
+ * The lesson portfolios for a REPLAYED round - level 6 - which are a different
+ * kind of case from every one above.
+ *
+ * Those are portfolios measured over three years of returns. These are
+ * portfolios HELD THROUGH a fixed five weeks of 2020, and the card is about
+ * which holding moved the money rather than which holdings move together. The
+ * pair at the top is the level's whole lesson: the same shape and the same
+ * cushion, five times apart, because of which stocks sit in the 60%.
+ */
+export const CRASH_LESSONS = [
+  {
+    key: 'the-cushion-that-was-not-always-one',
+    what: 'Level 6 passed: defensive stocks behind long Treasuries and a bond fund',
+    lesson: 'What cushioned this crash is named - and so is the crash where the same holding did not.',
+    dollars: { WMT: 3000, PG: 3000, TLT: 2000, BND: 2000 },
+    expect: {
+      key: 'crashCushionElsewhere',
+      values: {
+        ticker: 'TLT', move: '+14%', indexMove: '34%', dollarPct: '20%',
+        otherWindow: 'The 2022 bear market', otherMove: '-29%', otherIndexMove: '25%',
+      },
+    },
+    note: 'TLT rose 14% here and fell 29% against the index\'s 25% in 2022, both read from data/crashes.json',
+  },
+  {
+    key: 'banks-and-oil-behind-the-same-cushion',
+    what: 'Level 6 missed: banks and oil behind exactly the same cushion',
+    lesson: 'The other half of the pair. Same shape, same bonds, and the card names what did the damage.',
+    dollars: { JPM: 3000, XOM: 3000, TLT: 2000, BND: 2000 },
+    expect: { key: 'crashDrag', values: { ticker: 'XOM', move: '-48%', dollarPct: '30%' } },
+    note: 'XOM lost the most DOLLARS; it also fell the furthest, but the rule is dollars',
+  },
+  {
+    key: 'held-up-by-a-holding-that-still-fell',
+    what: 'Level 6 passed with no holding that rose at all',
+    lesson: 'A cushion is sometimes just the thing that fell least, and the card has to read correctly then too.',
+    dollars: { WMT: 2500, JNJ: 2500, AMZN: 2500, QQQ: 2500 },
+    expect: { key: 'crashCushion', values: { ticker: 'WMT', move: '-2%', indexMove: '34%' } },
+    note: 'Nothing rose, so the warning card stands itself down and the plain one answers',
+  },
+];
+
 // ---------------------------------------------------------------- the data
 
 /** The frozen snapshot, in data/game.json's shape. Never the live file. */
@@ -290,6 +337,41 @@ export function checkLessonPortfolios(game, groups, why, portfolios = LESSON_POR
       lesson,
       card,
       fired: firedRules(facts, why, { outcome: lesson.outcome ?? null, limit: lesson.limit ?? null }),
+      ok: card.key === lesson.expect.key && wrongValues.length === 0,
+      wrongValues,
+    };
+  });
+}
+
+/**
+ * Every crash lesson portfolio, against the card written down beside it.
+ *
+ * The round is replayed rather than measured, so this does not go through
+ * cardFor(): there is no game window and no covariance in it at all.
+ */
+export function checkCrashLessons(crashes, level, why, lessons = CRASH_LESSONS) {
+  return lessons.map((lesson) => {
+    const total = Object.values(lesson.dollars).reduce((sum, d) => sum + d, 0);
+    if (total !== TOTAL_DOLLARS) {
+      throw new Error(`${lesson.key} allocates ${total}, not ${TOTAL_DOLLARS}`);
+    }
+    const result = replay(crashes, level.window.key, lesson.dollars);
+    const share = fallAgainstIndex(result).share;
+    const passed = passes(level, share);
+    const facts = crashFacts(result, {
+      elsewhere: Object.fromEntries(result.tickers.map(
+        (ticker) => [ticker, elsewhereFor(crashes, level.window.key, ticker)],
+      )),
+    });
+    const card = pickWhy(facts, why, { outcome: { measure: 'fallShare', passed } });
+    const wrongValues = Object.entries(lesson.expect.values ?? {})
+      .filter(([name, want]) => card.values[name] !== want)
+      .map(([name, want]) => `${name}: wanted ${want}, got ${card.values[name]}`);
+    return {
+      lesson,
+      card,
+      share,
+      passed,
       ok: card.key === lesson.expect.key && wrongValues.length === 0,
       wrongValues,
     };
@@ -386,6 +468,21 @@ function main() {
     console.log('');
   }
 
+  const crashes = validateCrashes(readJson('data/crashes.json'));
+  const crashLessons = checkCrashLessons(crashes, levelById(levels, 6), why);
+  console.log(`Crash lesson portfolios (${crashLessons.length}), replayed through the 2020 crash\n`);
+  for (const result of crashLessons) {
+    console.log(`  ${result.ok ? 'OK  ' : 'FAIL'} ${pad(result.lesson.key, 36)} ${pad(result.card.key, 22)}`
+      + ` ${result.share.toFixed(4)} ${result.passed ? 'passes' : 'misses'}`);
+    console.log(`       ${result.lesson.what}`);
+    console.log(`       ${result.card.text}`);
+    for (const wrong of result.wrongValues) console.log(`       WRONG VALUE - ${wrong}`);
+    if (!result.ok && result.card.key !== result.lesson.expect.key) {
+      console.log(`       WRONG CARD - wanted ${result.lesson.expect.key}`);
+    }
+    console.log('');
+  }
+
   const table = frequencies(game, levels, groups, why, playableUniverse(readJson('tickers.json')));
   console.log(`How often each rule fires, and how often it is the card shown`);
   console.log(`(${table.pool} pool portfolios + ${table.builds} seeded level 3 builds = ${table.counted})\n`);
@@ -409,7 +506,7 @@ function main() {
 
   console.log('\nEducational, not investment advice.');
 
-  const broken = lessons.filter((r) => !r.ok);
+  const broken = [...lessons, ...crashLessons].filter((r) => !r.ok);
   if (broken.length > 0) {
     console.error(`\n${broken.length} lesson portfolio(s) got the wrong card: ${broken.map((r) => r.lesson.key).join(', ')}.`);
     console.error('A threshold or the order in why.json has moved. Fix it, or change the lesson deliberately.');
