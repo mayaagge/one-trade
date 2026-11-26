@@ -139,7 +139,7 @@ function summary(state, onPlayToday) {
   const status = h('p', 'daily-share-status');
   const holder = h('div', 'daily-share-holder');
 
-  view.append(button('Share', 'primary daily-share', async () => {
+  view.append(button('Share', 'btn btn-primary daily-share', async () => {
     // A phone gets the sheet it expects; everything else gets the clipboard.
     // Both come from js/share.js, which the score card uses too.
     if (await shareOut({ text }) !== 'unsupported') return;

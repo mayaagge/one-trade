@@ -24,7 +24,7 @@ import { buildReturns } from '../js/returns.js';
 import { GAME_DAYS } from '../scripts/build_game_data.mjs';
 import { validateLevels, levelById } from '../js/levels.js';
 import { createRound, createSeries } from '../js/round.js';
-import { renderReveal, renderSeriesSummary } from '../js/game.js';
+import { renderReveal, renderSeriesSummary, revealLine } from '../js/game.js';
 import { cardText, shareMessage, cardFromResult, cardFromSeries } from '../js/shareCard.js';
 
 const root = new URL('..', import.meta.url);
@@ -184,12 +184,20 @@ test('the reveal draws the line, says the gap, and announces itself', () => {
   assert.match(textOf(view), /5\.0/);
 });
 
-test('a guess that lands on the answer shares one label anchor, split away from each other', () => {
+test('a guess EXACTLY EQUAL to the answer shares one label anchor, split away from each other', () => {
   // The real answer, read off an arbitrary guess first - level 3's five
   // holdings are fixed above, so the answer is deterministic and this is not
   // a hardcoded number that could drift out of date with the price snapshot.
-  const { result } = revealOfLevel3(2.5);
-  const { view } = revealOfLevel3(result.value);
+  const { result: arbitrary } = revealOfLevel3(2.5);
+  const { view, round, result } = revealOfLevel3(arbitrary.value);
+  // THE GUESS IS THE ANSWER, exactly - ===, not "close enough" - which is the
+  // one case a fixed 8px offset from each mark's own (then-identical) dot
+  // cannot separate, and the case revealLine()'s own guessAt/answerAt must
+  // therefore agree on exactly too.
+  assert.equal(result.guess, result.value, 'this case needs the guess to equal the answer exactly');
+  const line = revealLine(round);
+  assert.equal(line.guessAt, line.answerAt, 'equal guess and answer landed at different points on the scale');
+
   const guessLabel = view.querySelector('mark-guess-label');
   const answerLabel = view.querySelector('mark-answer-label');
   assert.equal(guessLabel.style.left, answerLabel.style.left,

@@ -4418,3 +4418,61 @@ for it is the typeface the reader already reads in.
 1,113 tests pass.
 
 Educational, not investment advice.
+
+## Accessibility and formatting finished, the Learn menu redesigned, 26 November 2026 (session 2.26)
+
+Two commits. The first: one `js/format.js` for money, percentages, measures,
+dates and the minus sign, with `js/build.js`, `js/why.js`, `js/levels.js`,
+`js/daily.js`, `js/weekly.js` and `js/crash.js` re-exporting from it rather
+than each keeping its own copy - the fix docs/DESIGN_REVIEW.md asked for by
+name. Fixing it on the way: Sandbox and My real portfolio were showing
+correlations to 3 places outside level 1, and the measures panel's window was
+printing a raw ISO date (`2023-11-21 to 2026-11-25`) rather than the one date
+style, `25 Nov 2026`, now used everywhere a player reads one. A before/after
+snapshot of every number and date on all 63 states confirmed those were the
+only differences the refactor made.
+
+Also in the first commit: a visible `<label>` on the guess slider and My real
+portfolio's two text boxes (both carried `aria-label` only before); every
+build, guess, reveal and measures screen now goes h1 then h2 with nothing
+skipped (it was h1 then h3 on all of them); and the daily score and every
+"could not load" screen are `role="status"`/`role="alert"` now, with a
+player's sentence and a retry button ahead of the technical detail - they said
+nothing to a screen reader before, and the technical detail was the first and
+only thing a player read.
+
+The second commit: nothing a player needs to read is under 14px now (chart
+ticks and the number line's own labels floor at 12px, as the thing closest to
+an axis label); the Learn menu is one column at every width, centred at
+40rem, with a "N of 7 passed" line and a Continue-labelled card on whichever
+level is next to play, never once all 7 are passed. Checking the number line
+specifically turned up a real bug: a guess that lands on or next to the
+answer - the common case on a 3-star level 1 - overlapped its own label with
+the answer's. Labels no longer live inside their dots; close enough, both
+share one anchor at the midpoint and grow apart from it, and that anchor (or
+a lone label's own, far apart) is kept clear of the scale's ends, since a
+label that grows away from an edge still runs off the edge of the screen.
+`tests/gameShare.test.js` now holds the EXACT-EQUAL case - guess === answer,
+not merely close - because that is the one a fixed offset from each mark's
+own, then-identical, dot cannot separate.
+
+**Lighthouse, mobile, accessibility category only, all 7 modes: 100/100.**
+Run against `index.html#mode` for learn, daily, weekly, crash, sandbox, mine
+and research, served locally - not run via `npm run a11y`, which measures
+things Lighthouse cannot reach (contrast ratios, tap-target sizes, heading
+order) and the two together were worth running rather than one instead of the
+other.
+
+**The daily "Share" button was 52x21 against the 44px minimum**, because it
+carried a bare `primary` class that no rule in the stylesheet answers to -
+`.btn btn-primary` is the real primary-button class, used everywhere else.
+One missing class, not a missing rule.
+
+**Left open, on purpose: the skip link is still 110x25.** Flagged in
+docs/DESIGN_REVIEW.md as "should fix," not asked for this session, and the
+fix is a design decision (how a skip link that is not a block-level button
+earns 44px without looking like one) rather than a one-line one - later.
+
+1,130 tests pass.
+
+Educational, not investment advice.
