@@ -183,3 +183,27 @@ test('the reveal draws the line, says the gap, and announces itself', () => {
   assert.match(textOf(view), /1\.0/);
   assert.match(textOf(view), /5\.0/);
 });
+
+test('a guess that lands on the answer shares one label anchor, split away from each other', () => {
+  // The real answer, read off an arbitrary guess first - level 3's five
+  // holdings are fixed above, so the answer is deterministic and this is not
+  // a hardcoded number that could drift out of date with the price snapshot.
+  const { result } = revealOfLevel3(2.5);
+  const { view } = revealOfLevel3(result.value);
+  const guessLabel = view.querySelector('mark-guess-label');
+  const answerLabel = view.querySelector('mark-answer-label');
+  assert.equal(guessLabel.style.left, answerLabel.style.left,
+    'a spot-on guess did not share one label anchor with the answer');
+  assert.ok(guessLabel.className.includes('mark-label-left'));
+  assert.ok(answerLabel.className.includes('mark-label-right'));
+});
+
+test('a guess far from the answer keeps its own label anchor', () => {
+  // 1.0 is the lowest the slider goes and a 5-holding spread never answers
+  // that low, so this is far from the answer on every run of this test.
+  const { view, result } = revealOfLevel3(1.0);
+  assert.ok(result.value - 1.0 > 1, 'this case needs a guess genuinely far from the answer');
+  const guessLabel = view.querySelector('mark-guess-label');
+  const answerLabel = view.querySelector('mark-answer-label');
+  assert.notEqual(guessLabel.style.left, answerLabel.style.left);
+});

@@ -40,8 +40,8 @@ import {
 } from './build.js';
 // Saved progress: the stars a player keeps, and which levels are open.
 import {
-  clearProgress, guessError, isUnlocked, loadProgress, playedLevels, recordLevel,
-  saveProgress, starsOf, triesOf,
+  clearProgress, guessError, isUnlocked, loadProgress, passedLevels, playedLevels,
+  recordLevel, saveProgress, starsOf, triesOf, unlockedThrough,
 } from './progress.js';
 // The anonymous per-browser ID the records carry. Its own storage key, and
 // Reset progress does not clear it - see the note at the top of the file.
@@ -230,7 +230,7 @@ export function saveResult(progress, levelId, result) {
 
 // --------------------------------------------------------------- the menu
 
-function levelCard(ctx, level) {
+function levelCard(ctx, level, { continueId, allPassed }) {
   const card = h('article', 'level-card');
   const head = h('header', 'level-card-head');
   head.append(h('h2', null, `${level.id}. ${level.title}`));
@@ -251,9 +251,13 @@ function levelCard(ctx, level) {
     card.classList.add('level-locked');
     card.append(h('p', 'level-lock-note', `Pass level ${before} to unlock this one.`));
   }
+  // The one level worth pressing next stands out from the rest of the column -
+  // never once every level has been passed, since there is no next one then.
+  const isContinue = !allPassed && level.id === continueId;
+  if (isContinue) card.classList.add('level-card-continue');
   // The gate is HERE and not only on the button: a disabled button stops a
   // click, never a caller. js/round.js refuses the same kinds of thing.
-  card.append(button(stars ? 'Play again' : 'Play', 'btn btn-primary btn-wide',
+  card.append(button(isContinue ? 'Continue' : (stars ? 'Play again' : 'Play'), 'btn btn-primary btn-wide',
     () => { if (isUnlocked(ctx.progress, level.id, ids)) ctx.startRound(level.id); },
     { disabled: !unlocked, aria: unlocked ? null : `Level ${level.id} unlocks when level ${before} is passed` }));
   return card;
@@ -302,8 +306,17 @@ export function renderMenu(ctx) {
   const view = h('div', 'view');
   view.append(h('h1', null, 'Learn'));
   view.append(h('p', 'lede', 'Build a portfolio with $10,000 of pretend money, guess how many separate bets you made, then see the answer worked out from real prices.'));
+
+  const ids = ctx.levels.levels.map((l) => l.id);
+  const passedCount = passedLevels(ctx.progress).filter((id) => ids.includes(id)).length;
+  const allPassed = passedCount === ids.length;
+  view.append(h('p', 'level-progress', allPassed
+    ? `All ${ids.length} passed`
+    : `${passedCount} of ${ids.length} passed`));
+  const continueId = unlockedThrough(ctx.progress, ids);
+
   const list = h('div', 'level-list');
-  for (const level of ctx.levels.levels) list.append(levelCard(ctx, level));
+  for (const level of ctx.levels.levels) list.append(levelCard(ctx, level, { continueId, allPassed }));
   view.append(list);
   view.append(h('p', 'note', 'Returns never score anything here, and there is no leaderboard.'));
   if (ctx.canSave === false) {
@@ -552,6 +565,26 @@ export function renderGuess(ctx, round) {
 // ------------------------------------------------------------- the reveal
 
 /**
+ * How close the guess and the answer have to land, in percent of the scale,
+ * before their labels stop anchoring on their own dot and anchor on the
+ * midpoint between the two instead. 20 is generous on purpose: a label is
+ * short - "your guess 3.2", two or three characters for the answer - but a
+ * phone's screen is narrow enough that two own-anchored labels can still
+ * reach each other well before their dots are this close.
+ */
+const CLOSE_LABEL_GAP = 20;
+
+/**
+ * How far the shared label anchor is kept from either end of the scale, in
+ * percent, when the guess and the answer are close enough to share one (see
+ * CLOSE_LABEL_GAP). Without this, a close pair that also lands near 0% or
+ * 100% - a guess of 1.00 against an answer of 0.996, say - anchors its labels
+ * at the very edge, and a label that grows away from the edge of the screen
+ * still runs off the edge of the screen.
+ */
+const EDGE_LABEL_MARGIN = 32;
+
+/**
  * The number line itself.
  *
  * The marks are in their FINAL positions in the markup, and the keyframes only
@@ -564,7 +597,7 @@ export function renderGuess(ctx, round) {
  * through "your guess 3.2, 3.00 needed, 2.06" a second time as disconnected
  * labels is being given the same information worse.
  */
-function numberLine(round, line) {
+export function numberLine(round, line) {
   const wrap = h('div', 'numberline');
   wrap.setAttribute('aria-hidden', 'true');
   wrap.style.setProperty('--guess-at', `${line.guessAt}%`);
@@ -586,15 +619,52 @@ function numberLine(round, line) {
     wrap.append(need);
   }
 
+  // Whichever mark is further left gets its label pushed further left, and
+  // the other right - a tie (guessAt === answerAt, a "spot on" guess) always
+  // splits guess-left, answer-right. See the note below the dots for why that
+  // alone is not enough when the two are this close.
+  const guessOnLeft = line.guessAt <= line.answerAt;
+
   const guess = h('span', 'numberline-mark mark-guess');
   guess.style.left = `${line.guessAt}%`;
-  guess.append(h('span', null, `your guess ${formatGuess(round.level, round.result.guess)}`));
   wrap.append(guess);
 
   const answer = h('span', 'numberline-mark mark-answer');
   answer.style.left = `${line.answerAt}%`;
-  answer.append(h('span', null, round.result.shown));
   wrap.append(answer);
+
+  // THE LABELS ARE NOT CHILDREN OF THEIR DOTS. A guess that lands on or next
+  // to the answer puts the two dots within a few pixels of each other, and a
+  // label anchored "a fixed distance outside its own dot" still starts from
+  // essentially the same point as the other one's and the two run together.
+  // Within CLOSE_LABEL_GAP of each other, both labels instead anchor off the
+  // MIDPOINT between the two dots and are told to grow away from each other
+  // from there, which is the only anchor guaranteed not to coincide with
+  // either dot. Further apart, each keeps anchoring off its own dot as
+  // before - splitting away from the other mark, never centred under it,
+  // since two centred labels can still touch before they are this close.
+  const gap = Math.abs(line.guessAt - line.answerAt);
+  const close = gap < CLOSE_LABEL_GAP;
+  // PULLED IN FROM THE EDGE, every label's anchor, not only the shared one. A
+  // guess of 1.00 on a -1-to-1 scale sits at 100% with an answer right beside
+  // it - a real case, not a hypothetical, since a correlation this close to
+  // the edge is what a 3-star answer on level 1 looks like - and a label that
+  // grows away from a point that is already the edge grows straight off the
+  // screen. A lone mark near 0% or 100% has the same problem with no second
+  // mark in sight. The dots themselves stay exactly where the data puts
+  // them; only the text's anchor is kept clear of the edge.
+  const clampToEdge = (at) => Math.min(Math.max(at, EDGE_LABEL_MARGIN), 100 - EDGE_LABEL_MARGIN);
+  const clusterAt = clampToEdge((line.guessAt + line.answerAt) / 2);
+
+  const guessLabel = h('span', `numberline-label mark-guess-label ${guessOnLeft ? 'mark-label-left' : 'mark-label-right'}`,
+    `your guess ${formatGuess(round.level, round.result.guess)}`);
+  guessLabel.style.left = `${close ? clusterAt : clampToEdge(line.guessAt)}%`;
+  wrap.append(guessLabel);
+
+  const answerLabel = h('span', `numberline-label mark-answer-label ${guessOnLeft ? 'mark-label-right' : 'mark-label-left'}`,
+    round.result.shown);
+  answerLabel.style.left = `${close ? clusterAt : clampToEdge(line.answerAt)}%`;
+  wrap.append(answerLabel);
 
   return wrap;
 }

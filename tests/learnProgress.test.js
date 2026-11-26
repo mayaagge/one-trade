@@ -58,7 +58,7 @@ function context(progress, extra = {}) {
 }
 
 const cardFor = (view, id) => view.querySelectorAll('level-card')[IDS.indexOf(id)];
-const playButton = (card) => card.all().find((node) => node.tagName === 'BUTTON' && /^Play/.test(node._text ?? ''));
+const playButton = (card) => card.all().find((node) => node.tagName === 'BUTTON' && /^(Play|Continue)/.test(node._text ?? ''));
 
 test('a fresh browser sees level 1 open and the rest waiting', () => {
   const { restore } = screen();
@@ -103,6 +103,45 @@ test('PASSING a level unlocks the next one on the very next render', () => {
       'one star on level 1 did not unlock level 2');
     assert.ok(!/to unlock this one/.test(cardFor(open, 2).textContent),
       'an unlocked card still carries its lock note');
+  } finally { restore(); }
+});
+
+test('the progress line counts passed levels, and the next one to play stands out', () => {
+  const { restore } = screen();
+  try {
+    const fresh = renderMenu(context(emptyProgress()));
+    assert.match(textOf(fresh), /0 of 7 passed/);
+    // A brand new player has no level open but the first, so it is the one
+    // "next to play" and gets the Continue treatment from the start.
+    assert.equal(playButton(cardFor(fresh, 1))._text, 'Continue');
+    assert.ok(cardFor(fresh, 1).classList.contains('level-card-continue'));
+    for (const id of IDS.slice(1)) {
+      assert.ok(!cardFor(fresh, id).classList.contains('level-card-continue'));
+    }
+
+    let progress = recordLevel(emptyProgress(), 1, { stars: 2, error: 0.3 });
+    progress = recordLevel(progress, 2, { stars: 1, error: 1.1 });
+    const view = renderMenu(context(progress));
+    assert.match(textOf(view), /2 of 7 passed/);
+    assert.equal(playButton(cardFor(view, 3))._text, 'Continue');
+    assert.ok(cardFor(view, 3).classList.contains('level-card-continue'));
+    assert.ok(!cardFor(view, 1).classList.contains('level-card-continue'));
+    assert.equal(playButton(cardFor(view, 1))._text, 'Play again');
+  } finally { restore(); }
+});
+
+test('once every level is passed, the progress line says so and nothing offers to continue', () => {
+  const { restore } = screen();
+  try {
+    let progress = emptyProgress();
+    for (const id of IDS) progress = recordLevel(progress, id, { stars: 1, error: 0.1 });
+    const view = renderMenu(context(progress));
+    assert.match(textOf(view), /All 7 passed/);
+    for (const id of IDS) {
+      assert.ok(!cardFor(view, id).classList.contains('level-card-continue'),
+        `level ${id} still offered Continue after every level was passed`);
+      assert.equal(playButton(cardFor(view, id))._text, 'Play again');
+    }
   } finally { restore(); }
 });
 

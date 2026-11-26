@@ -165,7 +165,7 @@ a { color: var(--series-1); }
 .wordmark { margin: 0; font-size: 1.05rem; }
 .wordmark span {
   display: block;
-  font-size: 0.8rem;
+  font-size: 0.875rem;
   color: var(--text-secondary);
 }
 /* WRAPS, and that is the whole of the sideways-scrolling bug.
@@ -215,7 +215,7 @@ main { outline: none; }
   color: var(--text-secondary);
 }
 .disclaimer { margin: 0 0 4px; font-weight: 600; color: var(--text-primary); }
-.small { font-size: 0.85rem; margin: 0; }
+.small { font-size: 0.875rem; margin: 0; }
 
 /* ------------------------------------------------------------- text */
 
@@ -231,7 +231,7 @@ label.lede { display: block; }
 .loading { max-width: 68rem; margin: 24px auto; padding: 0 16px; color: var(--text-secondary); }
 
 .disclaimer-inline {
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--text-secondary);
   margin-bottom: 1.4em;
@@ -269,7 +269,7 @@ label.lede { display: block; }
   display: inline-block;
   padding: 2px 10px;
   border-radius: 999px;
-  font-size: 0.82rem;
+  font-size: 0.875rem;
   font-weight: 600;
   white-space: nowrap;
   border: 1px solid var(--axis);
@@ -317,7 +317,7 @@ label.lede { display: block; }
 .stat { min-width: 0; }
 .stat-label {
   display: block;
-  font-size: 0.78rem;
+  font-size: 0.875rem;
   color: var(--text-secondary);
 }
 .stat-value {
@@ -328,7 +328,7 @@ label.lede { display: block; }
 }
 .stat-note {
   display: block;
-  font-size: 0.76rem;
+  font-size: 0.875rem;
   color: var(--text-secondary);
 }
 
@@ -373,14 +373,14 @@ label.lede { display: block; }
   width: 100%;
   border-collapse: collapse;
   margin-top: 10px;
-  font-size: 0.86rem;
+  font-size: 0.875rem;
   font-variant-numeric: tabular-nums;   /* a column of numbers, so align them */
 }
 .data-table caption {
   caption-side: top;
   text-align: left;
   color: var(--text-secondary);
-  font-size: 0.82rem;
+  font-size: 0.875rem;
   padding-bottom: 6px;
 }
 .data-table th, .data-table td {
@@ -426,14 +426,14 @@ label.lede { display: block; }
 }
 .chart-grid { stroke: var(--grid); stroke-width: 1; }
 .chart-axis { stroke: var(--axis); stroke-width: 1; }
-.chart-tick { fill: var(--text-secondary); font-size: 11px; font-variant-numeric: tabular-nums; }
+.chart-tick { fill: var(--text-secondary); font-size: 12px; font-variant-numeric: tabular-nums; }
 .chart-tick-y { text-anchor: end; }
 .chart-tick-x { text-anchor: middle; }
 .chart-tick-x-start { text-anchor: start; }
 .chart-tick-x-end { text-anchor: end; }
 
 .chart-mark-rule { stroke: var(--text-secondary); stroke-width: 1; }
-.chart-mark-label { fill: var(--text-secondary); font-size: 11px; }
+.chart-mark-label { fill: var(--text-secondary); font-size: 12px; }
 .chart-mark-dot {
   fill: var(--series-1);
   stroke: var(--surface-1);
@@ -452,7 +452,7 @@ label.lede { display: block; }
 }
 .chart-shade-label {
   fill: var(--text-secondary);
-  font-size: 11px;
+  font-size: 12px;
   text-anchor: end;
 }
 
@@ -483,7 +483,7 @@ label.lede { display: block; }
   flex-wrap: wrap;
   gap: 4px 18px;
   margin: 4px 0 10px;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   color: var(--text-secondary);
 }
 .chart-legend-item { display: inline-flex; align-items: center; gap: 7px; }
@@ -514,7 +514,7 @@ label.lede { display: block; }
 }
 .chart-tooltip span {
   display: block;
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   color: var(--text-secondary);
 }
 /* One tooltip, every series: a keyed row per line when a chart compares two,
@@ -537,12 +537,12 @@ label.lede { display: block; }
 .chart-tooltip-key-compare { background: var(--series-2); }
 .chart-tooltip-when {
   display: block;
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   color: var(--text-secondary);
   margin-top: 2px;
 }
 .chart-readout {
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   color: var(--text-secondary);
   min-height: 1.4em;
   margin: 6px 0 0;
@@ -560,7 +560,7 @@ label.lede { display: block; }
 .round-head { margin-bottom: 12px; }
 .round-step {
   margin: 0 0 2px;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -594,19 +594,32 @@ label.lede { display: block; }
 
 /* --- the level menu ------------------------------------------------------ */
 
+/* One column at every width, centred - a 3-column grid above 52rem left a
+ * player scanning sideways and down at once, and hid which level stood out
+ * as "next" in a wall of equal cards. */
 .level-list {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
-  margin: 16px 0;
+  margin: 16px auto;
+  max-width: 40rem;
 }
-@media (min-width: 52rem) {
-  .level-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.level-progress {
+  max-width: 40rem;
+  margin: 0 auto 4px;
+  color: var(--text-secondary);
 }
 .level-card {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 14px;
   background: var(--surface-1);
+}
+/* The one level worth pressing next stands out from the rest of the column. */
+.level-card-continue {
+  border-color: var(--accent);
+  border-width: 2px;
+  padding: 13px;
 }
 .level-card-head {
   display: flex;
@@ -616,10 +629,10 @@ label.lede { display: block; }
 }
 .level-card-head h2 { font-size: 1.05rem; margin: 0 0 4px; }
 .level-stars { color: var(--series-1); letter-spacing: 0.08em; white-space: nowrap; }
-.level-stars-none { color: var(--text-secondary); font-size: 0.82rem; letter-spacing: 0; }
+.level-stars-none { color: var(--text-secondary); font-size: 0.875rem; letter-spacing: 0; }
 .level-concept {
   margin: 0 0 6px;
-  font-size: 0.82rem;
+  font-size: 0.875rem;
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -636,7 +649,7 @@ label.lede { display: block; }
 .picker-group { margin-bottom: 14px; }
 .picker-group-label {
   margin: 0 0 6px;
-  font-size: 0.82rem;
+  font-size: 0.875rem;
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -714,7 +727,7 @@ label.lede { display: block; }
   gap: 8px;
   font-variant-numeric: tabular-nums;
 }
-.alloc-share { color: var(--text-secondary); font-size: 0.85rem; }
+.alloc-share { color: var(--text-secondary); font-size: 0.875rem; }
 .alloc-buttons { display: flex; gap: 8px; }
 .btn-step {
   min-width: 48px;
@@ -781,7 +794,7 @@ label.lede { display: block; }
 .guess-scale {
   display: flex;
   justify-content: space-between;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
   margin-bottom: 8px;
@@ -871,7 +884,7 @@ label.lede { display: block; }
 }
 .live-chip {
   margin: 0 0 4px;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
@@ -887,7 +900,7 @@ label.lede { display: block; }
   margin: 1rem 0;
 }
 
-.daily-count { font-size: 0.85rem; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.7; margin: 0; }
+.daily-count { font-size: 0.875rem; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.7; margin: 0; }
 .daily-tickers { font-size: 1.6rem; font-weight: 700; margin: 0.3rem 0 0.2rem; }
 .daily-ask { margin: 0 0 0.8rem; }
 
@@ -908,7 +921,7 @@ label.lede { display: block; }
 .daily-reveal.is-wrong { border-left-color: var(--misses); }
 .daily-verdict { font-weight: 600; margin: 0 0 0.3rem; display: flex; gap: 0.45rem; align-items: baseline; }
 .daily-pair-line { margin: 0.2rem 0; }
-.daily-window, .daily-elsewhere { font-size: 0.85rem; opacity: 0.75; margin: 0.2rem 0; }
+.daily-window, .daily-elsewhere { font-size: 0.875rem; opacity: 0.75; margin: 0.2rem 0; }
 .daily-surprise { font-weight: 600; margin: 0.45rem 0 0.2rem; }
 
 .daily-done-list { list-style: none; padding: 0; margin: 0.8rem 0; }
@@ -918,7 +931,7 @@ label.lede { display: block; }
   font-size: 0.92rem;
 }
 .daily-done-pair { flex: 1; }
-.daily-done-mark { font-size: 0.8rem; opacity: 0.7; }
+.daily-done-mark { font-size: 0.875rem; opacity: 0.7; }
 
 .daily-summary { margin-top: 1.2rem; }
 .daily-summary h2 { font-size: 2rem; margin: 0 0 0.5rem; }
@@ -927,11 +940,11 @@ label.lede { display: block; }
 .daily-square { display: flex; flex-direction: column; align-items: center; gap: 0.15rem; min-width: 3.2rem; }
 .daily-square-mark { font-size: 1.5rem; line-height: 1; }
 /* The text is not decoration: the squares must read without colour. */
-.daily-square-text { font-size: 0.72rem; opacity: 0.8; }
+.daily-square-text { font-size: 0.75rem; opacity: 0.8; }
 
 .daily-share-status { font-size: 0.9rem; min-height: 1.2rem; margin: 0.4rem 0; }
 .share-text { width: 100%; font-family: inherit; font-size: 0.9rem; }
-.daily-spoiler-note, .daily-again, .daily-carried { font-size: 0.85rem; opacity: 0.8; }
+.daily-spoiler-note, .daily-again, .daily-carried { font-size: 0.875rem; opacity: 0.8; }
 
 .daily-waiting { margin: 1.2rem 0; }
 
@@ -944,7 +957,7 @@ label.lede { display: block; }
 
 .share-row { margin: 1.4rem 0 0.6rem; }
 .share-status { font-size: 0.9rem; min-height: 1.2rem; margin: 0.4rem 0; }
-.share-note { font-size: 0.85rem; opacity: 0.8; margin: 0.2rem 0 0; }
+.share-note { font-size: 0.875rem; opacity: 0.8; margin: 0.2rem 0 0; }
 .share-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.4rem 0; }
 .share-actions .btn { flex: 1 1 12rem; }
 
@@ -968,7 +981,7 @@ label.lede { display: block; }
    sitting on the page rather than on paper, and by saying so in words. */
 .level-locked { background: var(--plane); border-style: dashed; }
 .level-locked .level-card-head h2 { color: var(--text-secondary); }
-.level-lock-note { font-size: 0.85rem; color: var(--text-secondary); margin: 0 0 0.6rem; }
+.level-lock-note { font-size: 0.875rem; color: var(--text-secondary); margin: 0 0 0.6rem; }
 
 .reset-row { margin: 1.4rem 0 0.4rem; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
 .reset-ask { font-size: 0.9rem; margin: 0; flex: 1 1 100%; }
@@ -981,7 +994,7 @@ label.lede { display: block; }
    column at any width. */
 
 .measure-table { margin: 1.4rem 0 0; }
-.measure-table h3 { margin: 0 0 0.4rem; }
+.measure-table h2 { margin: 0 0 0.4rem; }
 
 .shares-table {
   width: 100%;
@@ -995,7 +1008,7 @@ label.lede { display: block; }
   padding: 7px 6px;
   border-bottom: 1px solid var(--grid);
 }
-.shares-table thead th { color: var(--text-secondary); font-weight: 600; font-size: 0.82rem; }
+.shares-table thead th { color: var(--text-secondary); font-weight: 600; font-size: 0.875rem; }
 /* The holding's own name reads as a label, so it keeps the left edge. */
 .shares-table tbody th, .shares-table thead th:first-child { text-align: left; }
 .shares-gap { color: var(--text-secondary); }
@@ -1026,7 +1039,7 @@ label.lede { display: block; }
 .measure-note {
   margin: 4px 0 0;
   color: var(--text-secondary);
-  font-size: 0.86rem;
+  font-size: 0.875rem;
   max-width: 52rem;
 }
 /* Inside the headline panel, which is centred, the note reads as prose. */
@@ -1062,7 +1075,7 @@ label.lede { display: block; }
 }
 .holding-row-head {
   color: var(--text-secondary);
-  font-size: 0.82rem;
+  font-size: 0.875rem;
   font-weight: 600;
 }
 .holding-ticker { font-weight: 600; }
@@ -1158,7 +1171,7 @@ label.lede { display: block; }
 }
 .level-hint-head {
   margin: 0 0 4px;
-  font-size: 0.78rem;
+  font-size: 0.875rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-secondary);
@@ -1223,14 +1236,6 @@ label.lede { display: block; }
 .numberline-span-pass { background: var(--clears); }
 
 .numberline-mark { position: absolute; top: 26px; transform: translateX(-50%); }
-.numberline-mark span {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 0.75rem;
-  white-space: nowrap;
-  color: var(--text-secondary);
-}
 /* The guess: hollow, because it was a question rather than an answer. */
 .mark-guess::before {
   content: "";
@@ -1240,10 +1245,6 @@ label.lede { display: block; }
   border: 3px solid var(--text-secondary);
   background: var(--surface-1);
 }
-/* ITS LABEL SITS TO THE RIGHT OF THE DOT, not centred under it: the guess and
-   the threshold can be a couple of percent of the scale apart, and two centred
-   labels then overlap - which is exactly the pair a player most needs to read. */
-.mark-guess span { left: auto; right: -8px; transform: none; top: 24px; }
 
 /* The answer: solid, in the colour of the live value. */
 .mark-answer::before {
@@ -1253,7 +1254,25 @@ label.lede { display: block; }
   border-radius: 50%;
   background: var(--accent);
 }
-.mark-answer span { color: var(--accent); font-weight: 700; top: 24px; }
+
+/* THE LABELS ARE NOT NESTED INSIDE THEIR DOTS, so each can be positioned
+   against its own anchor point rather than always against its own dot - see
+   the long note in js/game.js on why a guess next to the answer needs that.
+   mark-label-left/-right say which way a label grows FROM its `left`, not
+   where it sits relative to its own dot: translateX pushes the whole box
+   clear of the anchor point first, so two labels sharing one anchor (the
+   close case) start from either side of it and never cross back over it,
+   whatever their own widths are. */
+.numberline-label {
+  position: absolute;
+  top: 24px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+.mark-answer-label { color: var(--accent); font-weight: 700; }
+.mark-label-left { transform: translateX(calc(-100% - 6px)); }
+.mark-label-right { transform: translateX(6px); }
 
 /* The line the level asked the player to get past. */
 .numberline-need { position: absolute; top: 18px; transform: translateX(-50%); }
@@ -1268,7 +1287,7 @@ label.lede { display: block; }
   position: absolute;
   top: -18px; left: 50%;
   transform: translateX(-50%);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   white-space: nowrap;
   color: var(--text-secondary);
 }
