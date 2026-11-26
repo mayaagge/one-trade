@@ -3389,3 +3389,117 @@ reporting logic rather than today's market.
 905 tests pass.
 
 Educational, not investment advice.
+
+## Saved progress, 26 November 2026 (session 2.19)
+
+docs/PRD.md's Learn row promised two things the game did not do: "Levels 1 to 7,
+in order; progress saved in the browser". Neither was true before this session -
+every level had a live Play button whatever had been played, and the stars died
+with the tab. New: js/progress.js, tests/progress.test.js,
+tests/learnProgress.test.js.
+
+### Played, not passed
+
+A level opens once the one before it has reached its REVEAL, pass or fail.
+Level 4 asks for a beta under 0.50 and level 6 for half the index's fall; a
+player who cannot manage those should still get to see the rest of the game,
+and a locked door at level 4 would end the visit. Level 1 is always open.
+
+The gate is in isUnlocked() and applied in two places: the Play button is
+disabled, and the click handler checks again. A disabled button stops a click,
+never a caller - the same reasoning js/round.js's togglePick() already uses.
+
+**Which levels are unlocked is NOT stored.** It is worked out from which were
+played, so two screens cannot read one save differently. A stored list could
+disagree with the stars sitting beside it.
+
+### The version is in the record, not in the key
+
+js/daily.js and js/weekly.js version their KEYS - oneTrade.daily.v1 - because a
+half-finished puzzle is disposable and an old one is better abandoned than
+understood. Progress is not disposable. A key that changed with the format
+would strand a player's stars behind a name nothing reads, so the key is
+oneTrade.learn and the version is a field inside it. migrate() is the one place
+a version 2 would be brought forward; until there is one, anything that is not
+version 1 reads as a fresh start.
+
+**Whole, or not at all.** One bad entry voids the record rather than being
+dropped quietly. The cost of being wrong is one player's stars; the cost of
+being half-right is a bug nobody can reproduce. That strictness is also what
+keeps other modes out: a record carrying any key beyond `version` and `levels`,
+or a level key that is not a whole number, is refused - so nothing from Sandbox
+or My real portfolio can ever be read back in, which is docs/PRD.md's promise
+that the game collects no student data.
+
+### Two bests, kept separately
+
+Three stars from one play and the closest guess from another. The saved pair
+need never have happened in a single round, which is a choice rather than an
+oversight: a player who once guessed within a hundredth should keep that, even
+on the evening they earned more stars by building better. A replay lowers
+neither.
+
+Level 7 is saved once, from its verdict, and its error is the WORST of the
+three guesses - the number the level actually turns on. A series PART is not
+saved at all: its stars are null until all three are in.
+
+### Reset asks in the page
+
+Not window.confirm(): some embedded browsers refuse that dialog outright, and a
+refused dialog would wipe a player's stars with no question asked at all. The
+first click swaps the button for a sentence and two buttons; only the second
+one clears anything. It clears one key, so the daily puzzle and the weekly
+challenge keep their day.
+
+### Open questions for the Worker session
+
+**1. A pool portfolio seen on level 2 and drawn again on level 7, visits apart.**
+
+js/game.js's session keeps drawnPoolIds in memory so level 7's first question
+can leave out the portfolio level 2 already showed - asking a player the
+portfolio they have just seen would measure their memory rather than their
+learning. It is deliberately NOT persisted, and this session did not change
+that. But saving progress makes multi-visit play the normal case, so the gap it
+leaves is now wider: a player can meet pool portfolio p07 on level 2 on Monday,
+close the tab, and be dealt p07 as level 7's first question on Thursday,
+already knowing the answer. That guess would enter Hypothesis 3 as learning.
+
+**Would persisting the exclusion change the registered draw, or only extend it
+across reloads?** Only extend it. PREREG.md registers that "level 2's portfolio
+and the first of level 7's mystery portfolios are both drawn at random from one
+pool of 20, so on average they are equally hard" - a statement about the
+MARGINAL distribution of each draw, and that marginal is already uniform under
+the within-visit exclusion rather than in spite of it. With one portfolio
+excluded, level 7's first question is uniform over the remaining 19, and summing
+over which one level 2 took gives (19/20) x (1/19) = 1/20 for every portfolio.
+The argument does not depend on how many are excluded: the draw treats all
+twenty labels symmetrically at every step, so each marginal stays uniform for
+any label-symmetric exclusion. What the exclusion changes is the JOINT
+distribution - the two are never the same portfolio - and the registered claim
+is about each being equally hard on average, not about their independence.
+
+So persisting it would be an extension of an existing rule, not a new one. Three
+things to settle with it:
+
+* drawFromPool() already falls back to the whole pool when everything is
+  excluded, so a player who has played level 2 twenty times still gets a
+  portfolio rather than an error.
+* It needs its own storage key, not this one. And Reset progress should
+  probably NOT clear it - otherwise resetting becomes a way to be dealt a
+  portfolio whose answer you remember.
+* Whether to do it at all is a PREREG question, because it changes the data
+  Hypothesis 3 collects even if it does not change the registered draw.
+
+**2. The per-browser ID for guess records.**
+
+PREREG.md's Hypothesis 3 sends "a random per-browser ID, level, guess, actual
+value and date" with each guess. When that ID is built it must live under its
+OWN storage key - not inside the progress record - and Reset progress must not
+clear it. Two reasons: a player resetting their stars has not asked to become a
+new participant, and an ID that resets with the stars would silently split one
+player's level-2 and level-7 guesses into two rows that the sign test would
+never pair.
+
+935 tests pass.
+
+Educational, not investment advice.

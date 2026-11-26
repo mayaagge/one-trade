@@ -856,3 +856,11 @@ main { outline: none; }
   border: 1px solid var(--border);
   border-radius: 8px;
 }
+
+/* ---- saved progress, on the level list --------------------------------- */
+
+.level-locked { opacity: 0.72; }
+.level-lock-note { font-size: 0.85rem; color: var(--text-secondary); margin: 0 0 0.6rem; }
+
+.reset-row { margin: 1.4rem 0 0.4rem; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.reset-ask { font-size: 0.9rem; margin: 0; flex: 1 1 100%; }

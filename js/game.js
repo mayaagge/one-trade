@@ -35,6 +35,11 @@ import { renderLineChart, chartBox } from './chart.js';
 // The build screen, shared with Crash replay - and with Sandbox and My real
 // portfolio when they arrive. See the note at the top of js/build.js.
 import { h, button, money, tickerPicker, allocator, floorNotes } from './build.js';
+// Saved progress: the stars a player keeps, and which levels are open.
+import {
+  clearProgress, guessError, isUnlocked, loadProgress, playedLevels, recordLevel,
+  saveProgress, starsOf,
+} from './progress.js';
 // The share card: its words are decided by js/shareCard.js, which is pure, and
 // carried out of the browser by js/share.js, which the daily puzzle shares.
 import {
@@ -106,15 +111,24 @@ export function starText(count) {
  * What this browser tab remembers. In memory only, by design for now: nothing
  * is written to storage and nothing leaves the browser.
  */
-export function newSession() {
+export function newSession(progress = null) {
   return {
-    stars: new Map(),          // level id -> best stars so far
+    // The best stars per level, seeded from what the browser saved. The record
+    // itself stays the source of truth on disk; this is the copy the screens
+    // read while a visit is in progress.
+    stars: new Map(
+      progress ? playedLevels(progress).map((id) => [id, starsOf(progress, id)]) : [],
+    ),
     // Pool portfolios already shown, as "pool:id", so the two pools cannot be
     // confused. Level 7's first question leaves out every guessPool id in here:
     // asking a player the portfolio they already saw on level 2 would measure
-    // their memory of that reveal rather than what they learned. In memory only,
-    // by design for now, so a reload starts it empty and the draw is uniform over
-    // all 20 again - the exclusion is best-effort and never blocks play.
+    // their memory of that reveal rather than what they learned.
+    //
+    // STILL IN MEMORY ONLY, and deliberately so even now that the stars are
+    // saved: a reload starts it empty and the draw is uniform over all 20
+    // again. Persisting it would change how a REGISTERED draw behaves, which is
+    // a PREREG decision and not a side effect of adding a save file. See the
+    // open question for the Worker session in BUILD_LOG.md.
     drawnPoolIds: new Set(),
   };
 }
@@ -132,7 +146,15 @@ export function seenPoolIds(session) {
     .map((key) => key.slice('guessPool:'.length));
 }
 
-/** Record a finished round. The best score for a level stands. */
+/**
+ * Record a finished round. The best score for a level stands.
+ *
+ * It writes to the SESSION and to the saved record, which hold different
+ * things for different lengths of time: the session carries this visit's draws
+ * and dies with the tab, and js/progress.js carries the stars and the closest
+ * guess, and outlives it. A save that fails changes nothing on screen - the
+ * game is playable without storage, and says so on the menu.
+ */
 export function recordResult(session, levelId, result) {
   const best = Math.max(session.stars.get(levelId) ?? 0, result.stars);
   session.stars.set(levelId, best);
@@ -140,6 +162,20 @@ export function recordResult(session, levelId, result) {
     session.drawnPoolIds.add(`${result.drawnPool ?? 'guessPool'}:${result.drawnId}`);
   }
   return session;
+}
+
+/**
+ * Put a finished level into the saved record, and write it.
+ *
+ * `result` is the one-question reveal or level 7's verdict; guessError() knows
+ * the difference. Returns the new record, and whether it reached the browser.
+ */
+export function saveResult(progress, levelId, result) {
+  const next = recordLevel(progress, levelId, {
+    stars: result.stars ?? 0,
+    error: guessError(result),
+  });
+  return { progress: next, saved: saveProgress(next) };
 }
 
 // --------------------------------------------------------------- the menu
@@ -154,16 +190,66 @@ function levelCard(ctx, level) {
   card.append(head);
   card.append(h('p', 'level-concept', level.concept));
   card.append(h('p', 'level-challenge', level.challenge));
-  // A LEVEL THE SCREENS CANNOT RUN YET IS NOT OFFERED. Level 7's rules, its two
-  // pools and its draw are in place and under test, but the three-question
-  // screens are the next session's work, and a "Play" button that threw would be
-  // worse than a card that says so plainly.
+
+  // IN ORDER, as docs/PRD.md's Learn row says: a level opens once the one
+  // before it has been PLAYED, pass or fail. Level 4 asks for a beta under 0.50
+  // and level 6 for half the index's fall; a player who cannot manage those
+  // should still get to see the rest of the game.
+  const ids = ctx.levels.levels.map((l) => l.id);
+  const open = isUnlocked(ctx.progress, level.id, ids);
+  const before = ids[ids.indexOf(level.id) - 1];
+  if (!open) {
+    card.classList.add('level-locked');
+    card.append(h('p', 'level-lock-note', `Play level ${before} to open this one.`));
+  }
+  // The gate is HERE and not only on the button: a disabled button stops a
+  // click, never a caller. js/round.js refuses the same kinds of thing.
   card.append(button(stars ? 'Play again' : 'Play', 'btn btn-primary btn-wide',
-    () => ctx.startRound(level.id)));
+    () => { if (isUnlocked(ctx.progress, level.id, ids)) ctx.startRound(level.id); },
+    { disabled: !open, aria: open ? null : `Level ${level.id} opens when level ${before} has been played` }));
   return card;
 }
 
-function renderMenu(ctx) {
+/**
+ * "Reset progress", which asks before it takes anything away.
+ *
+ * IN THE PAGE, not window.confirm(): some embedded browsers refuse that dialog
+ * outright, and one that is refused silently would wipe a player's stars with
+ * no question asked at all.
+ */
+function resetRow(ctx) {
+  const row = h('div', 'reset-row');
+  if (!ctx.askingReset) {
+    row.append(button('Reset progress', 'btn btn-quiet reset-progress', () => {
+      ctx.askingReset = true;
+      ctx.redraw();
+    }));
+    return row;
+  }
+  row.append(h('p', 'reset-ask', 'Reset progress? Your stars and your best guesses will be forgotten. '
+    + "Today's puzzle and this week's challenge are kept."));
+  row.append(button('Yes, reset it', 'btn btn-quiet reset-confirm', () => {
+    clearProgress();
+    ctx.progress = loadProgress();
+    ctx.session = newSession(ctx.progress);
+    ctx.askingReset = false;
+    ctx.redraw();
+  }));
+  row.append(button('Keep my progress', 'btn btn-quiet reset-cancel', () => {
+    ctx.askingReset = false;
+    ctx.redraw();
+  }));
+  return row;
+}
+
+/**
+ * The level list.
+ *
+ * Exported for tests/learnProgress.test.js, which renders it to check that
+ * saved stars reach the screen, that a locked level cannot be started, and
+ * that Reset asks first.
+ */
+export function renderMenu(ctx) {
   const view = h('div', 'view');
   view.append(h('h1', null, 'Learn'));
   view.append(h('p', 'lede', 'Build a portfolio with $10,000 of pretend money, guess how many separate bets you made, then see the answer worked out from real prices.'));
@@ -171,6 +257,14 @@ function renderMenu(ctx) {
   for (const level of ctx.levels.levels) list.append(levelCard(ctx, level));
   view.append(list);
   view.append(h('p', 'note', 'Returns never score anything here, and there is no leaderboard.'));
+  if (ctx.canSave === false) {
+    // Said plainly rather than left to be discovered: a player who thinks their
+    // stars are kept and finds them gone has been misled by this screen.
+    view.append(h('p', 'note', 'This browser will not let the game save anything, so your '
+      + 'progress will not be saved. Everything else works as usual.'));
+  } else {
+    view.append(resetRow(ctx));
+  }
   view.append(footNotes(ctx.game));
   return view;
 }
@@ -751,7 +845,7 @@ function roundHead(ctx, round, step) {
  * The session is passed in so that a caller - a test, or a later session that
  * adds storage - can supply one. Without it, progress starts fresh.
  */
-export async function mountLearn(root, { session = newSession() } = {}) {
+export async function mountLearn(root, { session = null, progress = null } = {}) {
   root.replaceChildren(h('p', 'loading', 'Loading the levels and the live prices…'));
   let levels;
   let tickers;
@@ -794,13 +888,24 @@ export async function mountLearn(root, { session = newSession() } = {}) {
   // Ticker -> group, which the "Why?" card's group rule names.
   const groups = groupIndex(tickers);
 
+  // WHAT THIS BROWSER REMEMBERS, read once on the way in. The session is seeded
+  // from it, so the stars on the level list are the saved ones.
+  const saved = progress ?? loadProgress();
+  const live = session ?? newSession(saved);
+
   const ctx = {
+    progress: saved,
+    // Whether this browser saves at all, settled once by writing back the
+    // record we just read - harmless, and the only honest way to find out.
+    // The menu says so plainly when it is false.
+    canSave: saveProgress(saved),
+    askingReset: false,
+    redraw() { ctx.draw(); },
     levels,
     tickers,
     why,
     basket,
     game,
-    session,
     round: null,
     /** The live series, on a level that asks three questions. Null on every other. */
     series: null,
@@ -812,6 +917,8 @@ export async function mountLearn(root, { session = newSession() } = {}) {
      * them; nothing leaves the browser today.
      */
     records: [],
+    /** This visit's draws and stars, seeded from the saved record. */
+    session: live,
     nextLevelId(id) {
       const ids = levels.levels.map((l) => l.id);
       const at = ids.indexOf(id);
@@ -838,7 +945,7 @@ export async function mountLearn(root, { session = newSession() } = {}) {
           crashes,
           // The portfolios this browser has already been shown. Level 7's first
           // question leaves out the one level 2 dealt: see BUILD_LOG.md 2.10.
-          seenPoolIds: seenPoolIds(session),
+          seenPoolIds: seenPoolIds(live),
           // Each record goes the moment its guess is locked, never batched, so
           // that arrival order matches portfolio order - which is the only thing
           // that tells three level-7 records apart. Nothing is sent anywhere yet:
@@ -875,10 +982,13 @@ export async function mountLearn(root, { session = newSession() } = {}) {
         };
       })), why) : null;
       for (const shown of series.shownIds()) {
-        recordResult(session, series.levelId, {
+        recordResult(live, series.levelId, {
           stars: series.verdict().stars, drawnId: shown.id, drawnPool: shown.pool,
         });
       }
+      // SAVED ONCE, from the verdict: level 7 is decided by all three guesses
+      // together, and its error is the worst of them - see guessError().
+      ({ progress: ctx.progress } = saveResult(ctx.progress, series.levelId, series.verdict()));
       ctx.showSummary = true;
       ctx.draw();
     },
@@ -889,7 +999,16 @@ export async function mountLearn(root, { session = newSession() } = {}) {
       ctx.draw();
     },
     finish(round) {
-      recordResult(session, round.levelId, round.result);
+      recordResult(live, round.levelId, round.result);
+      // A SERIES PART IS NOT SAVED. Level 7 has no verdict until all three are
+      // in, and a part's own stars are null; finishSeries() saves it once.
+      if (round.result.passed !== null) {
+        ({ progress: ctx.progress } = saveResult(ctx.progress, round.levelId, {
+          stars: round.result.stars,
+          guess: round.result.guess,
+          actual: round.result.value,
+        }));
+      }
       ctx.draw();
     },
     draw() {
