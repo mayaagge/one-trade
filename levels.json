@@ -1,7 +1,7 @@
 {
   "version": 1,
   "decided": "2026-11-25",
-  "note": "Levels 1 to 3. Every rule the game checks is data in this file, so an instructor or a reviewer can read it without reading code. Levels 4 to 7 are not built yet.",
+  "note": "Levels 1 to 5. Every rule the game checks is data in this file, so an instructor or a reviewer can read it without reading code. Levels 6 and 7 are not built yet.",
   "disclaimer": "Educational, not investment advice.",
   "startingDollars": 10000,
   "window": {
@@ -39,7 +39,10 @@
         "measure": "correlation",
         "prompt": "Before the reveal: how closely do these two move together, from -1 to 1?",
         "min": -1,
-        "max": 1
+        "max": 1,
+        "step": 0.01,
+        "display": "number",
+        "places": 2
       },
       "pass": {
         "measure": "correlation",
@@ -78,7 +81,8 @@
         }
       },
       "explain": "Two holdings with different names can be the same bet. Correlation measures how closely their daily moves line up: 1 means they move together every day, 0 means their moves are unrelated.",
-      "why": "An S&P 500 fund and a total-market fund hold almost the same companies in almost the same proportions, so they rise and fall together. The names differ; the bet does not."
+      "why": "An S&P 500 fund and a total-market fund hold almost the same companies in almost the same proportions, so they rise and fall together. The names differ; the bet does not.",
+      "revealLabel": "How closely they really move together"
     },
     {
       "id": 2,
@@ -93,7 +97,10 @@
         "measure": "effectiveBets",
         "prompt": "Before the reveal: how many separate bets does this portfolio make?",
         "min": 1,
-        "max": 5
+        "max": 5,
+        "step": 0.1,
+        "display": "number",
+        "places": 1
       },
       "pass": {
         "measure": "guess",
@@ -114,7 +121,8 @@
       },
       "explain": "Effective bets counts independent sources of risk, not holdings. Five holdings that move together are closer to one bet. It counts risk rather than money, so a bond fund with a small share of the dollars can still be a real second bet.",
       "why": "This portfolio is drawn from a pool of 20, and level 7's first mystery portfolio comes from the same pool, so the two are equally hard on average. That is how Hypothesis 3 measures whether players improve.",
-      "poolRef": "guessPool"
+      "poolRef": "guessPool",
+      "revealLabel": "Separate bets this portfolio really makes"
     },
     {
       "id": 3,
@@ -130,7 +138,10 @@
         "measure": "effectiveBets",
         "prompt": "Before the reveal: how many separate bets does your portfolio make?",
         "min": 1,
-        "max": 5
+        "max": 5,
+        "step": 0.1,
+        "display": "number",
+        "places": 1
       },
       "pass": {
         "measure": "effectiveBets",
@@ -152,7 +163,138 @@
         }
       },
       "explain": "Holdings from the same group tend to move together, so they collapse into one bet. Three real bets needs three groups that behave differently, not three names.",
-      "why": "Five AI stocks are nearly one bet. A fund, a bond fund, gold, an energy name and a staples name are closer to five, because what drives each of them differs."
+      "why": "Five AI stocks are nearly one bet. A fund, a bond fund, gold, an energy name and a staples name are closer to five, because what drives each of them differs.",
+      "revealLabel": "Separate bets this portfolio really makes"
+    },
+    {
+      "id": 4,
+      "title": "Hidden AI",
+      "concept": "Index concentration",
+      "challenge": "Keep at least 30% in QQQ, and still move less than half as much as the AI basket.",
+      "holdings": {
+        "exactly": 4,
+        "required": [
+          "QQQ"
+        ],
+        "minShare": {
+          "QQQ": 0.3
+        }
+      },
+      "holdingsNote": "docs/PRD.md sets the 30% in QQQ and leaves the holding count open; 4 is chosen to match level 5 and to need no build rule the game does not already have. QQQ is dealt into the portfolio and cannot be removed, and its share cannot go below $3,000 of the $10,000.",
+      "pool": "all",
+      "poolNote": "The whole ticker list. QQQ is fixed; the other three are the level. What a player puts beside the fund is the only thing that can get the beta down.",
+      "basket": {
+        "source": "basket.json",
+        "weighting": "equal",
+        "note": "The 13 AI names frozen in basket.json, equally weighted and rebalanced daily, which is the same basket Hypothesis 2 measures and the same code that built it. basket.json is authoritative: a test holds this level to its 13 names."
+      },
+      "guess": {
+        "measure": "beta",
+        "prompt": "Before the reveal: when the AI basket moves 1%, how far does your portfolio move?",
+        "min": 0,
+        "max": 1.5,
+        "step": 0.05,
+        "display": "number",
+        "places": 2
+      },
+      "pass": {
+        "measure": "beta",
+        "comparison": "<",
+        "threshold": 0.5,
+        "says": "a beta to the AI basket under 0.50"
+      },
+      "buckets": [
+        {
+          "key": "aiBet",
+          "min": 1,
+          "label": "an AI bet"
+        },
+        {
+          "key": "partly",
+          "min": 0.5,
+          "label": "partly an AI bet"
+        },
+        {
+          "key": "barely",
+          "min": null,
+          "label": "barely an AI bet"
+        }
+      ],
+      "bucketNote": "The edges are this level's own pass threshold (0.50) and the basket moving one for one (1.00), not new numbers. The lowest bucket has no floor because a beta has none: a portfolio of staples can move slightly against the basket, and that is still barely an AI bet.",
+      "stars": {
+        "pass": 1,
+        "two": {
+          "test": "bucket",
+          "says": "named the right bucket"
+        },
+        "three": {
+          "test": "within",
+          "of": 0.1,
+          "says": "within 0.10 of the real beta"
+        }
+      },
+      "revealLabel": "How far your portfolio moves with the AI basket",
+      "explain": "Beta says how far your portfolio moves when the AI basket moves: 1 means it moves with the basket one for one, 0 means the basket tells you nothing about it. QQQ holds the AI names near the top of the Nasdaq-100, so 30% of it already buys some of that exposure before you pick anything else. Buying AI stocks on top stacks the same bet twice.",
+      "why": "On the window this level was checked against, QQQ on its own had a beta of about 0.56 to the AI basket - more than this level allows. So the fund alone is already more than half an AI bet, and leaning harder on it is not the way out. What gets the beta under 0.50 is holding things the AI trade does not drive."
+    },
+    {
+      "id": 5,
+      "title": "Where's the risk?",
+      "concept": "Risk share vs dollar share",
+      "challenge": "Build any 4-holding portfolio where no holding carries more than 35% of the risk.",
+      "holdings": {
+        "exactly": 4
+      },
+      "pool": "all",
+      "poolNote": "The whole ticker list, and any four of it, as docs/PRD.md asks.",
+      "guess": {
+        "measure": "maxRiskShare",
+        "prompt": "Before the reveal: what share of your portfolio's risk does its biggest holding carry?",
+        "min": 0.25,
+        "max": 1,
+        "step": 0.01,
+        "display": "percent"
+      },
+      "guessNote": "The floor is 25% by arithmetic: four shares adding to 100% put the biggest at a quarter or more. The ceiling is 100%, and a share can pass it when a holding offsets the rest, which no guess can name exactly - the three-star band still reaches it.",
+      "pass": {
+        "measure": "maxRiskShare",
+        "comparison": "<=",
+        "threshold": 0.35,
+        "says": "no holding over 35% of the risk"
+      },
+      "buckets": [
+        {
+          "key": "oneHolding",
+          "min": 0.5,
+          "label": "one holding carrying the portfolio"
+        },
+        {
+          "key": "leaning",
+          "min": 0.35,
+          "label": "one holding leaning heavy"
+        },
+        {
+          "key": "spread",
+          "min": null,
+          "label": "spread"
+        }
+      ],
+      "bucketNote": "The edges are this level's own pass threshold (35%) and a half, not new numbers.",
+      "stars": {
+        "pass": 1,
+        "two": {
+          "test": "bucket",
+          "says": "named the right bucket"
+        },
+        "three": {
+          "test": "within",
+          "of": 0.05,
+          "says": "within 5 points of the real share"
+        }
+      },
+      "revealLabel": "Share of the risk in your biggest holding",
+      "explain": "Share of risk is not share of dollars. Each holding's share is its part of what makes the portfolio move, and the four shares add up to 100%, so they can be read straight against the money. A quarter of the money in the holding that swings hardest can be most of the risk.",
+      "why": "Spreading the risk evenly is not the same as making several bets. Four funds that all move together can each carry about a quarter of the risk and still be barely more than one bet, so a portfolio can pass this level and fail level 3. This level asks where the risk sits; level 3 asks how many different things it rides on."
     }
   ],
   "guessPool": {
@@ -376,5 +518,6 @@
       "minDays": 252
     },
     "expectedBetsNote": "Computed from the committed data/prices.json when the pool was generated. The game recomputes it at play time; a test holds the two to 1e-9."
-  }
+  },
+  "displayNote": "guess.step, guess.display and revealLabel are presentation, and they are data here rather than a branch in js/game.js: with five levels answering with a correlation, a bets count, a beta and a share of risk, code that switched on the measure name would decide how a number reads. A display of \"percent\" means the value is a share of 1 and is shown as a whole percent, or to 2 decimal places when it sits within 0.005 of the level's threshold."
 }

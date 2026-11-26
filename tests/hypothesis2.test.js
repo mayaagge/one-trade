@@ -27,6 +27,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 import { makeRng, SEED } from '../js/rng.js';
+import { equalWeightBasket as mathEqualWeightBasket } from '../js/math.js';
 import {
   BLOCK_DAYS,
   RESAMPLES,
@@ -143,6 +144,14 @@ test('the basket follows the list of names it is given, not the whole object', (
 
 test('the basket refuses ragged or missing history', () => {
   assert.throws(() => equalWeightBasket({ A: [1, 2], B: [1] }, ['A', 'B']), /same number of days/);
+});
+
+test('the basket this file names is the one js/math.js defines, not a copy of it', () => {
+  // equalWeightBasket moved into js/math.js so that level 4's beta could use the
+  // same basket as Hypothesis 2's correlation without the game importing the
+  // research layer. This holds the two names to one function, so a later edit
+  // cannot leave the research measuring one basket and the game another.
+  assert.equal(equalWeightBasket, mathEqualWeightBasket);
   assert.throws(() => equalWeightBasket({ A: [1, 2] }, ['A', 'MISSING']), /MISSING/);
   assert.throws(() => equalWeightBasket({ A: [1, 2] }, []), /at least one/);
 });

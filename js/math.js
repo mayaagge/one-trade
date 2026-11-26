@@ -316,6 +316,101 @@ export function betaTo(portfolioReturnSeries, basketReturns) {
   return covPB / varB;          // the (days - 1) divisors cancel
 }
 
+/**
+ * The equal-weight basket: the plain average of its members' daily returns, one
+ * day at a time.
+ *
+ * REBALANCED DAILY, and that is a real choice. Averaging daily returns is the
+ * same as selling a little of whatever rose and buying a little of whatever fell
+ * at every close, so the weights go back to equal each day. The alternative -
+ * buying equal dollar amounts once at the start and leaving them - would let the
+ * winners grow into most of the basket, which over ten years of NVDA would make
+ * the "basket" mostly one stock, and its correlation with the market would then
+ * be measuring NVDA. PREREG.md says "AI basket: equal weight", and daily
+ * rebalancing is the reading that keeps it equal weight throughout.
+ *
+ * IT LIVES HERE, in the shared math, because two different parts of the project
+ * need the same basket: Hypothesis 2's registered correlation, and level 4's
+ * beta to the AI basket. js/hypothesis2.js re-exports it so the research code and
+ * its tests read exactly as they did; what moved is the definition, not the
+ * meaning, and tests/research.test.js checks data/results.json is unchanged by
+ * the move. A game module importing the research layer to get it would have been
+ * the wrong way round.
+ */
+export function equalWeightBasket(returnsByTicker, tickers) {
+  if (!Array.isArray(tickers) || tickers.length === 0) {
+    throw new Error('equalWeightBasket: expected at least one ticker');
+  }
+  const series = tickers.map((ticker) => {
+    const values = returnsByTicker[ticker];
+    if (!Array.isArray(values)) throw new Error(`equalWeightBasket: no returns for ${ticker}`);
+    return values;
+  });
+  const days = series[0].length;
+  for (const [i, values] of series.entries()) {
+    if (values.length !== days) {
+      throw new Error(
+        `equalWeightBasket: every member needs the same number of days; `
+        + `${tickers[0]} has ${days} and ${tickers[i]} has ${values.length}`,
+      );
+    }
+  }
+  return Array.from({ length: days }, (_, t) => {
+    let sum = 0;
+    for (const values of series) sum += values[t];
+    return sum / series.length;
+  });
+}
+
+/**
+ * Each holding's part of the portfolio's beta to a basket, in beta units.
+ *
+ * Beta is linear in the dollar weights, because covariance is:
+ * cov(sum_i w_i r_i, b) = sum_i w_i cov(r_i, b). So holding i contributes
+ * w_i * beta_i, and the contributions add up to the portfolio's beta exactly.
+ * That is what lets level 4's "Why?" card say where the AI exposure came from
+ * without inventing a decomposition for it.
+ *
+ * THE CONTRIBUTIONS ARE NOT TURNED INTO PERCENTAGES, and that is deliberate. A
+ * holding whose beta is negative - on the current window, JNJ, PG, KO and XOM
+ * are all slightly negative to the AI basket - contributes a negative amount, so
+ * the shares run past 100% and below 0%: a portfolio of QQQ with staples beside
+ * it has QQQ at 148% of its beta. "QQQ is 148% of your AI exposure" is not a
+ * sentence to show a beginner, so the card states the betas themselves.
+ *
+ * @param {number[][]} holdingReturns rows = days, columns = holdings
+ * @param {number[]} weights dollar shares, summing to 1
+ * @param {number[]} basketReturns the basket's daily returns, same days
+ * @returns {{betas: number[], contributions: number[], beta: number}}
+ */
+export function betaContributions(holdingReturns, weights, basketReturns) {
+  const { holdings } = returnsShape(holdingReturns, 'betaContributions');
+  const w = Array.from(weights, Number);
+  if (w.length !== holdings) {
+    throw new Error(`betaContributions: ${w.length} weights for ${holdings} holdings`);
+  }
+  const betas = [];
+  for (let i = 0; i < holdings; i += 1) {
+    betas.push(betaTo(holdingReturns.map((day) => day[i]), basketReturns));
+  }
+  const contributions = betas.map((beta, i) => beta * w[i]);
+  return {
+    betas,
+    contributions,
+    // Summed from the parts rather than recomputed from the portfolio series, so
+    // the number the card explains is the number the parts add up to.
+    beta: contributions.reduce((sum, value) => sum + value, 0),
+  };
+}
+
+/**
+ * The biggest share of portfolio variance any one holding carries, which is
+ * level 5's measure: "no holding carries more than 35% of the risk".
+ */
+export function maxRiskShare(weights, cov) {
+  return riskShares(weights, cov).reduce((most, share) => (share > most ? share : most), -Infinity);
+}
+
 /** Daily portfolio returns from holding returns and dollar weights. */
 export function portfolioReturns(returns, weights) {
   if (!Array.isArray(returns) || returns.length === 0) {

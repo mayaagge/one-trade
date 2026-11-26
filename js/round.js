@@ -23,11 +23,20 @@
 //
 // Educational, not investment advice.
 
-import { correlation, covariance, effectiveBets } from './math.js';
+import {
+  betaTo,
+  correlation,
+  covariance,
+  effectiveBets,
+  equalWeightBasket,
+  maxRiskShare,
+  portfolioReturns,
+} from './math.js';
 import { gameWindow, windowMatrix } from './gameView.js';
 import { pickWhy, whyFacts } from './why.js';
 import {
   bucketOf,
+  displayFor,
   levelById,
   passes,
   resultLine,
@@ -49,7 +58,7 @@ export const REVEAL = 'reveal';
  * that change nothing. Effective bets does depend on the weights, so levels 2
  * and 3 carry dollars.
  */
-export const WEIGHTED_MEASURES = new Set(['effectiveBets']);
+export const WEIGHTED_MEASURES = new Set(['effectiveBets', 'beta', 'maxRiskShare']);
 
 /** The money a player allocates, and the step the buttons move it in. */
 export const DOLLAR_STEP = 100;
@@ -67,6 +76,29 @@ export function isFixed(level) {
 /** How many holdings this level wants, or null if it does not say. */
 export function holdingsWanted(level) {
   return Number.isInteger(level.holdings?.exactly) ? level.holdings.exactly : null;
+}
+
+/**
+ * The holdings a level deals the player and will not let go: level 4's QQQ,
+ * because "keep at least 30% in QQQ" is not a choice about whether to hold it.
+ */
+export function requiredHoldings(level) {
+  return Array.isArray(level.holdings?.required) ? [...level.holdings.required] : [];
+}
+
+/**
+ * The least money a holding may carry on this level, in whole dollars.
+ *
+ * Two floors meet here. Every holding has the $100 one - a 4-holding portfolio
+ * with a zero in it is a 3-holding portfolio, and the level asked for 4 - and a
+ * holding named in holdings.minShare has its own, which is level 4's 30% of the
+ * $10,000. The share is rounded UP to a whole step, so the floor the buttons stop
+ * at is never a hair under the share the level requires.
+ */
+export function floorFor(level, ticker, total, step = DOLLAR_STEP) {
+  const share = level.holdings?.minShare?.[ticker];
+  if (!Number.isFinite(share)) return step;
+  return Math.max(step, Math.ceil((share * total) / step) * step);
 }
 
 /**
@@ -105,6 +137,47 @@ export function evenSplit(tickers, total, step = DOLLAR_STEP) {
 }
 
 /**
+ * $10,000 split as evenly as whole $100 steps allow, then raised to meet any
+ * floor the level puts under a holding.
+ *
+ * Level 4 asks for at least 30% in QQQ, so an even quarter of the money is not a
+ * legal start: the split begins even and then moves whole steps out of the
+ * largest holdings that can spare them until QQQ reaches $3,000. It stops AT the
+ * floor rather than above it, so the level starts at exactly what it demands and
+ * a player who wants more QQQ has to choose it - and find out what it costs.
+ *
+ * @param {string[]} tickers the holdings
+ * @param {number} total the pretend money, in whole dollars
+ * @param {Object<string, number>} floors ticker -> its least dollars
+ */
+export function splitWithFloors(tickers, total, floors = {}, step = DOLLAR_STEP) {
+  const dollars = evenSplit(tickers, total, step);
+  const floorOf = (ticker) => floors[ticker] ?? step;
+
+  // Biggest floor first, so a level with two floors fills the binding one before
+  // the money has been spread thin on the other.
+  const needy = tickers
+    .filter((ticker) => dollars[ticker] < floorOf(ticker))
+    .sort((a, b) => floorOf(b) - floorOf(a));
+
+  for (const ticker of needy) {
+    while (dollars[ticker] < floorOf(ticker)) {
+      const donor = tickers
+        .filter((other) => other !== ticker && dollars[other] - step >= floorOf(other))
+        .sort((a, b) => dollars[b] - dollars[a])[0];
+      if (donor === undefined) {
+        throw new Error(
+          `splitWithFloors: ${tickers.join(', ')} cannot meet their floors out of ${total}`,
+        );
+      }
+      dollars[donor] -= step;
+      dollars[ticker] += step;
+    }
+  }
+  return dollars;
+}
+
+/**
  * Pick one of the 20 pool portfolios.
  *
  * PREREG.md gives level 2 and level 7's first mystery portfolio one shared pool
@@ -129,12 +202,24 @@ export function drawFromPool(guessPool, random = Math.random) {
  * the unrounded value against the threshold: docs/PRD.md requires that a
  * displayed number never disagrees with the pass check.
  */
-export function measureFor(level, game, { tickers, weights }, window) {
+export function measureFor(level, game, { tickers, weights }, window, { basket = null } = {}) {
   const measure = level.pass.measure === 'guess' ? level.guess.measure : level.pass.measure;
-  const slice = gameWindow(game, tickers, window.days);
+
+  // A beta is measured against a basket, so the window has to be one both the
+  // portfolio and every basket member cover. Taking the portfolio's own window and
+  // then reading the basket over it would be reading the basket off days it may
+  // not have, which is the mistake js/returns.js exists to prevent.
+  if (measure === 'beta' && (!Array.isArray(basket) || basket.length === 0)) {
+    throw new Error(
+      `measureFor: level ${level.id} measures a beta to a basket, but no basket was given. `
+      + `levels.json names its source as ${level.basket?.source ?? 'nothing'}.`,
+    );
+  }
+  const needed = measure === 'beta' ? [...new Set([...tickers, ...basket])] : tickers;
+  const slice = gameWindow(game, needed, window.days);
   if (slice.days < window.minDays) {
     throw new Error(
-      `${tickers.join(', ')} overlap on only ${slice.days} trading days, fewer than the `
+      `${needed.join(', ')} overlap on only ${slice.days} trading days, fewer than the `
       + `${window.minDays} this game needs, so no measure would be trustworthy`,
     );
   }
@@ -148,6 +233,12 @@ export function measureFor(level, game, { tickers, weights }, window) {
     value = correlation(matrix)[0][1];
   } else if (measure === 'effectiveBets') {
     value = effectiveBets(weights, covariance(matrix));
+  } else if (measure === 'maxRiskShare') {
+    value = maxRiskShare(weights, covariance(matrix));
+  } else if (measure === 'beta') {
+    // The same equal-weight basket Hypothesis 2 measures, built by the same
+    // function in js/math.js, over the same days as the portfolio.
+    value = betaTo(portfolioReturns(matrix, weights), equalWeightBasket(slice.byTicker, basket));
   } else {
     throw new Error(`measureFor: level ${level.id} asks for an unknown measure "${measure}"`);
   }
@@ -233,6 +324,8 @@ function buildWhyCard(level, { tickers, weights, matrix, groups, why, value, pas
  * @param {string[]} options.universe the whole ticker list, for a level whose pool is "all"
  * @param {object} [options.why]     why.json, validated, for the "Why?" card
  * @param {Map} [options.groups]     ticker -> {key, label}, from js/why.js's groupIndex
+ * @param {string[]} [options.basket] the AI basket's members, from basket.json, for a
+ *                                   level whose measure is a beta to it
  * @param {Function} options.random  the draw for level 2's portfolio
  *
  * `why` and `groups` are optional, and without them the round plays exactly as
@@ -240,7 +333,8 @@ function buildWhyCard(level, { tickers, weights, matrix, groups, why, value, pas
  * the card is a reveal screen feature - and this file stays testable on its own.
  */
 export function createRound({
-  levels, levelId, game, universe = [], why = null, groups = null, random = Math.random,
+  levels, levelId, game, universe = [], why = null, groups = null, basket = null,
+  random = Math.random,
 }) {
   const level = levelById(levels, levelId);
   const window = {
@@ -257,6 +351,19 @@ export function createRound({
   // memory only for now, so this lives on the round and nowhere else.
   const drawn = isFixed(level) ? drawFromPool(levels.guessPool, random) : null;
 
+  // Level 4's QQQ. "Keep at least 30% in QQQ" is not a choice about whether to
+  // hold it, so it is dealt with the round and cannot be given up; what a player
+  // puts beside it is the level.
+  const required = requiredHoldings(level);
+  for (const ticker of required) {
+    if (!pool.includes(ticker)) {
+      throw new Error(`level ${level.id}: ${ticker} is required but is not in this level's pool`);
+    }
+  }
+  const floors = Object.fromEntries(
+    Object.keys(level.holdings?.minShare ?? {}).map((t) => [t, floorFor(level, t, total)]),
+  );
+
   const round = {
     level,
     levelId: level.id,
@@ -269,10 +376,15 @@ export function createRound({
     fixed: isFixed(level),
     /** Which of the 20 pool portfolios was drawn, or null on a level that builds its own. */
     drawnId: drawn ? drawn.id : null,
-    /** The player's picks, in the order they were picked. */
-    picks: drawn ? Object.keys(drawn.dollars) : [],
+    /** The holdings this level deals and will not let go, and their dollar floors. */
+    required,
+    floors,
+    /** The player's picks, in the order they were picked, any required ones first. */
+    picks: drawn ? Object.keys(drawn.dollars) : [...required],
     /** Dollars per holding, whole dollars summing to the total. Empty when a level uses no money. */
-    dollars: drawn ? { ...drawn.dollars } : {},
+    dollars: drawn
+      ? { ...drawn.dollars }
+      : (usesMoney(level) && required.length > 0 ? splitWithFloors(required, total, floors) : {}),
     /** Null until the player moves the slider: nothing is shown to anchor on. */
     guess: null,
     /** Filled in by reveal(). */
@@ -297,6 +409,9 @@ export function createRound({
     if (round.fixed) throw new Error(`level ${level.id}: the portfolio is fixed and cannot be changed`);
     if (round.state === REVEAL) throw new Error('the round is over; the build cannot change');
     if (!pool.includes(ticker)) throw new Error(`level ${level.id}: ${ticker} is not in this level's pool`);
+    if (required.includes(ticker) && round.hasPick(ticker)) {
+      throw new Error(`level ${level.id} is built around ${ticker}, so it cannot be removed`);
+    }
 
     if (round.hasPick(ticker)) {
       round.picks = round.picks.filter((t) => t !== ticker);
@@ -308,7 +423,7 @@ export function createRound({
     // again, which is the plainest starting point and the one a player can then
     // nudge in $100 steps.
     round.dollars = round.usesMoney && round.picks.length > 0
-      ? evenSplit(round.picks, total)
+      ? splitWithFloors(round.picks, total, floors)
       : {};
     return round;
   };
@@ -318,7 +433,10 @@ export function createRound({
     if (wanted !== null && round.picks.length !== wanted) return false;
     if (round.picks.length === 0) return false;
     if (!round.usesMoney) return true;
-    return round.allocated() === total && round.picks.every((t) => round.dollars[t] > 0);
+    if (round.allocated() !== total) return false;
+    // At or above its own floor: the $100 every holding has, and the level's own
+    // floor on a holding it requires - level 4's 30% in QQQ.
+    return round.picks.every((t) => (round.dollars[t] ?? 0) >= (floors[t] ?? DOLLAR_STEP));
   };
 
   /** What the player has allocated so far, in whole dollars. */
@@ -332,6 +450,11 @@ export function createRound({
    * 4-holding portfolio, and the level asked for 5. Returns how many steps it
    * could actually move, which is fewer than asked for when the others have
    * nothing left to give.
+   *
+   * A LEVEL'S OWN FLOOR IS PART OF THAT. On level 4 the buttons will not take QQQ
+   * below $3,000, and will not take it there from another holding either, so a
+   * build that satisfies "at least 30% in QQQ" cannot be nudged out of satisfying
+   * it. The gate is not the only thing holding the rule up; the controls are.
    */
   round.adjustDollars = (ticker, steps, step = DOLLAR_STEP) => {
     if (!round.usesMoney) throw new Error(`level ${level.id} allocates no money`);
@@ -342,20 +465,22 @@ export function createRound({
 
     const others = round.picks.filter((t) => t !== ticker);
     if (others.length === 0) return 0;
+    const floorOf = (name) => floors[name] ?? step;
 
     let moved = 0;
     const direction = Math.sign(steps);
     for (let i = 0; i < Math.abs(steps); i += 1) {
       if (direction > 0) {
-        // Take a step from the largest other holding that can spare one.
+        // Take a step from the largest other holding that can spare one without
+        // dropping through its own floor.
         const from = others
-          .filter((t) => round.dollars[t] - step >= step)
+          .filter((t) => round.dollars[t] - step >= floorOf(t))
           .sort((a, b) => round.dollars[b] - round.dollars[a])[0];
         if (from === undefined) break;
         round.dollars[from] -= step;
         round.dollars[ticker] += step;
       } else {
-        if (round.dollars[ticker] - step < step) break;
+        if (round.dollars[ticker] - step < floorOf(ticker)) break;
         const to = others.sort((a, b) => round.dollars[a] - round.dollars[b])[0];
         round.dollars[ticker] -= step;
         round.dollars[to] += step;
@@ -431,7 +556,7 @@ export function createRound({
       ? weightsFromDollars(round.dollars)
       : { tickers: [...round.picks], weights: round.picks.map(() => 1 / round.picks.length) };
 
-    const { matrix, ...measured } = measureFor(level, gameData, weighted, window);
+    const { matrix, ...measured } = measureFor(level, gameData, weighted, window, { basket });
     const passed = passes(level, measured.value);
     const stars = starsFor(level, { guess: round.guess, actual: measured.value, passed });
 
@@ -444,8 +569,12 @@ export function createRound({
       passed,
       stars,
       // Formatted here so every screen reads the same number.
-      shown: formatMeasure(measured.value, { threshold: level.pass.threshold ?? null }),
-      guessShown: formatMeasure(round.guess, { threshold: level.pass.threshold ?? null }),
+      shown: formatMeasure(measured.value, {
+        threshold: level.pass.threshold ?? null, display: displayFor(level).display,
+      }),
+      guessShown: formatMeasure(round.guess, {
+        threshold: level.pass.threshold ?? null, display: displayFor(level).display,
+      }),
       line: resultLine(level, measured.value),
       // Level 1 scores its second star on naming the right bucket, so the
       // reveal has to say which bucket each of the two numbers fell in.

@@ -17,6 +17,9 @@ import {
   bucketOf,
   starsFor,
   formatMeasure,
+  formatGuess,
+  displayFor,
+  DISPLAYS,
   resultLine,
   weightsFromDollars,
   totalDollars,
@@ -28,6 +31,7 @@ import {
 
 import { buildReturns } from '../js/returns.js';
 import { betsFor, FUNDS, MIN_HOLDINGS, MAX_HOLDINGS } from '../scripts/make_pool.mjs';
+import { checkLevel4, checkLevel5, REQUIRED_DESIGNS } from '../scripts/check_levels.mjs';
 
 const read = (name) => JSON.parse(readFileSync(fileURLToPath(new URL(name, import.meta.url)), 'utf8'));
 const LEVELS = read('../levels.json');
@@ -46,9 +50,9 @@ const copy = () => JSON.parse(JSON.stringify(LEVELS));
 
 // ------------------------------------------------------------------ the file
 
-test('levels.json is valid, and holds levels 1 to 3', () => {
+test('levels.json is valid, and holds levels 1 to 5', () => {
   assert.equal(validateLevels(LEVELS), LEVELS);
-  assert.deepEqual(LEVELS.levels.map((l) => l.id), [1, 2, 3]);
+  assert.deepEqual(LEVELS.levels.map((l) => l.id), [1, 2, 3, 4, 5]);
   assert.equal(LEVELS.startingDollars, STARTING_DOLLARS);
   assert.equal(LEVELS.disclaimer, DISCLAIMER);
 });
@@ -303,4 +307,177 @@ test('resultLine() prints the measure and the threshold to the same precision', 
   assert.equal(resultLine(level3, 3.07), '3.07 clears the 3.00 needed');
   assert.equal(resultLine(level3, 2.9996), '2.9996 misses the 3.0000 needed');
   assert.equal(resultLine(level2, 2.1), null, 'level 2 has no threshold to print');
+});
+
+// ------------------------------------------------- levels 4 and 5, the rules
+
+const level4 = levelById(LEVELS, 4);
+const level5 = levelById(LEVELS, 5);
+
+test('levels 4 and 5 carry the thresholds in the PRD levels table', () => {
+  assert.equal(level4.pass.measure, 'beta');
+  assert.equal(level4.pass.comparison, '<');
+  assert.equal(level4.pass.threshold, 0.5);
+  assert.equal(level4.holdings.minShare.QQQ, 0.3, 'the PRD asks for at least 30% in QQQ');
+  assert.deepEqual(level4.holdings.required, ['QQQ']);
+
+  assert.equal(level5.pass.measure, 'maxRiskShare');
+  assert.equal(level5.pass.comparison, '<=');
+  assert.equal(level5.pass.threshold, 0.35, 'no holding carries MORE than 35%, so 35% itself passes');
+  assert.equal(level5.holdings.exactly, 4);
+});
+
+test('level 4 measures the basket frozen in basket.json, not a list of its own', () => {
+  const basket = read('../basket.json');
+  assert.equal(level4.basket.source, 'basket.json');
+  assert.equal(level4.basket.weighting, 'equal');
+  assert.equal(basket.stocks.length, 13);
+  // Every member has to be a ticker the game carries, or a level 4 round could
+  // not be measured at all.
+  for (const stock of basket.stocks) {
+    assert.ok(KNOWN_TICKERS.has(stock.ticker), `${stock.ticker} is in no group in tickers.json`);
+  }
+});
+
+test('the star bands for levels 4 and 5 are the ones the PRD scoring table fixes', () => {
+  for (const level of [level4, level5]) {
+    assert.equal(level.stars.pass, 1);
+    assert.equal(level.stars.two.test, 'bucket');
+    assert.equal(level.stars.three.test, 'within');
+  }
+  assert.equal(level4.stars.three.of, 0.1, 'the 0.10 band level 1 already uses');
+  assert.equal(level5.stars.three.of, 0.05, '5 points of the real share');
+});
+
+test('the bucket edges are each level’s own threshold and one plain anchor', () => {
+  assert.deepEqual(level4.buckets.map((b) => b.min), [1, 0.5, null]);
+  assert.deepEqual(level5.buckets.map((b) => b.min), [0.5, 0.35, null]);
+  assert.equal(level4.buckets[1].min, level4.pass.threshold);
+  assert.equal(level5.buckets[1].min, level5.pass.threshold);
+});
+
+test('bucketOf() puts a beta and a risk share in the right band, floor and all', () => {
+  assert.equal(bucketOf(level4, 1.2), 'aiBet');
+  assert.equal(bucketOf(level4, 1), 'aiBet', 'the edge belongs to the bucket above');
+  assert.equal(bucketOf(level4, 0.6), 'partly');
+  assert.equal(bucketOf(level4, 0.5), 'partly');
+  assert.equal(bucketOf(level4, 0.49), 'barely');
+  // A beta has no floor: a portfolio of staples can move against the basket.
+  assert.equal(bucketOf(level4, -0.11), 'barely');
+
+  assert.equal(bucketOf(level5, 0.82), 'oneHolding');
+  assert.equal(bucketOf(level5, 0.35), 'leaning');
+  assert.equal(bucketOf(level5, 0.26), 'spread');
+});
+
+test('level 4 scores 2 for the right bucket and 3 within 0.10 of the beta', () => {
+  const stars = (guess, actual) => starsFor(level4, { guess, actual, passed: passes(level4, actual) });
+  assert.equal(stars(0.30, 0.29), 3, 'right bucket and within 0.10');
+  assert.equal(stars(0.45, 0.29), 2, 'same bucket, 0.16 out');
+  assert.equal(stars(0.80, 0.29), 1, 'passed, but called it partly an AI bet');
+  assert.equal(stars(0.75, 0.79), 0, 'a beta of 0.79 fails the level, so no stars');
+});
+
+test('level 5 scores 2 for the right bucket and 3 within 5 points', () => {
+  const stars = (guess, actual) => starsFor(level5, { guess, actual, passed: passes(level5, actual) });
+  assert.equal(stars(0.30, 0.27), 3);
+  assert.equal(stars(0.25, 0.33), 2, 'both spread, 8 points out');
+  assert.equal(stars(0.60, 0.27), 1, 'passed, but called it one holding carrying the portfolio');
+  assert.equal(stars(0.40, 0.42), 0, 'over 35% of the risk is a fail, however good the guess');
+});
+
+test('a share of risk shown as a percent cannot contradict the pass check', () => {
+  const show = (value) => formatMeasure(value, { threshold: 0.35, display: 'percent' });
+  assert.equal(show(0.27), '27%');
+  assert.equal(show(0.42), '42%');
+  // Within half a point of the line, where a whole percent could read as the
+  // other side of it: shown to 2 decimals, and the pass check is unchanged.
+  assert.equal(show(0.3549), '35.49%');
+  assert.equal(passes(level5, 0.3549), false);
+  assert.equal(show(0.3451), '34.51%');
+  assert.equal(passes(level5, 0.3451), true);
+  // The threshold itself sits within 0.005 of itself, so it is shown to the extra
+  // places too - the same thing level 1 does with a correlation of exactly 0.80,
+  // and the reason is the same: nothing about the display decides the pass.
+  assert.equal(show(0.35), '35.00%');
+  assert.equal(passes(level5, 0.35), true);
+});
+
+test('resultLine() speaks each level’s own display', () => {
+  assert.equal(resultLine(level5, 0.27), '27% clears the 35% needed');
+  assert.equal(resultLine(level5, 0.3549), '35.49% misses the 35.00% needed');
+  assert.equal(resultLine(level4, 0.29), '0.29 clears the 0.50 needed');
+  assert.equal(resultLine(level4, 0.5004), '0.5004 misses the 0.5000 needed');
+});
+
+test('formatGuess() writes a guess in the units its slider shows', () => {
+  assert.equal(formatGuess(level1, 0.85), '0.85');
+  assert.equal(formatGuess(level3, 3.1), '3.1');
+  assert.equal(formatGuess(level4, 0.55), '0.55');
+  assert.equal(formatGuess(level5, 0.38), '38%');
+  assert.equal(formatGuess(level5, null), '—');
+});
+
+test('every level says how its slider moves and what its reveal panel is called', () => {
+  for (const level of LEVELS.levels) {
+    const shape = displayFor(level);
+    assert.ok(shape.step > 0, `level ${level.id} has no step`);
+    assert.ok(DISPLAYS.includes(shape.display), `level ${level.id} has no display`);
+    assert.ok(level.revealLabel.length > 10, `level ${level.id} has no reveal label`);
+    if (level.stars.three.test === 'within') {
+      assert.ok(shape.step <= level.stars.three.of,
+        `level ${level.id}: a step of ${shape.step} cannot reach a band of ${level.stars.three.of}`);
+    }
+  }
+});
+
+test('validateLevels() refuses the build rules a level 4 could get wrong', () => {
+  const required = (fn) => {
+    const file = copy();
+    fn(levelById(file, 4));
+    return file;
+  };
+
+  assert.throws(() => validateLevels(required((l) => { l.holdings.required = ['ZZZZ']; l.pool = ['QQQ', 'BND']; })),
+    /required but is not in this level's pool/);
+  assert.throws(() => validateLevels(required((l) => { l.holdings.minShare = { BND: 0.3 }; })),
+    /not a required holding/);
+  assert.throws(() => validateLevels(required((l) => { l.holdings.minShare = { QQQ: 0.98 }; })),
+    /cannot be built/);
+  assert.throws(() => validateLevels(required((l) => { l.holdings.minShare = { QQQ: 0 }; })),
+    /must be above 0/);
+  assert.throws(() => validateLevels(required((l) => { l.holdings.required = ['QQQ', 'VOO', 'VTI', 'BND', 'GLD']; })),
+    /will not fit/);
+  assert.throws(() => validateLevels(required((l) => { l.pass.measure = 'sharpeRatio'; })),
+    /is not one this game computes/);
+  assert.throws(() => validateLevels(required((l) => { delete l.guess.step; })),
+    /guess.step must be a positive number/);
+  assert.throws(() => validateLevels(required((l) => { l.guess.display = 'basis points'; })),
+    /guess.display must be one of/);
+  assert.throws(() => validateLevels(required((l) => { delete l.revealLabel; })),
+    /revealLabel is missing/);
+  assert.throws(() => validateLevels(required((l) => { l.buckets[0].min = null; })),
+    /only the lowest bucket may have no floor/);
+  assert.throws(() => validateLevels(required((l) => { l.buckets[1].min = 1.5; })),
+    /must run from the top down/);
+});
+
+test('every level still has at least 3 winning designs on the frozen snapshot', () => {
+  // The same check scripts/check_levels.mjs runs, over the levels whose rules are
+  // new here. It is seeded and takes under a second, so the frozen-snapshot
+  // version runs on every push; the refresh workflow runs the script again on the
+  // live prices the game is actually played on.
+  const built = buildReturns(read('../data/prices.json'));
+  const universe = [...KNOWN_TICKERS];
+  const basket = read('../basket.json').stocks.map((s) => s.ticker);
+
+  const four = checkLevel4(built, level4, universe, basket);
+  assert.ok(four.winners.length >= REQUIRED_DESIGNS,
+    `level 4 has ${four.winners.length} winning designs, fewer than ${REQUIRED_DESIGNS}`);
+  assert.ok(four.all.some((r) => !r.passed), 'level 4 would be no challenge if nothing failed it');
+
+  const five = checkLevel5(built, level5, universe);
+  assert.ok(five.winners.length >= REQUIRED_DESIGNS,
+    `level 5 has ${five.winners.length} winning designs, fewer than ${REQUIRED_DESIGNS}`);
+  assert.ok(five.all.some((r) => !r.passed), 'level 5 would be no challenge if nothing failed it');
 });

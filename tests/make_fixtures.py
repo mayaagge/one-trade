@@ -71,6 +71,25 @@ def beta_to(portfolio_returns, basket_returns):
     return float(np.cov(p, b, ddof=1)[0, 1] / np.var(b, ddof=1))
 
 
+def beta_contributions(holding_returns, weights, basket_returns):
+    """Each holding's share of the portfolio's beta, in beta units.
+
+    Beta is linear in the dollar weights, because covariance is:
+    cov(sum_i w_i r_i, b) = sum_i w_i cov(r_i, b). So holding i contributes
+    w_i * beta_i, and the contributions add up to the portfolio's beta exactly.
+    That is what lets level 4's "Why?" card name where the AI exposure came from
+    without inventing a decomposition.
+
+    Returned in beta units and NOT as percentages of the total: a holding whose
+    beta is negative contributes a negative amount, which would make the shares
+    run past 100% and below 0%. See BUILD_LOG.md, session 2.x.
+    """
+    r = np.asarray(holding_returns, dtype=float)
+    w = np.asarray(weights, dtype=float)
+    betas = np.array([beta_to(r[:, i], basket_returns) for i in range(r.shape[1])])
+    return betas, betas * w
+
+
 # --- the series measures, exactly as js/returns.js and js/hypothesis2.js must
 # --- implement them ----------------------------------------------------------
 
@@ -308,9 +327,112 @@ def build_series_cases():
     return cases
 
 
+# --- the beta cases, for level 4's measure -----------------------------------
+
+def build_beta_cases():
+    """Known answers for the whole chain level 4 computes.
+
+    Level 4 asks for beta to the equal-weight AI basket, which is three steps:
+    average the basket members' returns, weight the holdings into one portfolio
+    return series, then divide the covariance by the basket's variance. The cases
+    in build_cases() above check beta against ONE shared basket series; these
+    check the chain end to end, basket included, and the per-holding
+    decomposition the "Why?" card reads.
+
+    A fresh generator at the same registered seed, so nothing here moves a single
+    number in build_cases() or build_series_cases().
+    """
+    rng = np.random.default_rng(SEED)
+    cases = []
+
+    # 1. A portfolio that IS the basket, equally weighted. Hand-derivable: the
+    #    two series are identical day by day, so beta is exactly 1.
+    members = rng.normal(0.0, 0.015, (DAYS, 2))
+    cases.append({
+        "name": "beta_portfolio_is_the_basket",
+        "description": "A 50/50 portfolio of the basket's two members. Hand-derivable: beta is exactly 1.",
+        "hand_derivable": True,
+        "members": members,
+        "holdings": members,
+        "weights": [0.5, 0.5],
+        "expected_exact": {"portfolio_beta": 1.0},
+    })
+
+    # 2. One of two independent, equally volatile members, held alone.
+    #    Hand-derivable: cov(a, (a+b)/2) = v/2 and var((a+b)/2) = v/2, so beta is
+    #    exactly 1 here too - a single name can carry the whole basket's beta.
+    #    Constructed rather than sampled, so the sample covariance is exactly
+    #    diagonal, as in Case 2 of build_cases().
+    a = 0.01
+    plus_minus = np.array([[a, a], [a, -a], [-a, a], [-a, -a]])
+    cases.append({
+        "name": "beta_one_member_of_two",
+        "description": (
+            "One of two independent, equally volatile members, held alone. "
+            "Hand-derivable: beta is exactly 1."
+        ),
+        "hand_derivable": True,
+        "members": plus_minus,
+        "holdings": plus_minus[:, [0]],
+        "weights": [1.0],
+        "expected_exact": {"portfolio_beta": 1.0},
+    })
+
+    # 3. The realistic case, shaped like level 4 itself: a 13-member basket, and
+    #    four holdings - one basket member, a fund that holds the basket's names
+    #    without being one of them (QQQ's job), an unrelated holding, and one that
+    #    moves against the basket. The negative one is deliberate: it makes a
+    #    contribution negative, which is why the card states beta rather than
+    #    shares of it.
+    thirteen = rng.normal(0.0, 0.016, (DAYS, 13))
+    basket_mean = thirteen.mean(axis=1)
+    fund = 0.6 * basket_mean + rng.normal(0.0, 0.006, DAYS)
+    unrelated = rng.normal(0.0, 0.009, DAYS)
+    against = -0.25 * basket_mean + rng.normal(0.0, 0.007, DAYS)
+    cases.append({
+        "name": "beta_thirteen_member_basket",
+        "description": (
+            "A 13-member equal-weight basket, as basket.json has, and four holdings: a "
+            "member, a fund holding the members, an unrelated holding and one that moves "
+            "against the basket."
+        ),
+        "hand_derivable": False,
+        "members": thirteen,
+        "holdings": np.column_stack([thirteen[:, 0], fund, unrelated, against]),
+        "weights": [0.30, 0.30, 0.25, 0.15],
+        "expected_exact": None,
+    })
+
+    out = []
+    for case in cases:
+        members = np.asarray(case["members"], dtype=float)
+        holdings = np.asarray(case["holdings"], dtype=float)
+        weights = case["weights"]
+        basket = equal_weight_basket(members)
+        portfolio = (holdings * np.asarray(weights)).sum(axis=1)
+        betas, contributions = beta_contributions(holdings, weights, basket)
+        out.append({
+            "name": case["name"],
+            "description": case["description"],
+            "hand_derivable": case["hand_derivable"],
+            "members": members.tolist(),
+            "holdings": holdings.tolist(),
+            "weights": weights,
+            "expected": {
+                "basket_returns": basket.tolist(),
+                "portfolio_beta": beta_to(portfolio, basket),
+                "holding_betas": betas.tolist(),
+                "beta_contributions": contributions.tolist(),
+            },
+            "expected_exact": case["expected_exact"],
+        })
+    return out
+
+
 def main():
     cases, basket = build_cases()
     series_cases = build_series_cases()
+    beta_cases = build_beta_cases()
     out = []
     for case in cases:
         returns = case["returns"]
@@ -324,6 +446,8 @@ def main():
             "effective_bets": effective_bets(weights, cov_used),
             "correlation_only_ratio": correlation_only_ratio(weights, cov_used),
             "risk_shares": risk_shares(weights, cov_used).tolist(),
+            # Level 5's measure: "no holding carries more than 35% of the risk".
+            "max_risk_share": float(np.max(risk_shares(weights, cov_used))),
         }
         # Beta needs matching day counts, so only the 252-day cases get one.
         if returns.shape[0] == len(basket):
@@ -359,6 +483,7 @@ def main():
         "cases": out,
         "rolling_window": ROLLING_WINDOW,
         "series_cases": series_cases,
+        "beta_cases": beta_cases,
     }
     with open(OUT, "w") as handle:
         json.dump(doc, handle, indent=1)
@@ -373,6 +498,10 @@ def main():
         print(f"  {case['name']:<28} holdings={len(case['weights'])} {' '.join(bits)}")
     for case in series_cases:
         print(f"  {case['name']:<32} {case['kind']:<22} {len(case['expected'])} values")
+    for case in beta_cases:
+        members = len(case["members"][0])
+        print(f"  {case['name']:<32} {members:>2} members, {len(case['weights'])} holdings, "
+              f"beta={case['expected']['portfolio_beta']:.12f}")
 
 
 if __name__ == "__main__":

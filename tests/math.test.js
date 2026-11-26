@@ -22,7 +22,10 @@ import {
   effectiveBets,
   riskShares,
   betaTo,
+  betaContributions,
   portfolioReturns,
+  equalWeightBasket,
+  maxRiskShare,
 } from '../js/math.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -138,3 +141,61 @@ for (const c of fixtures.cases) {
 test('the share cutoff matches the one used by make_fixtures.py', () => {
   assert.equal(SHARE_CUTOFF, fixtures.share_cutoff);
 });
+
+// --- beta to the equal-weight basket, the whole chain ----------------------
+//
+// Level 4's measure is three steps - average the basket's members, weight the
+// holdings into one return series, divide the covariance by the basket's
+// variance - and the cases above check only the last one, against a basket
+// series handed to them. These check the chain end to end, and the per-holding
+// decomposition the "Why?" card reads. tests/make_fixtures.py computes all of it
+// with numpy.
+
+for (const c of fixtures.beta_cases) {
+  const label = `${c.name} (${c.members[0].length} members, ${c.weights.length} holdings)`;
+
+  test(`${label}: the equal-weight basket matches numpy`, () => {
+    const members = c.members[0].map((_, i) => `m${i}`);
+    const byTicker = Object.fromEntries(
+      members.map((name, i) => [name, c.members.map((day) => day[i])]),
+    );
+    assertVectorClose(equalWeightBasket(byTicker, members), c.expected.basket_returns, 'basket');
+  });
+
+  test(`${label}: beta to the basket matches numpy`, () => {
+    const portfolio = portfolioReturns(c.holdings, c.weights);
+    assertClose(betaTo(portfolio, c.expected.basket_returns), c.expected.portfolio_beta, 'betaTo');
+  });
+
+  test(`${label}: each holding's beta and contribution match numpy`, () => {
+    const found = betaContributions(c.holdings, c.weights, c.expected.basket_returns);
+    assertVectorClose(found.betas, c.expected.holding_betas, 'holding betas');
+    assertVectorClose(found.contributions, c.expected.beta_contributions, 'beta contributions');
+  });
+
+  // The reason the card can name a holding's share of the AI exposure at all:
+  // beta is linear in the weights, so the parts add up to the whole.
+  test(`${label}: the contributions add up to the portfolio's beta`, () => {
+    const found = betaContributions(c.holdings, c.weights, c.expected.basket_returns);
+    const total = found.contributions.reduce((sum, value) => sum + value, 0);
+    assertClose(total, found.beta, 'sum of contributions');
+    assertClose(found.beta, c.expected.portfolio_beta, 'beta from betaContributions');
+  });
+
+  if (c.expected_exact) {
+    test(`${label}: beta is exactly ${c.expected_exact.portfolio_beta}, by hand`, () => {
+      const portfolio = portfolioReturns(c.holdings, c.weights);
+      assertClose(betaTo(portfolio, c.expected.basket_returns),
+        c.expected_exact.portfolio_beta, 'exact beta');
+    });
+  }
+}
+
+// --- the biggest share of risk, which is level 5's measure ------------------
+
+for (const c of fixtures.cases) {
+  test(`${c.name}: the biggest share of risk matches numpy`, () => {
+    const cov = c.covariance_input ?? covariance(c.returns);
+    assertClose(maxRiskShare(c.weights, cov), c.expected.max_risk_share, 'maxRiskShare');
+  });
+}

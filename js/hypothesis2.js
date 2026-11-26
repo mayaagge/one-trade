@@ -59,42 +59,17 @@ export const CHATGPT_RELEASE = '2022-11-30';
 // --- the equal-weight basket -------------------------------------------------
 
 /**
- * The equal-weight AI basket: the plain average of its members' daily returns,
- * one day at a time.
+ * The equal-weight AI basket: the plain average of its members' daily returns.
  *
- * REBALANCED DAILY, and that is a real choice. Averaging daily returns is the
- * same as selling a little of whatever rose and buying a little of whatever fell
- * at every close, so the weights go back to equal each day. The alternative -
- * buying equal dollar amounts once at the start and leaving them - would let the
- * winners grow into most of the basket, which over ten years of NVDA would make
- * the "basket" mostly one stock, and its correlation with the market would then
- * be measuring NVDA. PREREG.md says "AI basket: equal weight", and daily
- * rebalancing is the reading that keeps it equal weight throughout.
+ * The definition now lives in js/math.js, beside the other measures, because
+ * level 4's beta to the AI basket needs the same basket and the game must not
+ * import the research layer to get it. It is re-exported here, unchanged, so
+ * everything that reads "the equal-weight basket" as part of Hypothesis 2 still
+ * finds it where the registered test describes it. Nothing about the measure
+ * moved: tests/research.test.js checks data/results.json is byte-identical
+ * across the move.
  */
-export function equalWeightBasket(returnsByTicker, tickers) {
-  if (!Array.isArray(tickers) || tickers.length === 0) {
-    throw new Error('equalWeightBasket: expected at least one ticker');
-  }
-  const series = tickers.map((ticker) => {
-    const values = returnsByTicker[ticker];
-    if (!Array.isArray(values)) throw new Error(`equalWeightBasket: no returns for ${ticker}`);
-    return values;
-  });
-  const days = series[0].length;
-  for (const [i, values] of series.entries()) {
-    if (values.length !== days) {
-      throw new Error(
-        `equalWeightBasket: every member needs the same number of days; `
-        + `${tickers[0]} has ${days} and ${tickers[i]} has ${values.length}`,
-      );
-    }
-  }
-  return Array.from({ length: days }, (_, t) => {
-    let sum = 0;
-    for (const values of series) sum += values[t];
-    return sum / series.length;
-  });
-}
+export { equalWeightBasket } from './math.js';
 
 /**
  * The growing basket: the equal-weight average of the members that have LISTED

@@ -37,17 +37,31 @@ import {
   createRound,
   drawFromPool,
   evenSplit,
+  floorFor,
   holdingsWanted,
   measureFor,
   poolFor,
+  splitWithFloors,
   usesMoney,
 } from '../js/round.js';
+import {
+  betaTo,
+  covariance,
+  effectiveBets,
+  equalWeightBasket,
+  maxRiskShare,
+  portfolioReturns,
+} from '../js/math.js';
+import { gameWindow, windowMatrix } from '../js/gameView.js';
 
 const root = new URL('..', import.meta.url);
 const readJson = (name) => JSON.parse(readFileSync(fileURLToPath(new URL(name, root)), 'utf8'));
 
 const LEVELS = validateLevels(readJson('levels.json'));
 const TICKERS = readJson('tickers.json');
+// Level 4's beta is to the basket frozen in basket.json, which is where the round
+// reads its members from rather than from a list repeated here.
+const BASKET = readJson('basket.json').stocks.map((s) => s.ticker);
 const UNIVERSE = TICKERS.groups.flatMap((g) => g.tickers.map((t) => (typeof t === 'string' ? t : t.ticker)));
 
 // A game document at full precision, built from the frozen snapshot. Full
@@ -66,8 +80,8 @@ const GAME = (() => {
 })();
 
 /** A round on a level, with the draw pinned when it matters. */
-function round(levelId, { random = () => 0 } = {}) {
-  return createRound({ levels: LEVELS, levelId, game: GAME, universe: UNIVERSE, random });
+function round(levelId, { random = () => 0, basket = BASKET } = {}) {
+  return createRound({ levels: LEVELS, levelId, game: GAME, universe: UNIVERSE, basket, random });
 }
 
 /** Play a whole round: pick these tickers, guess this, reveal. */
@@ -490,7 +504,13 @@ test('the reveal freezes the round', () => {
 
 test('every level in the file can be played end to end', () => {
   // A guard against a level added to levels.json that the round cannot run.
-  const picks = { 1: ['VOO', 'VTI'], 3: ['VOO', 'BND', 'GLD', 'XOM', 'JNJ'] };
+  // Level 4 is dealt QQQ already, so it needs three more; level 5 needs four.
+  const picks = {
+    1: ['VOO', 'VTI'],
+    3: ['VOO', 'BND', 'GLD', 'XOM', 'JNJ'],
+    4: ['BND', 'GLD', 'JNJ'],
+    5: ['VOO', 'BND', 'GLD', 'XOM'],
+  };
   for (const level of LEVELS.levels) {
     const r = round(level.id);
     for (const ticker of picks[level.id] ?? []) r.togglePick(ticker);
@@ -505,4 +525,153 @@ test('every level in the file can be played end to end', () => {
 test('the disclaimer every screen has to carry is one string, shared', () => {
   assert.equal(DISCLAIMER, 'Educational, not investment advice.');
   assert.equal(LEVELS.disclaimer, DISCLAIMER);
+});
+
+// ------------------------------------------------ level 4: the 30% in QQQ
+//
+// The level's own words are "Keep at least 30% in QQQ". That is a build rule, not
+// a pass rule, so what these check is that the build cannot leave it: QQQ is
+// dealt, it cannot be removed, and the money buttons stop at $3,000.
+
+test('level 4 deals QQQ at exactly its floor, and the rest evenly', () => {
+  const r = round(4);
+  assert.deepEqual(r.picks, ['QQQ'], 'QQQ is dealt with the round');
+  assert.equal(r.dollars.QQQ, 10000, 'on its own it holds all the money');
+
+  for (const ticker of ['BND', 'GLD', 'JNJ']) r.togglePick(ticker);
+  assert.equal(r.dollars.QQQ, 3000, 'at the floor the level asks for, not above it');
+  assert.equal(r.allocated(), 10000);
+  assert.equal(r.buildComplete(), true);
+  assert.equal(Math.min(...['BND', 'GLD', 'JNJ'].map((t) => r.dollars[t])) >= 2300, true);
+});
+
+test('level 4 will not let QQQ go', () => {
+  const r = round(4);
+  for (const ticker of ['BND', 'GLD', 'JNJ']) r.togglePick(ticker);
+  assert.throws(() => r.togglePick('QQQ'), /built around QQQ, so it cannot be removed/);
+  assert.equal(r.hasPick('QQQ'), true);
+});
+
+test('the money buttons cannot take QQQ below 30%, from either side', () => {
+  const r = round(4);
+  for (const ticker of ['BND', 'GLD', 'JNJ']) r.togglePick(ticker);
+
+  assert.equal(r.adjustDollars('QQQ', -1), 0, 'QQQ is already at its floor');
+  assert.equal(r.dollars.QQQ, 3000);
+
+  // Nor by taking the money out of QQQ from the other side: a holding can only
+  // draw from someone who can spare a step.
+  const moved = r.adjustDollars('BND', 10);
+  assert.equal(r.dollars.QQQ, 3000, 'QQQ never gave up a step');
+  assert.equal(r.allocated(), 10000);
+  assert.ok(moved > 0 && moved <= 10);
+  assert.equal(r.buildComplete(), true);
+
+  // Upwards is free: a player may hold more QQQ than the level demands, and
+  // level 4 is about finding out what that costs.
+  const r2 = round(4);
+  for (const ticker of ['BND', 'GLD', 'JNJ']) r2.togglePick(ticker);
+  r2.adjustDollars('QQQ', 5);
+  assert.equal(r2.dollars.QQQ, 3500);
+  assert.equal(r2.allocated(), 10000);
+});
+
+test('splitWithFloors() meets the floor out of the largest holdings and sums exactly', () => {
+  const split = splitWithFloors(['QQQ', 'BND', 'GLD', 'JNJ'], 10000, { QQQ: 3000 });
+  assert.equal(split.QQQ, 3000);
+  assert.equal(Object.values(split).reduce((a, b) => a + b, 0), 10000);
+  for (const [ticker, dollars] of Object.entries(split)) {
+    assert.equal(dollars % 100, 0, `${ticker} is not a whole number of steps`);
+    assert.ok(dollars >= 100, `${ticker} holds nothing`);
+  }
+  // A floor no even split can reach, because the others cannot spare the money.
+  assert.throws(() => splitWithFloors(['QQQ', 'A', 'B'], 1000, { QQQ: 900 }), /cannot meet their floors/);
+});
+
+test('floorFor() rounds a share up to a whole step, never a hair under it', () => {
+  const level4 = levelById(LEVELS, 4);
+  assert.equal(floorFor(level4, 'QQQ', 10000), 3000);
+  assert.equal(floorFor(level4, 'BND', 10000), 100, 'an unfloored holding keeps the $100 minimum');
+  // 30% of $999 is $299.70, and a floor of $299 would be under the level's rule.
+  assert.equal(floorFor(level4, 'QQQ', 999), 300);
+});
+
+// -------------------------------------------- level 4 and 5: the measures
+
+/**
+ * Beta and the biggest risk share, computed a second way: js/returns.js over the
+ * frozen snapshot, which is the path scripts/check_levels.mjs takes, rather than
+ * js/gameView.js over a game document. Two different readers of the same prices
+ * have to produce the same number.
+ */
+function independently(tickers, dollars) {
+  const total = Object.values(dollars).reduce((a, b) => a + b, 0);
+  const weights = tickers.map((t) => dollars[t] / total);
+  const built = buildReturns(readJson('data/prices.json'));
+  const window = built.commonWindow([...new Set([...tickers, ...BASKET])], LEVELS.window.days);
+  const matrix = Array.from({ length: window.days }, (_, t) => tickers.map((x) => window.byTicker[x][t]));
+  const basket = equalWeightBasket(window.byTicker, BASKET);
+  return {
+    beta: betaTo(portfolioReturns(matrix, weights), basket),
+    maxRiskShare: maxRiskShare(weights, covariance(matrix)),
+    days: window.days,
+  };
+}
+
+test('level 4’s beta is the same number js/returns.js gets, to 1e-9', () => {
+  const { result } = play(4, ['BND', 'GLD', 'JNJ'], 0.2);
+  const expected = independently(result.tickers, result.dollars);
+  assert.ok(Math.abs(result.value - expected.beta) <= 1e-9 * Math.max(1, Math.abs(expected.beta)),
+    `round said ${result.value}, js/returns.js said ${expected.beta}`);
+  assert.equal(result.measure, 'beta');
+  assert.equal(result.passed, true, 'QQQ with bonds and staples beside it clears 0.50');
+});
+
+test('level 4’s window covers the basket as well as the portfolio', () => {
+  // PLTR and VRT listed late, and they are basket members, so a beta's window is
+  // the overlap of the portfolio AND every member - never the portfolio's alone.
+  const { result } = play(4, ['BND', 'GLD', 'JNJ'], 0.2);
+  assert.equal(result.days, independently(result.tickers, result.dollars).days);
+});
+
+test('a level that measures a beta refuses to run without its basket', () => {
+  const r = createRound({ levels: LEVELS, levelId: 4, game: GAME, universe: UNIVERSE, basket: null });
+  for (const ticker of ['BND', 'GLD', 'JNJ']) r.togglePick(ticker);
+  r.toGuess();
+  r.setGuess(0.2);
+  assert.throws(() => r.reveal(), /no basket was given/);
+});
+
+test('QQQ on its own is already more than half an AI bet, so level 4 can be failed', () => {
+  // The lesson the level exists for: leaning on the fund does not get you out.
+  const r = round(4);
+  for (const ticker of ['BND', 'GLD', 'JNJ']) r.togglePick(ticker);
+  r.adjustDollars('QQQ', 67);                 // as far towards all-QQQ as the floors allow
+  r.toGuess();
+  r.setGuess(0.5);
+  const result = r.reveal();
+  assert.ok(result.dollars.QQQ >= 9000, 'nearly all of it in the fund');
+  assert.equal(result.passed, false, `beta ${result.value} should miss the 0.50 line`);
+  assert.ok(result.value > 0.5);
+});
+
+test('level 5 reports the biggest share of risk, in percent, against 35%', () => {
+  const { result } = play(5, ['BND', 'TLT', 'LQD', 'NVDA'], 0.5);
+  const expected = independently(result.tickers, result.dollars);
+  assert.ok(Math.abs(result.value - expected.maxRiskShare) <= 1e-9,
+    `round said ${result.value}, js/returns.js said ${expected.maxRiskShare}`);
+  assert.equal(result.passed, false, 'one volatile holding among three bond funds carries most of it');
+  assert.match(result.shown, /^\d+(\.\d+)?%$/);
+  assert.match(result.line, /% misses the 35% needed$/);
+});
+
+test('level 5 can be passed, and passing says nothing about the number of bets', () => {
+  const { result } = play(5, ['GLD', 'VEA', 'VXUS', 'VOO'], 0.3);
+  assert.equal(result.passed, true, `max share ${result.value} should clear 35%`);
+  assert.equal(result.stars >= 1, true);
+  // The same portfolio, measured level 3's way: four holdings, about one bet.
+  const bets = effectiveBets(result.weights, covariance(
+    windowMatrix(gameWindow(GAME, result.tickers, LEVELS.window.days), result.tickers),
+  ));
+  assert.ok(bets < 1.2, `${bets} bets - even risk is not several bets`);
 });

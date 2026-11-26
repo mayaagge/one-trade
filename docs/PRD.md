@@ -84,7 +84,17 @@ Thresholds are checked against real data before launch, so each level has at lea
 
 **Scoring:** each level gives 1 star for passing, 2 if the guess was within 1, and 3 if within 0.5. Returns never earn points, and there is no leaderboard.
 
-**Scoring on a level whose answer is a correlation.** Level 1's answer is a correlation between −1 and 1, so bands of 1 and 0.5 would give 2 stars to every guess. Level 1 therefore scores: 1 star for passing (a correlation of 0.8 or more), 2 for naming the right "Same bet?" bucket (0.7 and above is the same bet; 0.3 to 0.7 is partly; below 0.3 is different bets), and 3 for a guess within 0.10 of the actual correlation. The buckets are the ones the daily puzzle already uses, not new numbers. Every other level keeps the bands of 1 and 0.5 above.
+**Scoring on a level whose answer is a correlation.** Level 1's answer is a correlation between −1 and 1, so bands of 1 and 0.5 would give 2 stars to every guess. Level 1 therefore scores: 1 star for passing (a correlation of 0.8 or more), 2 for naming the right "Same bet?" bucket (0.7 and above is the same bet; 0.3 to 0.7 is partly; below 0.3 is different bets), and 3 for a guess within 0.10 of the actual correlation. The buckets are the ones the daily puzzle already uses, not new numbers.
+
+**Scoring on a level whose answer is not a bets count.** The bands of 1 and 0.5 are bands on a number of bets, and they say something only on a level whose answer is one. Level 1 answers with a correlation between −1 and 1, level 4 with a beta and level 5 with a share of risk; on all three, bands of 1 and 0.5 would hand 2 and 3 stars to nearly every guess. Such a level scores on its own scale instead: 1 star for passing, 2 for naming the right one of three buckets, and 3 for a guess within a stated distance of the real answer. Every bucket edge and every distance in the table below is either a number the game already uses elsewhere or the level's own pass threshold, and each is fixed before the level is built, never tuned once results are in.
+
+| Level | The answer it asks for | 2 stars: the right bucket | 3 stars: within |
+| --- | --- | --- | --- |
+| 1. Two of a kind | A correlation, −1 to 1 | 0.7 and above is the same bet; 0.3 to 0.7 is partly; below 0.3 is different bets — the buckets the daily "Same bet?" puzzle already uses | 0.10 of the real correlation |
+| 4. Hidden AI | Beta to the AI basket, 0 to 1.5 | under 0.50 is barely an AI bet; 0.50 to 1.00 is partly one; 1.00 and above is an AI bet — the level's own pass threshold, and the basket moving one for one | 0.10 of the real beta, the band level 1 already uses |
+| 5. Where's the risk? | The biggest holding's share of risk, 25% to 100%, since four shares adding to 100% put the biggest at 25% or more | 35% and under is spread; 35% to 50% is one holding leaning heavy; above 50% is one holding carrying the portfolio — the level's own pass threshold, and a half | 5 points of the real share |
+
+Levels 2, 3 and 7 answer with a number of bets and keep the bands of 1 and 0.5 above. Level 6 answers with a ratio of losses rather than a bets count, so it falls under this rule too, and its buckets and its band are fixed when it is built.
 
 **A displayed number never disagrees with the pass check.** The pass check compares the unrounded measure against the threshold. A result within 0.005 of its threshold, where a rounded display could read as the other side of it, is shown to 4 decimals instead: a correlation of 0.7996 against a 0.8 threshold is shown as 0.7996 and fails, never as "0.80" and fails.
 

@@ -994,6 +994,15 @@ Share of the 420 portfolios each card is shown on, as the group threshold moves:
 | **0.70 (chosen)** | **38%** | **20%** | **22%** | **7%** | **13%** |
 | 0.80 | 23% | 24% | 40% | 4% | 9% |
 
+**This table was measured with the sampler as it then was, and that sampler was
+broken.** It drew from a universe that included `^GSPC` and `RSP`, which are
+benchmarks and not holdings, and silently dropped every draw that failed because
+of it - 49 of the 400. The shares above are therefore over a smaller sample than
+the header claims. The table is left as it was measured rather than rewritten,
+because it is the record of how 0.70 was chosen; what the chosen row reads today
+is in "What to watch" below. The lesson is recorded separately: a silent `catch`
+cost a threshold table.
+
 All five cards appear across the 20 pool portfolios alone at the chosen
 thresholds: 7 group, 5 risk-gap-over, 4 pair, 3 fallback, 1 risk-gap-under.
 
@@ -1262,10 +1271,21 @@ to the pool cannot leave the lesson quietly describing something else.
   concentrated in it. But "nothing stands out" is the least useful thing the game
   can say, and if playtests show players reading it often, the fix is another
   rule rather than a looser threshold.
-- **The group card still wins most often, at 38%.** The AI group holds 13 of the
-  38 tickers, so a random 5-holding build often has two or three AI stocks in it.
-  That is the lesson the game is named after, so it is not wrong, but it is worth
-  watching whether it crowds the others on levels 4 to 7.
+- **The group card still wins most often. It is 43%, not the 38% first written
+  here.** The AI group holds 13 of the 40 tickers a player can pick, so a random
+  5-holding build often has two or three AI stocks in it. That is the lesson the
+  game is named after, so it is not wrong, but it is worth watching whether it
+  crowds the others on levels 4 to 7.
+
+  The number changed because the measurement did, not because the market did -
+  the frozen snapshot and `why.json`'s thresholds are the same. The 38% was
+  measured before `scripts/check_why_cards.mjs` existed; when the script was
+  committed one commit later it printed 35% while silently dropping 49 of its 400
+  draws; and the fix that stopped it drawing the two benchmarks as holdings left
+  400 real draws, which read 43%. Restoring the old `minGroups: 2` guard accounts
+  for 1 point of that; the rest is simply a different 400 portfolios. The row
+  today is groupRisk 43%, pair 16%, riskGapOver 26%, riskGapUnder 6%,
+  pairLowRisk 0% (2 cards) and fallback 9%.
 - **The thresholds were tuned on the frozen snapshot.** `data/game.json` is
   rebuilt every weekday evening, so the frequencies will drift with the market.
   Nothing breaks when they do - a card is chosen per portfolio, not per cohort -
@@ -1274,5 +1294,159 @@ to the pool cannot leave the lesson quietly describing something else.
   inside a 3.56-bet portfolio is correct and useful, but it is the first case
   where the card reads as criticism of a build that passed. Worth seeing how a
   player takes that.
+
+Educational, not investment advice.
+
+## Levels 4 and 5, the rules and the math, 25 November 2026 (session 2.5)
+
+Session A of two. This one builds everything that is not a screen: the two new
+measures and their known answers, the rules in `levels.json`, the build rule
+level 4 needs, and the real-data check that both levels can be passed. The
+screens and the "Why?" card for level 4 are session B.
+
+### The PRD had to change first, and it is a scoring rule, not a threshold
+
+`docs/PRD.md` said "each level gives 1 star for passing, 2 if the guess was
+within 1, and 3 if within 0.5", with one exception already carved out for level
+1's correlation. Those bands are bands on a **number of bets**. Level 4 answers
+with a beta between 0 and 1.5 and level 5 with a share of risk between 25% and
+100%, and on both, a band of 1 and a band of 0.5 would hand 3 stars to nearly
+every guess - the same failure the level 1 exception was written for.
+
+So the exception is now a rule: a level whose answer is not a bets count scores 1
+for passing, 2 for naming the right one of three buckets, and 3 for a guess
+within a stated distance. **Every edge is either a number the game already uses
+or the level's own pass threshold**, which is the part that keeps this from being
+a dial:
+
+| Level | Buckets | 3 stars |
+| --- | --- | --- |
+| 4 | 0.50 (its own threshold) and 1.00 (the basket moving one for one) | within 0.10, level 1's band |
+| 5 | 35% (its own threshold) and a half | within 5 points |
+
+Levels 2, 3 and 7 keep the registered bands. Level 6 falls under the new rule and
+is fixed when it is built.
+
+### Beta is linear in the weights, and that is the whole decomposition
+
+`cov(sum_i w_i r_i, b) = sum_i w_i cov(r_i, b)`, so a holding contributes
+`w_i * beta_i` and the parts add up to the portfolio's beta exactly. No
+approximation, nothing to choose. `betaContributions()` in `js/math.js` returns
+them, and a known-answer test checks both the parts and that they sum.
+
+**They are not turned into percentages, and that is the finding of the session.**
+On the current window JNJ (-0.13), PG (-0.11), KO (-0.14) and XOM (-0.02) all
+move slightly against the AI basket, so a portfolio of QQQ with staples beside it
+has QQQ at **148% of its beta** and JNJ at -26%. "QQQ is 148% of your AI
+exposure" is not a sentence to show a beginner. Level 4's card will state the
+betas themselves.
+
+### `equalWeightBasket` moved into `js/math.js`, and the verdicts did not move
+
+Level 4 measures beta to the same basket Hypothesis 2 correlates, so the two must
+use one definition - but a game module importing `js/hypothesis2.js` to get it
+would be the game importing the research layer. The function moved to
+`js/math.js` and is re-exported from `js/hypothesis2.js`, so every reader of the
+registered test still finds it where the test describes it.
+
+`node scripts/run_research.mjs` was rerun afterwards and compared against the
+committed `data/results.json`: **every number, verdict and leave-one-out rerun is
+identical**. The file is not byte-identical and cannot be - it records
+`generated_at` and the commit it ran from, and those are the only two fields that
+differ. A test now also holds the two exported names to one function, so the
+research and the game cannot drift onto different baskets.
+
+### Level 4's build rule: a holding the level will not let you drop
+
+"Keep at least 30% in QQQ" is a build rule, not a pass rule, so the pass check
+stayed as the beta alone and the rule went into the build:
+
+- QQQ is **dealt with the round** and `togglePick` refuses to remove it.
+- `splitWithFloors()` opens the round at **exactly** the floor - $3,000, with the
+  rest even - rather than above it. A player who wants more QQQ has to choose it,
+  which is how they find out what it costs.
+- The **buttons** hold the rule up, not just the gate: QQQ cannot be stepped
+  below $3,000, and no other holding can draw a step out of it.
+- The holding count, 4, is not in the PRD. It matches level 5 and needs no build
+  rule the game did not already have, and `holdingsNote` in `levels.json` says so.
+
+### A share of risk is shown as a percent, under the same display rule
+
+`CLOSE_TO_THRESHOLD` is 0.005, which in a share of 1 is half a percentage point -
+exactly the width a whole percent can round across. So the rule the PRD states
+for correlations carries over untouched: a biggest risk share of 0.3549 against
+level 5's 35% reads **"35.49%" and fails**, never "35%" and fails. Nothing about
+the display decides the pass.
+
+The slider step, the display and the reveal panel's label are data in
+`levels.json` now. `js/game.js` used to work them out by branching on the
+measure's name, and with four different answers across five levels that branch
+had started deciding how numbers read.
+
+### Both levels pass on real data, 1,200 seeded draws each
+
+`node scripts/check_levels.mjs`, frozen snapshot, 756-day windows:
+
+| Level | Winning designs | Scored at |
+| --- | --- | --- |
+| 4. Hidden AI | **634 of 1,131** | QQQ at its 30% floor, the other three even |
+| 5. Where's the risk? | **126 of 1,192** | equal weights |
+
+Level 4 is scored at the allocation the game deals rather than at equal weights,
+because equal weights are not a legal level 4 build. The hardest draw was QQQ +
+MU + MRVL + PLTR at 1.09.
+
+**QQQ alone is 0.564 to the basket**, so a player who pushes the fund to 97%
+fails at 0.544. The level is a squeeze from both sides: hold the fund, and don't
+lean on it.
+
+**116 of level 5's 126 winning designs make fewer than 2 effective bets**, and
+INTC + AMD + AVGO + NVDA passes at 29% with 1.06 bets. Spreading risk evenly is
+not the same as making several bets, and a player who passes this level without
+being told that learns the wrong thing. Level 5's `why` says it, and session B
+adds a card for it.
+
+### The new card's threshold, decided here, built in session B
+
+Among the 213 passing 4-holding builds in a 2,000-draw sample, the median is
+**1.31 effective bets** (25th 1.15, 75th 1.59, max 2.74). The card fires on a
+build whose risk is spread (no holding over 35%, level 5's own threshold), with
+at least 3 holdings (`groupRisk`'s guard, for the same reason), and fewer than
+**2.00 bets**:
+
+| bets below | share of passing level-5 builds | shown, whole sample | shown, 400 level-3 builds |
+| --- | --- | --- | --- |
+| 1.50 | 69% | 6% | 5% |
+| 1.75 | 85% | 7% | 9% |
+| **2.00** | **92%** | **8%** | **12%** |
+| 2.25 | 97% | 9% | 13% |
+
+2.00 is derived rather than tuned: with 4 holdings it is the claim that four
+collapsed to fewer than two, and it sits below level 3's own 3-bet bar, so
+nothing this card calls "nearly one bet" is a portfolio the game elsewhere calls
+diversified. It goes after `groupRisk` and before `pair` in the order, which is
+what lets it win on GLD + VEA + VXUS + VOO, where the top group holds 52% and the
+VEA/VXUS pair at 0.99 would otherwise take the card.
+
+### What to watch
+
+- **The card will be close to a standing card on level 5**, at 92% of passing
+  builds. That is the finding, not a flaw - most passing builds really are one
+  bet - but if a playtest shows players skimming it, 1.75 is the next honest stop.
+- **Level 4 is passed by 56% of random draws.** Three winning designs was the
+  bar, and it clears it many times over, so the question is whether the level is
+  too easy rather than whether it is possible. A player picking on purpose will
+  tend to pick tech, which is the half that fails.
+- **The frequency table in session 2.4 said the group card wins 38%; the script
+  prints 43%** on the same frozen snapshot. Nothing in this session touched that
+  path - the table is identical at HEAD - so it had been stale since it was
+  written. Corrected in that entry: the 38% predates the script, and the sampler
+  fix that stopped it drawing the two benchmarks as holdings changed which 400
+  portfolios the table is over.
+- **Level 4's window is the portfolio's AND the basket's.** All 13 members have
+  full history inside the 756-day game window today, so nothing is shortened. If
+  the window ever reaches back past a member's listing, every level 4 round gets
+  shorter rather than the member being dropped, and under 252 days the round
+  refuses to be measured at all.
 
 Educational, not investment advice.

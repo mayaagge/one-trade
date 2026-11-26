@@ -23,26 +23,29 @@
 // Educational, not investment advice.
 
 import { loadGameData, DISCLAIMER } from './gameView.js';
-import { validateLevels, LEVELS_URL } from './levels.js';
+import { validateLevels, displayFor, formatGuess, LEVELS_URL } from './levels.js';
 import { BUILD, GUESS, REVEAL, createRound, DOLLAR_STEP } from './round.js';
 import { WHY_URL, groupIndex, validateWhy } from './why.js';
 
 export const TICKERS_URL = 'tickers.json';
 
 /**
- * How fine the guess slider is.
+ * How fine the guess slider is, from levels.json.
  *
- * Presentation, not a rule: the star bands live in levels.json. A correlation
- * runs -1 to 1 and is scored to 0.10, so hundredths; a bets count runs 1 to 5
- * and is scored to half a bet, so tenths.
+ * This used to be a branch on the measure's name - hundredths for a correlation,
+ * tenths for anything else - and with five levels answering with a correlation, a
+ * bets count, a beta and a share of risk, that branch had started deciding how
+ * numbers read. levels.json carries guess.step and guess.display now, so the step
+ * sits beside the star band it has to be able to reach, where a reviewer can see
+ * the two together.
  */
 export function guessStep(level) {
-  return level.guess.measure === 'correlation' ? 0.01 : 0.1;
+  return displayFor(level).step;
 }
 
 /** How many decimals to show a guess or a result in, to match the slider. */
 export function guessPlaces(level) {
-  return guessStep(level) < 0.1 ? 2 : 1;
+  return displayFor(level).places;
 }
 
 // ------------------------------------------------------------------ DOM bits
@@ -246,7 +249,6 @@ function renderBuild(ctx, round) {
 export function guessSliderState(round) {
   const level = round.level;
   const { min, max } = round.guessRange();
-  const places = guessPlaces(level);
   const guessed = round.hasGuessed();
   return {
     min,
@@ -259,7 +261,7 @@ export function guessSliderState(round) {
     value: guessed ? round.guess : (min + max) / 2,
     blank: !guessed,
     className: guessed ? 'guess-slider' : 'guess-slider guess-slider-blank',
-    readout: guessed ? round.guess.toFixed(places) : '—',
+    readout: guessed ? formatGuess(level, round.guess) : '—',
     // Screen readers get the same message the blank thumb gives everyone else.
     valueText: guessed ? null : 'no guess yet - tap the line to guess',
     revealDisabled: !round.canReveal(),
@@ -276,7 +278,6 @@ function renderGuess(ctx, round) {
   view.append(h('p', 'guess-holdings', round.picks.join(' · ')));
 
   const state = guessSliderState(round);
-  const places = guessPlaces(level);
 
   // No number until the player makes one. docs/PRD.md makes the guess the
   // lesson, and a number already on the screen is a number to anchor on - or to
@@ -318,8 +319,10 @@ function renderGuess(ctx, round) {
   });
 
   const scale = h('div', 'guess-scale');
-  scale.append(h('span', null, state.min.toFixed(places)));
-  scale.append(h('span', null, state.max.toFixed(places)));
+  // The ends of the scale read in the level's own units, so level 5's slider runs
+  // from "25%" to "100%" rather than from 0.25 to 1.
+  scale.append(h('span', null, formatGuess(level, state.min)));
+  scale.append(h('span', null, formatGuess(level, state.max)));
   view.append(slider, scale, hint, reveal);
 
   if (!round.fixed) {
@@ -345,8 +348,7 @@ function renderReveal(ctx, round) {
     ? 'How closely they really move together'
     : 'Separate bets this portfolio really makes'));
   panel.append(h('p', 'reveal-value', result.shown));
-  panel.append(h('p', 'reveal-guess',
-    `You guessed ${result.guess.toFixed(guessPlaces(level))}`));
+  panel.append(h('p', 'reveal-guess', `You guessed ${formatGuess(level, result.guess)}`));
   if (result.line) {
     panel.append(h('p', result.passed ? 'reveal-line reveal-pass' : 'reveal-line reveal-fail', result.line));
   }
