@@ -119,8 +119,13 @@ export async function mountWeekly(root, { now = null, storageKey = WEEKLY_STORAG
   const universe = tickers.groups.flatMap(
     (group) => group.tickers.map((t) => (typeof t === 'string' ? t : t.ticker)),
   );
-  // NO EMITTER. createRound() has no way to send a record and none is given one
-  // here; a weekly guess is not a message docs/PRD.md allows.
+  // NO EMITTER, and since createRound() gained one this is a choice rather than
+  // an impossibility. PREREG.md's Hypothesis 3 pairs a player's level-2 error
+  // with their level-7 error; the weekly challenge is not a level, is not drawn
+  // from the registered pool of 20, and deals everybody the same portfolio in a
+  // given week, so a weekly guess is no part of that comparison and is not a
+  // message docs/PRD.md allows. tests/guessRecords.test.js plays a week through
+  // and fails if anything is emitted.
   const round = createRound({
     levels,
     level: weekly,

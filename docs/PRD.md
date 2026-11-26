@@ -10,7 +10,11 @@ It teaches one idea well: **different tickers can be the same bet.** An S&P 500 
 
 **One-sentence pitch:** Build a portfolio with $10,000 of pretend money, guess how many bets you made, and find out from live market data.
 
-**Status:** nothing is built yet. The AI basket and the full ticker list are frozen in basket.json and tickers.json; the math engine, the page, game mode and the learning measure are all still to build. Nothing is live, no prices have been downloaded, and no real-data results have been seen.
+**Status, 26 November 2026:** milestones 1 and 2 are built and the site is live on GitHub Pages. The three hypotheses were registered and tagged (`prereg`, `prereg-v2`, `prereg-v3`) before any price was downloaded; the tag timestamps precede the first price commit. Hypotheses 1 and 2 have verdicts from the committed snapshot, and Hypothesis 3 reads "collecting" because no player data exists yet.
+
+Built: the math engine with numpy known-answer tests, the page, Research mode, levels 1 to 7 with their "Why?" cards, Crash replay over the three registered windows, the daily "Same bet?" puzzle, the weekly challenge, the share card, progress saved in the browser, Sandbox and My real portfolio.
+
+Not built: everything in milestone 3 - the Cloudflare Worker and its three routes, the classroom link, the completion code and verify page, the lesson plan and the feedback form - plus the two launch-secondary modes below. Guess records are produced in the browser for levels 2 and 7 and collected in memory; nothing is sent anywhere, because there is nowhere to send it yet.
 
 **Core game loop** (one round takes 1 to 2 minutes):
 
@@ -77,7 +81,7 @@ After finishing the 7 levels, a player should be able to do six things without h
 | 3. Three real bets | Diversifying across groups | Build a 5-holding portfolio | At least 3 effective bets |
 | 4. Hidden AI | Index concentration | Keep at least 30% in QQQ | Beta to the AI basket under 0.5 |
 | 5. Where's the risk? | Risk share vs dollar share | Build any 4-holding portfolio | No holding carries more than 35% of the risk |
-| 6. Crash test | Behavior under stress | Replay the February to March 2020 crash with at least 60% in stocks | Fell less than half as much as the S&P 500 |
+| 6. Crash test | Behavior under stress | Build a 4-holding portfolio with at least 60% in stocks and replay the February to March 2020 crash | Fell less than half as much as the S&P 500 |
 | 7. One trade | Everything | Guess the bets in 3 mystery portfolios | All 3 guesses within 1 |
 
 Thresholds are checked against real data before launch, so each level has at least 3 different winning designs. A weekly automated test checks that every level can still be passed as prices change.
@@ -94,7 +98,9 @@ Thresholds are checked against real data before launch, so each level has at lea
 | 4. Hidden AI | Beta to the AI basket, 0 to 1.5 | under 0.50 is barely an AI bet; 0.50 to 1.00 is partly one; 1.00 and above is an AI bet — the level's own pass threshold, and the basket moving one for one | 0.10 of the real beta, the band level 1 already uses |
 | 5. Where's the risk? | The biggest holding's share of risk, 25% to 100%, since four shares adding to 100% put the biggest at 25% or more | 35% and under is spread; 35% to 50% is one holding leaning heavy; above 50% is one holding carrying the portfolio — the level's own pass threshold, and a half | 5 points of the real share |
 
-Levels 2, 3 and 7 answer with a number of bets and keep the bands of 1 and 0.5 above. Level 6 answers with a ratio of losses rather than a bets count, so it falls under this rule too, and its buckets and its band are fixed when it is built.
+Levels 2 and 3 answer with a number of bets and keep the bands of 1 and 0.5 above. Level 6 answers with a ratio of losses rather than a bets count, so it falls under this rule too, and its buckets and its band are fixed when it is built: below 0.50 held up, 0.50 to 1.00 fell with the index, 1.00 and above fell harder than it, and 3 stars within 0.10 of the real ratio.
+
+**Level 7 scores on three guesses, not one.** It answers with a number of bets, but it asks for three of them and its pass rule is already "all 3 guesses within 1" - so a 2-star band of "within 1" would be the pass condition a second time, and every player who passed would be handed 2 stars for nothing. Its bands are counts instead, over the same 0.5 the other bets levels use for 3 stars: 1 star for the pass rule, 2 stars for two of the three guesses within 0.5, and 3 stars for all three within 0.5. The distance is not a new number and the rule is the level's own.
 
 **A displayed number never disagrees with the pass check.** The pass check compares the unrounded measure against the threshold. A result within 0.005 of its threshold, where a rounded display could read as the other side of it, is shown to 4 decimals instead: a correlation of 0.7996 against a 0.8 threshold is shown as 0.7996 and fails, never as "0.80" and fails.
 
@@ -115,7 +121,7 @@ Level 6 is why this is written down. A portfolio that fell 20% while the index f
 | **Classroom link** | An instructor picks levels and shares one link; a one-page lesson plan goes with it | Launch |
 | **Feedback** | Three-question form after level 3 | Launch |
 | **My real portfolio** | Enter real holdings in dollars; nothing is stored or sent | Launch, secondary |
-| **Explore the market** | Correlation heatmaps for calm, all and worst-10% days | Launch, secondary |
+| **Explore the market** | Correlation heatmaps for calm, all and worst-10% days | Later, optional |
 | **See inside funds** | Named holdings inside each fund, from SEC filings | Later, optional |
 
 **Crash replay: the three windows, and what the lines are.** Every value a replay

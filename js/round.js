@@ -406,7 +406,17 @@ export function measureFor(level, game, { tickers, weights }, window, {
     return {
       measure,
       value: against.share,
+      // `days` stays the number of daily MOVES, as it is for every other level:
+      // levels 1 to 5 measure a covariance over that many returns, and
+      // docs/PRD.md's own phrasing for that window - "the most recent 756
+      // trading days" of returns - is what those screens print.
+      //
+      // `tradingDays` is this window's own count of trading days, meaning its
+      // closes, which is what docs/PRD.md's crash table counts and one more than
+      // the moves between them. Only a replay has both, because only a replay is
+      // a line drawn BETWEEN closes; the reveal screen prints this one.
       days: result.window.days,
+      tradingDays: result.window.tradingDays,
       startDate: result.window.from,
       endDate: result.window.to,
       basketReturns: null,
@@ -620,10 +630,20 @@ function buildWhyCard(level, {
  * `why` and `groups` are optional, and without them the round plays exactly as
  * before with result.why left null. A round is a valid round without a card -
  * the card is a reveal screen feature - and this file stays testable on its own.
+ *
+ * @param {Function} [options.emit] called with one record per locked guess, at
+ *   the moment it is locked. PREREG.md's Hypothesis 3 needs a record from level
+ *   2 AND from level 7 - the error on each is what the sign test pairs - so both
+ *   paths through this file can send one. Defaults to doing nothing, which is
+ *   what every other level and mode wants: levels 1 and 3 to 6 build their own
+ *   portfolios and are no part of the registered comparison, and the weekly
+ *   challenge is not a level at all. A mode that passes no emit sends nothing,
+ *   and tests/guessRecords.test.js holds every one of them to that.
  */
 export function createRound({
   levels, levelId, game, universe = [], why = null, groups = null, basket = null,
   crashes = null, random = Math.random, dealt = null, endDate = null, level: given = null,
+  emit = () => {},
 }) {
   // A MODE THAT IS NOT A LEVEL hands its own level-shaped block in: the weekly
   // challenge is not in the ladder and has no number, but it is built, guessed
@@ -1088,10 +1108,40 @@ export function createRound({
       }),
     };
     round.state = REVEAL;
+    // THE RECORD GOES THE MOMENT THE GUESS IS LOCKED, and only then. The reveal
+    // above is idempotent - a second call returns the same result - and the
+    // record deliberately is not: it is sent from inside the branch that runs
+    // once, below the early return at the top, so a screen redrawing a revealed
+    // round cannot produce a second row for one guess.
+    emit(guessRecord(level, round.result));
     return round.result;
   };
 
   return round;
+}
+
+/**
+ * The anonymous record one locked guess produces.
+ *
+ * PREREG.md, Hypothesis 3: "a random per-browser ID, level, guess, actual value
+ * and date". THREE OF THE FIVE ARE HERE, and the other two are added by whatever
+ * collects it - js/game.js - on purpose. This file has no DOM, no fetch and no
+ * storage, which is what makes it testable without a browser; a per-browser ID
+ * is storage and a date is a clock, and reaching for either here would cost that
+ * property for two fields that are not about the round at all.
+ *
+ * NO TICKERS AND NO AMOUNTS, which PREREG.md states twice and docs/PRD.md once
+ * more: "Neither carries tickers, amounts, names or emails." The result object
+ * this is built from carries all of them, so the fields are listed explicitly
+ * rather than spread - a spread would have quietly started sending holdings the
+ * day a new field was added to a result.
+ */
+export function guessRecord(level, result) {
+  return {
+    level: level.id,
+    guess: result.guess,
+    actual: result.value,
+  };
 }
 
 /**
@@ -1170,7 +1220,10 @@ export function createSeries({
         drawnId: result.drawnId,
         pool: result.drawnPool,
       });
-      const record = { level: series.levelId, guess: result.guess, actual: result.value };
+      // The same shape level 2's record has, from the same function: the two are
+      // the pair Hypothesis 3 compares, and a field present on one and missing
+      // from the other would be found 60 days later in the collected data.
+      const record = guessRecord(level, result);
       series.records.push(record);
       emit(record);
       return result;

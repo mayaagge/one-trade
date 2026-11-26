@@ -3884,3 +3884,140 @@ screen can be read as a measure of money the player did not confirm.
 1,042 tests pass.
 
 Educational, not investment advice.
+
+## The review's catch, and six smaller fixes, 26 November 2026 (session 2.22)
+
+A review of everything built for Milestone 2 against docs/PRD.md and CLAUDE.md.
+Most of it held: the disclaimer is on all 20 screens across 7 modes, every one of
+the 16 fetches is a repo-relative file read with no proxy and no absolute URL
+anywhere, the share cards carry no ticker or dollar amount at any star count,
+all three storage-using modes survive six kinds of broken storage, the 205
+known-answer assertions pass and `tests/make_fixtures.py` regenerates its fixture
+byte-for-byte, `prereg-v3` predates the first price commit, and data/results.json's
+recorded SHA-256 matches data/prices.json's actual bytes.
+
+One finding was worth the whole review.
+
+### Level 2 produced no guess record, and Hypothesis 3 needs one
+
+**js/round.js's `createRound()` had no `emit` parameter at all.** Only
+`createSeries()` could send, so only level 7 produced records. PREREG.md's
+Hypothesis 3 compares each player's error on LEVEL 2 with their own error on
+level 7 and pairs the two with a one-sided sign test - the level-2 half of every
+pair had no code path to send from.
+
+**What made it worth catching now is the shape of the failure, not its size.**
+Nothing was broken today: nothing is sent at all until the Worker exists, so the
+missing record cost nothing and showed nothing. The damage was all in the future
+and all silent. Wire `/guess` to the existing hook in Milestone 3 - the obvious
+thing to do, since the hook is right there on the series - and level 7's rows
+would start arriving while level 2's never did. No error, no warning, no failing
+test, and a Research page still reporting "collecting" exactly as it should. The
+discovery point was 60 days after launch, when collection closed and there was
+nothing to pair: Hypothesis 3 unanswerable, the players gone, and the data
+uncollectable after the fact.
+
+Three things follow from that, and they are the reason this is logged as the
+review's main result rather than as a bug fix:
+
+* **A missing emitter looks exactly like a working one** while there is no
+  receiver. Every test of the records passed, because they all tested level 7.
+* **The cost was fixed in time, not in severity.** A bug that wastes 60 days of
+  collection cannot be fixed by noticing it on day 61.
+* **It was invisible from the code that was wrong.** `createRound()` is correct
+  in isolation: a round that emits nothing is a perfectly good round, and nothing
+  in that file says otherwise. The defect only exists relative to PREREG.md, two
+  files away, which is why reading the spec against the code found it and reading
+  either alone would not have.
+
+The fix: `createRound()` takes an `emit`, fires it once per locked guess from
+inside the branch that runs once - `reveal()` is idempotent and the record
+deliberately is not - and both paths build the record through one `guessRecord()`
+so a field present on level 7's row and missing from level 2's is not possible.
+js/game.js passes an emitter for level 2 and for nothing else, with
+`RECORDING_LEVELS` naming the pair in one line a reviewer can find.
+
+**The five fields, split where the layers split.** PREREG.md registers "a random
+per-browser ID, level, guess, actual value and date". js/round.js supplies three
+and stops: it has no DOM, no fetch and no storage, which is what makes it
+testable without a browser, and an ID is storage while a date is a clock. The
+other two are added by js/game.js at the one place records are collected, so
+there is a single answer to what a record contains. The fields are listed
+explicitly rather than spread off the result object - a spread would have
+quietly started sending tickers and dollar amounts the day a field was added.
+
+**js/participant.js**, new, is the ID: its own key, created on first use, and
+Reset progress does not clear it. Both constraints were settled in session 2.19
+before there was any code to settle them for, and both still hold for the reasons
+given there - a record inside the progress record would void a player's stars,
+and an ID that reset with the stars would split one player into two rows the
+sign test would never pair. A browser that cannot store still gets an ID, fresh
+each visit, so that visit's own level-2 and level-7 records still pair with each
+other; what is lost is pairing across visits, which is the most such a browser
+can offer anybody.
+
+### Nothing is sent, now held by a test
+
+Learn was the one mode with no test watching what leaves, and it is the mode
+where `/guess` and `/ping` will be wired. tests/guessRecords.test.js renders it
+with fetch, XMLHttpRequest, sendBeacon, Image, WebSocket, EventSource,
+navigator.share, the clipboard and all four ways to change the URL watched,
+plays all seven levels, and fails if anything goes out after the data files are
+read. It also checks that levels 1 and 3 to 6 emit nothing, that the weekly
+challenge emits nothing, and that Sandbox and My real portfolio have no collector
+at all.
+
+### "23 trading days" was a day short of the window
+
+The crash screens printed `window.days`, which is the number of daily MOVES, and
+called it trading days. docs/PRD.md's crash table counts the window's trading
+days - its closes - and there is one more of those than the gaps between them: 24
+for 19 February to 23 March 2020, not 23. Same for the 2022 bear market (196, not
+195) and the AI selloff (25, not 24).
+
+**No arithmetic was wrong.** The replay correctly applies 23 moves to 24 closes,
+which is why the index fall has always come out at −33.99%, exactly the published
+peak-to-trough figure. Only the label was short. The windows carry `tradingDays`
+beside `days` now, both named for what they count, and the three label sites read
+the new one.
+
+**And the first version of that fix was wrong in a way worth recording.** The
+count was added to the stored windows and asserted there - and every screen reads
+`replay()`'s own summary of the window rather than the file, which did not carry
+it. The line read "undefined trading days" while the new test passed. Checking
+the data is not checking the screen; there is a test for the replay's summary now
+as well, and it reads the expected counts out of docs/PRD.md's table rather than
+carrying a copy of them, so the data and the spec cannot drift apart again.
+
+### docs/PRD.md caught up with what was built
+
+* **The status section** said "nothing is built yet… Nothing is live, no prices
+  have been downloaded, and no real-data results have been seen". All false. It
+  now lists what is built, what is live and what is left, which matters because
+  CLAUDE.md says to stop and ask when a request conflicts with the PRD - hard to
+  apply against a spec describing a different project.
+* **Level 7's star bands** are written down as built, with the reason they differ
+  from the other bets levels: its pass rule is already "all 3 guesses within 1",
+  so a 2-star band of "within 1" would be the pass condition twice and every
+  passing player would get 2 stars for nothing. The implementation was right and
+  the spec was describing a scheme that could not work.
+* **Level 6's 4-holding rule** is in the level table; it was a real pass
+  condition that no reader of the spec could have predicted.
+* **"Explore the market"** moved from "Launch, secondary" to "Later, optional".
+  It was the one launch-marked mode with no build step in any milestone.
+
+js/config.js's header claimed a `PROXY` constant was "declared here, unset". It
+never was, and nothing fetches through a proxy: every URL the game reads is a
+file in this repository.
+
+### Still open, and suggested rather than done
+
+The crash table is now held to the PRD by a test. **The level table is not.** The
+scoring thresholds, buckets and star bands in docs/PRD.md and in levels.json are
+checked against each other by eye, and this session wrote level 6's bucket edges
+into the PRD by hand from the file. The same parse-the-spec approach would work
+on those tables, and it is the other half of the drift this review found.
+
+1,066 tests pass.
+
+Educational, not investment advice.

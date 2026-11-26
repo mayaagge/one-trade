@@ -28,6 +28,11 @@ export class StubNode {
     this.listeners = {};
     this._text = '';
     this.disabled = false;
+    // Every element has one, and a view that sets node.style.display - which
+    // js/chart.js does, to show and hide its tooltip - would otherwise fail on a
+    // property the stub never gave it. Nothing reads it back; it exists so that
+    // drawing a chart does not throw.
+    this.style = {};
     // Text boxes. My real portfolio is the first screen in this game a player
     // types into - every other mode is taps - so the stub needs a value and an
     // input event, and nothing more than that.
@@ -136,7 +141,23 @@ export const textOf = (node) => node.all().map((n) => n._text).filter(Boolean).j
  * the real one back exactly as it was, getter and all.
  */
 export function withDocument(extra = {}) {
-  const all = { document: { createElement: (tag) => new StubNode(tag) }, ...extra };
+  const all = {
+    document: {
+      createElement: (tag) => new StubNode(tag),
+      // A CHART IS SVG, so a screen that draws one reaches for createElementNS
+      // rather than createElement, and a text node for its labels. Both make
+      // ordinary stub nodes here: a test that renders a chart is checking what
+      // the screen around it says and sends, never the drawing itself - there
+      // is no layout here to draw into.
+      createElementNS: (namespace, tag) => new StubNode(tag),
+      createTextNode: (text) => {
+        const node = new StubNode('#text');
+        node.textContent = text;
+        return node;
+      },
+    },
+    ...extra,
+  };
   const previous = Object.fromEntries(
     Object.keys(all).map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)]),
   );

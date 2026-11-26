@@ -181,7 +181,20 @@ export function buildWindow(built, spec, tickers) {
     startDate,
     endDate,
     startIndex,
+    // TWO COUNTS, BECAUSE THEY ARE TWO THINGS, and a screen was printing one
+    // while calling it the other.
+    //
+    // `days` is the number of daily MOVES - one per row - and is what the
+    // arithmetic uses: a replay applies this many returns to a starting close.
+    //
+    // `tradingDays` is the number of trading days in the window, which is the
+    // closes rather than the gaps between them, and so one more. It is what
+    // docs/PRD.md's crash table counts - "19 February 2020 to 23 March 2020, 24
+    // trading days" - and what a screen means when it says "24 trading days".
+    // A replay of that window has 24 closes and 23 moves between them; labelling
+    // the 23 as trading days lost a day that the PRD, and a calendar, both have.
     days: rows.length,
+    tradingDays: rows.length + 1,
     tickers: carried,
     unavailable,
     rows,
@@ -241,7 +254,7 @@ function main(argv = []) {
     let value = 1;
     for (const row of window.rows) value *= 1 + row[index];
     console.log(`  ${window.key.padEnd(10)} ${window.startDate} to ${window.endDate}  `
-      + `${String(window.days).padStart(3)} returns  ${window.tickers.length} tickers  `
+      + `${String(window.tradingDays).padStart(3)} trading days (${String(window.days).padStart(3)} moves)  ${window.tickers.length} tickers  `
       + `${INDEX_TICKER} ${(100 * (value - 1)).toFixed(2)}%`);
     for (const missing of window.unavailable) {
       console.log(`             ${missing.ticker} is not in it: ${missing.reason}`

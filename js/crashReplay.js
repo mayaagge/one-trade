@@ -232,7 +232,11 @@ function renderReveal(ctx) {
   view.append(h('p', 'note', result.tickers
     .map((t) => `${t} ${money(Math.round(result.dollars[t]))}`)
     .join(' · ')));
-  view.append(h('p', 'note', `${result.window.days} trading days, `
+  // THE WINDOW'S TRADING DAYS, which are its closes - 24 for 19 February to 23
+  // March 2020, exactly as docs/PRD.md's crash table records it. result.window.days
+  // is the 23 moves between them, which is what the replay applies and what this
+  // line used to print under the word "days".
+  view.append(h('p', 'note', `${result.window.tradingDays} trading days, `
     + `${formatShortDate(result.window.from)} to ${formatShortDate(result.window.to)}, `
     + `${result.window.to.slice(0, 4)}.`));
 

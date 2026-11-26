@@ -25,6 +25,7 @@
    "endDate": "2020-03-23",
    "startIndex": 818,
    "days": 23,
+   "tradingDays": 24,
    "tickers": [
     "AAPL",
     "ABBV",
@@ -1101,6 +1102,7 @@
    "endDate": "2022-10-12",
    "startIndex": 1291,
    "days": 195,
+   "tradingDays": 196,
    "tickers": [
     "AAPL",
     "ABBV",
@@ -9935,6 +9937,7 @@
    "endDate": "2025-02-28",
    "startIndex": 2058,
    "days": 24,
+   "tradingDays": 25,
    "tickers": [
     "AAPL",
     "ABBV",

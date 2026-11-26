@@ -40,6 +40,9 @@ import {
   clearProgress, guessError, isUnlocked, loadProgress, playedLevels, recordLevel,
   saveProgress, starsOf,
 } from './progress.js';
+// The anonymous per-browser ID the records carry. Its own storage key, and
+// Reset progress does not clear it - see the note at the top of the file.
+import { participantId } from './participant.js';
 // The share card: its words are decided by js/shareCard.js, which is pure, and
 // carried out of the browser by js/share.js, which the daily puzzle shares.
 import {
@@ -58,6 +61,23 @@ export const TICKERS_URL = 'tickers.json';
 export const BASKET_URL = 'basket.json';
 
 /**
+ * The levels whose guesses produce an anonymous record, and the only ones.
+ *
+ * PREREG.md's Hypothesis 3 compares each player's error on LEVEL 2 with their
+ * error on LEVEL 7 and pairs the two with a sign test, so those two levels and
+ * no others are the registered comparison. Levels 1 and 3 to 6 build their own
+ * portfolios, which are not drawn from the pool and not comparable to anything;
+ * the weekly challenge is not a level; and Sandbox and My real portfolio have no
+ * guess step at all.
+ *
+ * It is a list here rather than a condition in startRound() so that what the
+ * game collects can be read in one line, which is the thing a reviewer of a
+ * privacy claim wants to find. Level 7 is in the list for completeness and is
+ * sent by createSeries(), which deals its three portfolios.
+ */
+export const RECORDING_LEVELS = [2, 7];
+
+/**
  * How fine the guess slider is, from levels.json.
  *
  * This used to be a branch on the measure's name - hundredths for a correlation,
@@ -74,6 +94,21 @@ export function guessStep(level) {
 /** How many decimals to show a guess or a result in, to match the slider. */
 export function guessPlaces(level) {
   return displayFor(level).places;
+}
+
+/**
+ * How long the window was, in the words the measure's own source counts in.
+ *
+ * A REPLAY COUNTS CLOSES AND A COVARIANCE COUNTS MOVES, and the difference is
+ * one day. Level 6's window is 19 February to 23 March 2020, which docs/PRD.md's
+ * crash table records as 24 trading days; the replay applies the 23 moves
+ * between those 24 closes. Levels 1 to 5 measure over returns, and the PRD's own
+ * phrasing for that window is "the most recent 756 trading days" of them. So the
+ * number printed is whichever one the result carries, and both are right about
+ * what they count.
+ */
+function windowDays(result) {
+  return result.tradingDays ?? result.days;
 }
 
 /** The two lines every screen in a round carries. */
@@ -536,7 +571,7 @@ export function renderReveal(ctx, round) {
     // the portfolio only on the screen before. The summary lists all three again.
     view.append(h('p', 'note', result.tickers
       .map((ticker) => `${ticker} ${money(result.dollars[ticker])}`).join(' · ')));
-    view.append(h('p', 'note', `Measured over ${result.days} trading days, ${result.startDate} to ${result.endDate}.`));
+    view.append(h('p', 'note', `Measured over ${windowDays(result)} trading days, ${result.startDate} to ${result.endDate}.`));
     view.append(h('p', 'note', last
       ? 'That is the third. Next you will see all three together.'
       : `Portfolio ${series.at + 1} of ${series.count} answered. The next one comes with no hints from this one.`));
@@ -583,7 +618,7 @@ export function renderReveal(ctx, round) {
     .map((t) => (round.usesMoney ? `${t} ${money(result.dollars[t])}` : t))
     .join(' · '));
   view.append(holdings);
-  view.append(h('p', 'note', `Measured over ${result.days} trading days, ${result.startDate} to ${result.endDate}.`));
+  view.append(h('p', 'note', `Measured over ${windowDays(result)} trading days, ${result.startDate} to ${result.endDate}.`));
 
   // The card. Below the level, above the buttons that leave it: a player reads
   // what happened, then decides whether to post it.
@@ -914,9 +949,36 @@ export async function mountLearn(root, { session = null, progress = null } = {})
     /**
      * The anonymous records this play has produced, in the order they were sent.
      * Kept so the Worker session has somewhere to attach and so a test can read
-     * them; nothing leaves the browser today.
+     * them; NOTHING LEAVES THE BROWSER TODAY, and tests/guessRecords.test.js
+     * renders this mode with every outward route watched to keep it that way.
      */
     records: [],
+    /**
+     * One record, completed to the five fields PREREG.md registers.
+     *
+     * js/round.js supplies the level, the guess and the actual value, and stops
+     * there on purpose: it has no storage and no clock, and the remaining two
+     * fields are neither about the round. They are added here, at the one place
+     * records are collected, so there is a single answer to "what exactly does a
+     * record contain" rather than one per level.
+     *
+     * THE ID IS READ PER RECORD, not once per session, because a browser that
+     * could not store one would otherwise hand every record the same fresh ID
+     * from the first call and look, to the Worker, like a player who had stored
+     * it. Reading each time means an unstorable browser produces a new ID per
+     * record and is visible as what it is.
+     */
+    record(record) {
+      const row = {
+        id: participantId().id,
+        ...record,
+        date: ctx.today(),
+      };
+      ctx.records.push(row);
+      return row;
+    },
+    /** Today, as the date a record carries. Injectable so a test can fix it. */
+    today: () => new Date().toISOString().slice(0, 10),
     /** This visit's draws and stars, seeded from the saved record. */
     session: live,
     nextLevelId(id) {
@@ -950,7 +1012,7 @@ export async function mountLearn(root, { session = null, progress = null } = {})
           // that arrival order matches portfolio order - which is the only thing
           // that tells three level-7 records apart. Nothing is sent anywhere yet:
           // the Worker is a later session, and this is where it will attach.
-          emit: (record) => ctx.records.push(record),
+          emit: (record) => ctx.record(record),
         });
         ctx.showSummary = false;
         ctx.draw();
@@ -959,6 +1021,13 @@ export async function mountLearn(root, { session = null, progress = null } = {})
       ctx.series = null;
       ctx.round = createRound({
         levels, levelId, game, universe, groups, why, basket, crashes,
+        // LEVEL 2'S RECORD, which is half of Hypothesis 3. Its error is what the
+        // sign test pairs with the same player's level-7 error, so a round that
+        // sent nothing here would leave the registered test uncomputable - and
+        // uncomputable silently, 60 days after launch, with level 7's rows
+        // arriving all along. Every other single-question level passes no emit
+        // and therefore sends nothing.
+        emit: RECORDING_LEVELS.includes(levelId) ? (record) => ctx.record(record) : undefined,
       });
       ctx.draw();
     },

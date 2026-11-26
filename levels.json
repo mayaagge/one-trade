@@ -408,7 +408,7 @@
       "window": {
         "source": "data/crashes.json",
         "key": "crash2020",
-        "note": "19 February to 23 March 2020, 23 trading days, bought and held and never rebalanced, against VOO's adjusted closes labelled 'S&P 500 (VOO, with dividends)'. Every one of those is fixed in docs/PRD.md and read from data/crashes.json, not decided here. This level's prices are history and never move, so unlike levels 1 to 5 its answer is the same every week - the window block above, and its 252-day minimum, do not apply to it."
+        "note": "19 February to 23 March 2020, 24 trading days - the closes, as docs/PRD.md's crash table counts them, with 23 daily moves between them - bought and held and never rebalanced, against VOO's adjusted closes labelled 'S&P 500 (VOO, with dividends)'. Every one of those is fixed in docs/PRD.md and read from data/crashes.json, not decided here. This level's prices are history and never move, so unlike levels 1 to 5 its answer is the same every week - the window block above, and its 252-day minimum, do not apply to it."
       },
       "guess": {
         "measure": "fallShare",

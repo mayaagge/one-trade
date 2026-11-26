@@ -274,7 +274,13 @@ export function replay(doc, key, dollars) {
       inSentence: window.inSentence,
       from: window.from,
       to: window.to,
+      // The daily MOVES this replay applied, which is one per row.
       days: window.rows.length,
+      // And the window's trading days, meaning its closes - the path below has
+      // one point per close, so it is always one more. docs/PRD.md's crash table
+      // counts these, and the screens label them, so it is carried rather than
+      // recomputed from `days` at each label.
+      tradingDays: window.rows.length + 1,
     },
     dates,
     tickers,

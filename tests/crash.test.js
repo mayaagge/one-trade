@@ -456,3 +456,89 @@ test('every window’s dates format without throwing, end to end', () => {
     }
   }
 });
+
+// --- the windows against docs/PRD.md's own table ----------------------------
+
+/**
+ * The PRD's crash table, parsed out of the document rather than retyped here.
+ *
+ * WHY READ THE SPEC INSTEAD OF COPYING IT. These three windows are registered:
+ * "a window chosen after seeing a result is a window chosen to flatter it", as
+ * the PRD puts it. A test carrying its own copy of the numbers agrees with
+ * whatever it was last edited to agree with, and the thing worth catching is the
+ * data and the spec drifting apart. Reading the table means an edit to either
+ * side has to be matched on the other.
+ *
+ * This is the check that was missing when a screen printed "23 trading days" for
+ * a window the PRD records as 24: nothing in the suite compared the two.
+ */
+function prdWindows() {
+  const prd = readFileSync(fileURLToPath(new URL('../docs/PRD.md', import.meta.url)), 'utf8');
+  const rows = [...prd.matchAll(
+    /^\| (The [^|]+?) \| (\d+ \w+ \d{4}) \| (\d+ \w+ \d{4}) \| (\d+) \| (−[\d.]+)% \|$/gm,
+  )];
+  assert.equal(rows.length, 3, 'the PRD crash table was not found, or has changed shape');
+  return rows.map(([, title, from, to, tradingDays, fall]) => ({
+    title: title.trim(),
+    from,
+    to,
+    tradingDays: Number(tradingDays),
+    fall: Number(fall.replace('−', '-')) / 100,
+  }));
+}
+
+test('every crash window matches the trading days docs/PRD.md registers', () => {
+  const registered = prdWindows();
+  assert.equal(CRASHES.windows.length, registered.length);
+  for (const expected of registered) {
+    const window = CRASHES.windows.find((w) => w.title === expected.title);
+    assert.ok(window, `data/crashes.json has no window titled "${expected.title}"`);
+    assert.equal(window.tradingDays, expected.tradingDays,
+      `${expected.title}: the PRD counts ${expected.tradingDays} trading days`);
+    // And the moves are one fewer, because a replay is a line between closes.
+    assert.equal(window.days, expected.tradingDays - 1,
+      `${expected.title}: ${window.days} moves is not one fewer than its closes`);
+    assert.equal(window.rows.length, window.days, 'a row is a move, so there is one per move');
+  }
+});
+
+test("every crash window reproduces the index fall docs/PRD.md publishes", () => {
+  for (const expected of prdWindows()) {
+    const window = CRASHES.windows.find((w) => w.title === expected.title);
+    const result = replay(CRASHES, window.key, { VOO: STARTING_DOLLARS });
+    // To the hundredth of a percent the PRD states it to, compared with a
+    // tolerance rather than for equality: -33.99/100 is not exactly -0.3399 in
+    // binary, and this test is about a published figure, not about floats.
+    // This is the check that the trading-day count changed no arithmetic - the
+    // fall comes from the same closes it always did.
+    assert.ok(Math.abs(result.indexChange - expected.fall) < 5e-5,
+      `${expected.title}: the index fell ${result.indexChange}, not ${expected.fall}`);
+  }
+});
+
+test('the screen says trading days and means closes', () => {
+  // The line Crash replay and level 6 both print. A window of 24 closes reads
+  // "24 trading days", never 23 - which is what it read before.
+  const window = CRASHES.windows.find((w) => w.key === 'crash2020');
+  assert.equal(window.tradingDays, 24);
+  assert.equal(`${window.tradingDays} trading days, ${window.from} to ${window.to}`,
+    '24 trading days, 2020-02-19 to 2020-03-23');
+});
+
+test("a replay's own window carries the count, because that is what the screens read", () => {
+  // THE FIRST VERSION OF THIS FIX MISSED THIS. The count was added to the stored
+  // windows and asserted there, but every screen reads replay()'s summary of the
+  // window rather than the file, and that summary did not carry it - so the line
+  // read "undefined trading days" while the test above passed. Checking the data
+  // is not checking the screen.
+  for (const expected of prdWindows()) {
+    const stored = CRASHES.windows.find((w) => w.title === expected.title);
+    const result = replay(CRASHES, stored.key, { VOO: STARTING_DOLLARS });
+    assert.equal(result.window.tradingDays, expected.tradingDays,
+      `${expected.title}: the replay's window does not carry its trading days`);
+    // The path has one point per close, so it is the same count by construction.
+    assert.equal(result.path.length, expected.tradingDays,
+      `${expected.title}: the line drawn has ${result.path.length} points`);
+    assert.equal(result.dates.length, expected.tradingDays, 'one date per point');
+  }
+});
