@@ -504,7 +504,7 @@ test('no commit, and no pending change, rewrites a puzzle that had already arriv
   // something to say after a push, where the working tree equals HEAD and
   // comparing the file with itself could never fail.
   const parent = ledgerAt('HEAD~1');
-  if (head !== null && parent !== null) {
+  if (parent !== null) {
     const stamp = git(['show', '-s', '--format=%cI', 'HEAD'])?.trim();
     const asOf = dateIn(PUZZLE.timeZone, new Date(stamp));
     assert.deepEqual(
@@ -513,10 +513,18 @@ test('no commit, and no pending change, rewrites a puzzle that had already arriv
       `the commit at HEAD, made on ${asOf}, rewrites a puzzle dated on or before that`,
     );
     checks += 1;
-  } else if (head !== null) {
-    // Said out loud rather than passed in silence: a shallow clone without the
-    // parent checks half of what this test is for.
-    t.diagnostic('no parent commit available (shallow clone?); checked the working tree only');
+  } else {
+    // Said out loud rather than passed in silence: without the parent's copy
+    // this test is doing half of what it is for. WHICH reason matters - one of
+    // these is a checkout to fix, one is a commit to wait for, one is normal -
+    // so they are told apart rather than guessed at in the message.
+    const hasParent = git(['rev-parse', '--verify', '--quiet', 'HEAD~1']) !== null;
+    const shallow = git(['rev-parse', '--is-shallow-repository'])?.trim() === 'true';
+    let why;
+    if (!hasParent && shallow) why = 'the parent commit was not fetched (shallow checkout; fetch-depth: 2)';
+    else if (!hasParent) why = 'HEAD has no parent commit';
+    else why = 'data/puzzles.json is new in HEAD, so the parent has no copy to compare against';
+    t.diagnostic(`${why}; checked the working tree against HEAD only`);
   }
 
   assert.ok(checks > 0, 'neither comparison could run, so this test checked nothing');
