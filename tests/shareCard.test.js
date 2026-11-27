@@ -162,11 +162,11 @@ test('levels 2 and 7 are the pool levels, and they are the ones that hide the an
 
 test('level 2 says how close the guess was, in its own star words', () => {
   const close = (stars) => headlineOf(2, resultFor(2, { value: 3.7, stars, guess: 3.3 }));
-  assert.equal(close(3), 'I guessed the bets in a mystery portfolio — within half a bet. Can you?');
-  assert.equal(close(2), 'I guessed the bets in a mystery portfolio — within 1 bet. Can you?');
+  assert.equal(close(3), 'I guessed the bets in a mystery portfolio: within half a bet. Can you?');
+  assert.equal(close(2), 'I guessed the bets in a mystery portfolio: within 1 bet. Can you?');
   // THE LOW BAND ASKS FOR BETTER. "Can you?" against a poor result would be
   // inviting a friend to do worse.
-  assert.equal(close(1), 'I guessed the bets in a mystery portfolio — out by more than 1 bet. Can you get closer?');
+  assert.equal(close(1), 'I guessed the bets in a mystery portfolio: out by more than 1 bet. Can you get closer?');
 });
 
 test('level 7 says how close all three were, matching how the game awards its stars', () => {
@@ -185,10 +185,10 @@ test('level 7 says how close all three were, matching how the game awards its st
   assert.equal(seriesVerdict(level, oneTight).stars, 1);
   assert.equal(seriesVerdict(level, missed).stars, 0);
 
-  assert.equal(bandFor(allTight), 'Three mystery portfolios — all three within half a bet. Can you?');
-  assert.equal(bandFor(twoTight), 'Three mystery portfolios — two of three within half a bet. Can you?');
-  assert.equal(bandFor(oneTight), 'Three mystery portfolios — all three within 1 bet. Can you?');
-  assert.equal(bandFor(missed), 'Three mystery portfolios — not all three within 1 bet. Can you get all three?');
+  assert.equal(bandFor(allTight), 'Three mystery portfolios: all three within half a bet. Can you?');
+  assert.equal(bandFor(twoTight), 'Three mystery portfolios: two of three within half a bet. Can you?');
+  assert.equal(bandFor(oneTight), 'Three mystery portfolios: all three within 1 bet. Can you?');
+  assert.equal(bandFor(missed), 'Three mystery portfolios: not all three within 1 bet. Can you get all three?');
 });
 
 test('a pool level card carries neither the answer nor the guess', () => {

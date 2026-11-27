@@ -62,25 +62,25 @@ export const POOL_METHOD = 'Level 2 deals a portfolio at random from a published
 
 /** Format a number for the page. Returns an em dash for anything missing. */
 export function fmt(value, places = 3) {
-  if (value === null || value === undefined || !Number.isFinite(value)) return '—';
+  if (value === null || value === undefined || !Number.isFinite(value)) return '–';
   return value.toFixed(places);
 }
 
 /** A share of 1 as a percentage. */
 export function pct(value, places = 1) {
-  if (value === null || value === undefined || !Number.isFinite(value)) return '—';
+  if (value === null || value === undefined || !Number.isFinite(value)) return '–';
   return `${(value * 100).toFixed(places)}%`;
 }
 
 /** A signed number, so a fall reads as a fall. */
 export function signed(value, places = 4) {
-  if (value === null || value === undefined || !Number.isFinite(value)) return '—';
+  if (value === null || value === undefined || !Number.isFinite(value)) return '–';
   return `${value > 0 ? '+' : value < 0 ? '−' : ''}${Math.abs(value).toFixed(places)}`;
 }
 
 /** A 90% interval as [lower, upper]. */
 export function intervalText(interval, places = 4) {
-  if (!interval) return '—';
+  if (!interval) return '–';
   return `[${signed(interval.lower, places)}, ${signed(interval.upper, places)}]`;
 }
 
@@ -275,8 +275,8 @@ function hypothesis2Card(combination, { role }) {
   card.append(head);
   card.append(paragraph(
     role === 'verdict'
-      ? `${combination.benchmarkName} — the registered benchmark, and the only one carrying a verdict.`
-      : `${combination.benchmarkName} — reported beside the verdict. It enters no verdict.`,
+      ? `${combination.benchmarkName}, the registered benchmark and the only one carrying a verdict.`
+      : `${combination.benchmarkName}, reported beside the verdict. It enters no verdict.`,
     'card-sub',
   ));
 
@@ -460,7 +460,7 @@ function renderLeaveOneOut(results) {
       run.registeredVerdict,
       fmt(run.headlineBeginnerMedian),
       fmt(run.registeredBeginnerMedian),
-      h2Run.verdict ?? '—',
+      h2Run.verdict ?? '–',
       signed(h2Run.difference),
     ];
   });

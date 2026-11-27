@@ -4,7 +4,7 @@
   "why": "Playtest feedback: the levels did not explain enough, and the screens that tried to explain more got long. This is where the depth goes - a page somebody opens on purpose - so a level can say one thing in one sentence and point here.",
   "rule": "Plain words. No jargon a first-year has not met, and any term the game uses is defined the first time it appears here. Nothing on this page is needed to play; a player who never opens it misses no rule.",
   "title": "About One Trade",
-  "lede": "What this game is, and the handful of ideas it is built on. Nothing here is needed to play \u2014 it is here for when you want to know what a word means.",
+  "lede": "What this game is, and the handful of ideas it is built on. Nothing here is needed to play. It is here for when you want to know what a word means.",
   "sections": [
     {
       "id": "what-it-is",
@@ -20,7 +20,7 @@
       "heading": "What a \"bet\" means here",
       "paragraphs": [
         "A bet is a thing that can go wrong on its own.",
-        "If you hold an S&P 500 fund and a total US market fund, you hold two things \u2014 but they own almost the same companies. When one falls, the other falls. That is one bet wearing two names.",
+        "If you hold an S&P 500 fund and a total US market fund, you hold two things, but they own almost the same companies. When one falls, the other falls. That is one bet wearing two names.",
         "Hold a stock fund, a bond fund and gold instead and you have three things that can go wrong for three different reasons. That is closer to three bets.",
         "So counting bets is not counting holdings. It is counting the different reasons your money could move."
       ]
@@ -79,7 +79,7 @@
       "id": "levels",
       "heading": "What each level teaches",
       "paragraphs": [
-        "Seven levels, each one idea. They unlock in order \u2014 finish one to unlock the next, whether or not you pass it."
+        "Seven levels, each one idea. They unlock in order: finish one to unlock the next, whether or not you pass it."
       ],
       "levels": [
         {

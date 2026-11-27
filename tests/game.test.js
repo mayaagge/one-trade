@@ -156,7 +156,10 @@ test('no value is set before the player interacts with the slider', () => {
   assert.equal(round.guess, null, 'the round holds no guess');
   assert.equal(round.hasGuessed(), false);
   assert.equal(state.blank, true);
-  assert.equal(state.readout, '—', 'the screen shows no number');
+  // A QUESTION MARK: the screen is asking, and this is where the answer will
+  // appear. A dash is the no-value glyph and stays in Research's table cells,
+  // where there is nothing to ask.
+  assert.equal(state.readout, '?', 'the screen shows a number before one was given');
   assert.equal(state.revealDisabled, true, 'Reveal stays disabled');
   assert.match(state.className, /guess-slider-blank/, 'the thumb and the track fill are hidden');
   assert.equal(state.valueText, 'no guess yet - tap the line to guess');

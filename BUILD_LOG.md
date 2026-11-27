@@ -6752,3 +6752,79 @@ keeps every `?src=playtest` guess in `GUESSES_PLAYTEST`, which the analysis
 never reads.
 
 Educational, not investment advice.
+
+## No em dashes, and no links inside About, 27 November 2026 (session 2.50)
+
+**Maya's call, across every word a player reads.** A sentence that reaches for
+an em dash usually reads better rewritten, so each was rewritten rather than
+having its punctuation swapped: fourteen of them, in index.html's title, the
+Learn menu, level 7's summary and verdict, the daily puzzle's wrong-answer and
+carry-over lines, two Research benchmark notes, three share-card headlines and
+three paragraphs of About.
+
+A comma did most of the work, a full stop the rest, and one colon in the title.
+Two examples of the shape of it:
+
+> …out by more than 1 **—** the worst by 1.14 **—** and this level needs all 3 inside it.
+> …out by more than 1**,** the worst by 1.14**.** This level needs all 3 inside it.
+
+> Not quite **—** you said different bets.
+> Not quite**.** You said different bets.
+
+### The grep found 18 and the test found 24
+
+Worth recording. A shell `grep -o "—"` over the same files reported zero in
+levels.json and about.json; the test, which parses the JSON and walks every
+string value, found six there. The six were real and are now rewritten. A test
+that reads the data the way the program reads it beats a text search over the
+file, and this one earned its place on the first run.
+
+### The dash that is not a sentence
+
+Nine of them were not punctuation at all: the glyph in a slot where a number
+has not been produced yet. There is nothing to rewrite into a comma, so they
+split two ways, both Maya's call:
+
+- **The big readout before the first tap is now "?".** The screen is asking
+  something and that is where the answer will appear. A dash there read as
+  "no value", which is a different statement.
+- **Empty table cells in Research keep a dash**, written as an EN dash. That
+  is the typographic convention for a blank cell and it is not the character
+  the rule is about.
+
+### About carries no links of its own
+
+It had a contents list: eight anchors to headings a few hundred pixels below.
+That put a screenful of navigation in front of the first sentence of a page
+somebody opened in order to read it. Gone; every heading and paragraph stays.
+
+Links OUT of About are untouched and still work - the nav, and level 6's
+reveal pointing at the intuition section - and a test asserts both, so the
+"no links" check cannot pass because About stopped being reachable. The "Back
+to the levels" control is a button, not a link, and stays.
+
+### tests/playerText.test.js
+
+Six cases. The one worth describing checks **strings and not comments** in
+`js/`: a comment is written for whoever maintains the file, and holding it to
+a typographic rule meant for players would be a rule about the wrong audience.
+The comment stripper is deliberately crude - it tracks quotes and comment
+openers rather than parsing JavaScript - and has its own test, including the
+case that matters: an em dash INSIDE a string must survive stripping.
+
+### The README's two screenshots
+
+Regenerated from the current screens, and the local `screenshots/` folder
+deleted. They are the `--fold` shots of `learn-14-l3-build-done` and
+`learn-17-l3-reveal` at 750x1624, which is what they always were.
+
+**Taken with `--scroll-top`, and the first attempt without it was wrong.** The
+build screen has grown since these were last made - the named holdings and
+the "What are these?" list - so a fold shot anchored where the scene's last
+click left it started halfway down the picker, showing neither the heading nor
+the task the README's alt text describes. The alt text needed no change once
+the framing was right, which is the test of whether the shot is the same shot.
+
+1,280 tests pass.
+
+Educational, not investment advice.

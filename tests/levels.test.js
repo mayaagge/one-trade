@@ -297,8 +297,8 @@ test('formatMeasure() shows 2 decimals for a result that is nowhere near', () =>
 });
 
 test('formatMeasure() handles a missing number and a missing threshold', () => {
-  assert.equal(formatMeasure(Number.NaN, { threshold: 0.8 }), '—');
-  assert.equal(formatMeasure(null, { threshold: 0.8 }), '—');
+  assert.equal(formatMeasure(Number.NaN, { threshold: 0.8 }), '–');
+  assert.equal(formatMeasure(null, { threshold: 0.8 }), '–');
   assert.equal(formatMeasure(0.7996), '0.80', 'with no threshold there is nothing to contradict');
 });
 
@@ -495,7 +495,7 @@ test('formatGuess() writes a guess in the units its slider shows', () => {
   assert.equal(formatGuess(level3, 3.1), '3.1');
   assert.equal(formatGuess(level4, 0.55), '0.55');
   assert.equal(formatGuess(level5, 0.38), '38%');
-  assert.equal(formatGuess(level5, null), '—');
+  assert.equal(formatGuess(level5, null), '–');
 });
 
 test('every level says how its slider moves and what its reveal panel is called', () => {

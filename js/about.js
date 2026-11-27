@@ -105,21 +105,17 @@ export function renderAbout(doc) {
   view.append(h('h1', null, doc.title));
   if (doc.lede) view.append(h('p', 'lede', doc.lede));
 
-  // A CONTENTS LIST, because this is the one screen in the game somebody
-  // arrives at with a question rather than a task. Eight headings is enough
-  // that scrolling to find "beta" is worse than tapping it.
-  const nav = h('nav', 'about-contents');
-  nav.setAttribute('aria-label', 'On this page');
-  const links = h('ul', null);
-  for (const section of doc.sections) {
-    const item = h('li', null);
-    const link = h('a', null, section.heading);
-    link.setAttribute('href', `#about-${section.id}`);
-    item.append(link);
-    links.append(item);
-  }
-  nav.append(links);
-  view.append(nav);
+  // NO CONTENTS LIST, AND NO LINKS AT ALL on this page. It had one: eight
+  // headings, each an anchor to the section below it. The whole page is text
+  // somebody came here to read, and a list of links to things a few hundred
+  // pixels further down is navigation for its own sake - it adds a screenful
+  // before the first sentence and gives a reader one more decision to make
+  // before they can start. Scrolling is the contents list.
+  //
+  // Links OUT of here are a different thing and still exist: level 6's reveal
+  // points at the intuition section, which is a reader being sent somewhere
+  // for a reason. tests/about.test.js holds this page to carrying no <a> of
+  // its own.
 
   for (const section of doc.sections) view.append(renderSection(section));
 

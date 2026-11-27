@@ -82,7 +82,7 @@ export const CLOSE_TO_THRESHOLD = 0.005;
 export function formatMeasure(value, {
   threshold = null, places = 2, closePlaces = 4, display = 'number',
 } = {}) {
-  if (!Number.isFinite(value)) return '—';
+  if (!Number.isFinite(value)) return '–';
   if (display === 'percent') return formatPercentMeasure(value, threshold);
   if (display !== 'number') throw new Error(`formatMeasure: unknown display "${display}"`);
   if (threshold !== null && Number.isFinite(threshold)) {

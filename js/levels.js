@@ -1149,7 +1149,7 @@ function meetsBand(level, band, guess, actual) {
  * instead, because that one is compared against a threshold.
  */
 export function formatGuess(level, value) {
-  if (!Number.isFinite(value)) return '—';
+  if (!Number.isFinite(value)) return '–';
   const { display, places } = displayFor(level);
   if (display === 'percent') return withMinus(`${(100 * value).toFixed(0)}%`);
   return withMinus(value.toFixed(places));

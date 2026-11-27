@@ -289,7 +289,7 @@ test('fmt() prints fixed places and an em dash for a missing number', () => {
   assert.equal(fmt(0.5273639721625046, 4), '0.5274');
   assert.equal(fmt(0.6, 2), '0.60');
   for (const missing of [null, undefined, Number.NaN, 'x']) {
-    assert.equal(fmt(missing), '—');
+    assert.equal(fmt(missing), '–');
   }
 });
 
@@ -297,14 +297,14 @@ test('pct() turns a share of 1 into a percentage', () => {
   assert.equal(pct(0.294), '29.4%');
   assert.equal(pct(0.928), '92.8%');
   assert.equal(pct(1), '100.0%');
-  assert.equal(pct(null), '—');
+  assert.equal(pct(null), '–');
 });
 
 test('signed() shows a fall as a fall, with a true minus sign', () => {
   assert.equal(signed(-0.05444971283650357), '−0.0544');
   assert.equal(signed(0.2154691152), '+0.2155');
   assert.equal(signed(0), '0.0000');
-  assert.equal(signed(null), '—');
+  assert.equal(signed(null), '–');
 });
 
 test('intervalText() prints both ends', () => {
@@ -312,7 +312,7 @@ test('intervalText() prints both ends', () => {
     intervalText({ lower: -0.2733082255345331, upper: 0.05204349662487005 }),
     '[−0.2733, +0.0520]',
   );
-  assert.equal(intervalText(null), '—');
+  assert.equal(intervalText(null), '–');
 });
 
 // ------------------------------------------------------------------ verdicts

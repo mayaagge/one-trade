@@ -85,7 +85,7 @@ function revealed(pair, state, words, given) {
   verdict.append(h('span', 'daily-mark', given === pair.answer ? RIGHT : '⬜'));
   verdict.append(h('span', null, given === pair.answer
     ? 'Right.'
-    : `Not quite — you said ${words.answers.find((a) => a.key === given)?.label ?? given}.`));
+    : `Not quite. You said ${words.answers.find((a) => a.key === given)?.label ?? given}.`));
   block.append(verdict);
   block.append(h('p', 'daily-pair-line', pairLine(pair, words)));
   block.append(h('p', 'daily-window', windowLine(state.entry)));
@@ -185,7 +185,7 @@ function render(root, state, words, { onPick, onPlayToday, paint }) {
 
   if (state.carriedOver && state.status === 'playing') {
     view.append(h('p', 'daily-carried',
-      `You started ${longDate(state.date)}'s puzzle before midnight — finish it, `
+      `You started ${longDate(state.date)}'s puzzle before midnight. Finish it, `
       + "and today's will be waiting."));
   }
 

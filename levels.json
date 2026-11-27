@@ -197,7 +197,7 @@
       },
       "poolRef": "guessPool",
       "share": {
-        "headline": "I guessed the bets in a mystery portfolio \u2014 {band}. {ending}",
+        "headline": "I guessed the bets in a mystery portfolio: {band}. {ending}",
         "bands": {
           "1": "out by more than 1 bet",
           "2": "within 1 bet",
@@ -543,7 +543,7 @@
         }
       },
       "share": {
-        "headline": "Three mystery portfolios \u2014 {band}. {ending}",
+        "headline": "Three mystery portfolios: {band}. {ending}",
         "bands": {
           "0": "not all three within 1 bet",
           "1": "all three within 1 bet",
@@ -668,7 +668,7 @@
       "source": "weekly",
       "hidesAnswer": true,
       "hidesAnswerNote": "EVERYBODY HAS THE SAME PORTFOLIO THIS WEEK, which makes a card naming the answer a spoiler for every player who has not gone yet - a wider leak than levels 2 and 7, where only the one player in twenty who draws the same portfolio could use it. So the card carries the stars and how close the guess came, and neither the answer nor the guess. The portfolio's NAME is not on it either: \"Gold, bonds, oil and staples\" is a list of the holdings in words.",
-      "headline": "This week\u2019s mystery portfolio \u2014 {band}. {ending}",
+      "headline": "This week\u2019s mystery portfolio: {band}. {ending}",
       "bands": {
         "1": "out by more than 1 bet",
         "2": "within 1 bet",

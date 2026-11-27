@@ -152,7 +152,7 @@ test('a wrong answer says what the player said, and what it was', async () => {
     await mountDaily(root, { now: '2026-11-27' });
     root.querySelectorAll('daily-answer')[2].click();      // "different bets", which is wrong
     const text = textOf(root);
-    assert.match(text, /Not quite — you said different bets\./);
+    assert.match(text, /Not quite\. You said different bets\./);
     assert.match(text, /0\.82, the same bet/);
   } finally { restore(); }
 });

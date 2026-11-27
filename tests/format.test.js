@@ -65,7 +65,7 @@ test('formatMeasure() keeps the 2-normally-4-when-close rule, with a true minus'
   assert.equal(formatMeasure(0.7996, { threshold: 0.8 }), '0.7996');
   assert.equal(formatMeasure(0.95, { threshold: 0.8 }), '0.95');
   assert.equal(formatMeasure(-0.117, { threshold: -0.5 }), `${MINUS}0.12`);
-  assert.equal(formatMeasure(Number.NaN), '—');
+  assert.equal(formatMeasure(Number.NaN), '–');
 });
 
 test('formatMeasure() percent display signs a negative share of risk', () => {

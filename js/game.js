@@ -398,7 +398,7 @@ export function renderMenu(ctx) {
   // guess - finishing a level is enough, and passing is a separate reward.
   // "Unlock", never "open": the menu retired that word (tests/learnProgress).
   view.append(h('p', 'note',
-    'Levels unlock in order. Finish one to unlock the next — you do not have to pass it.'));
+    'Levels unlock in order. Finish one to unlock the next. You do not have to pass it.'));
   view.append(h('p', 'level-progress', allPassed
     ? `All ${ids.length} passed`
     : `${passedCount} of ${ids.length} passed`));
@@ -586,7 +586,11 @@ export function guessSliderState(round) {
     value: guessed ? round.guess : (min + max) / 2,
     blank: !guessed,
     className: guessed ? 'guess-slider' : 'guess-slider guess-slider-blank',
-    readout: guessed ? formatGuess(level, round.guess) : '—',
+    // A QUESTION MARK, NOT A DASH, before the first tap. The screen is asking
+    // something and the readout is where the answer will appear; a dash reads
+    // as "no value" on a table row, which is what the empty cells in Research
+    // still use it for. Maya's call, 27 November 2026.
+    readout: guessed ? formatGuess(level, round.guess) : '?',
     // Screen readers get the same message the blank thumb gives everyone else.
     valueText: guessed ? null : 'no guess yet - tap the line to guess',
     revealDisabled: !round.canReveal(),
@@ -1349,7 +1353,7 @@ export function renderSeriesSummary(ctx, series) {
     item.append(h('p', 'series-row-head',
       `Portfolio ${answerRow.part}: ${result.shown} bets`));
     item.append(h('p', 'series-row-guess',
-      `You guessed ${formatGuess(level, answerRow.guess)} — out by ${verdict.parts[index].error.toFixed(2)}`));
+      `You guessed ${formatGuess(level, answerRow.guess)}, out by ${verdict.parts[index].error.toFixed(2)}.`));
     item.append(h('p', 'note', result.tickers.map((t) => `${t} ${money(result.dollars[t])}`).join(' · ')));
     list.append(item);
   });
@@ -1397,8 +1401,8 @@ export function seriesLine(series, verdict) {
   }
   const missed = verdict.parts.filter((part) => !part.within).length;
   return `${missed === 1 ? 'One guess was' : `${missed} guesses were`} out by more than `
-    + `${series.level.pass.of} — the worst by ${verdict.worstError.toFixed(2)} — `
-    + `and this level needs all ${series.count} inside it.`;
+    + `${series.level.pass.of}, the worst by ${verdict.worstError.toFixed(2)}. `
+    + `This level needs all ${series.count} inside it.`;
 }
 
 /**

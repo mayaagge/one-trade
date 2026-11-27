@@ -180,7 +180,7 @@ export function appendLiveTail(frozen, live, freezeDate) {
 }
 
 function fourPlaces(value) {
-  return Number.isFinite(value) ? value.toFixed(4) : '—';
+  return Number.isFinite(value) ? value.toFixed(4) : '–';
 }
 
 /**
