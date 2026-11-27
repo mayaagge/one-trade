@@ -93,9 +93,11 @@ const GAME = (() => {
 })();
 
 /** A round on a level, with the draw pinned when it matters. */
-function round(levelId, { random = () => 0, basket = BASKET, crashes = CRASHES } = {}) {
+function round(levelId, {
+  random = () => 0, basket = BASKET, crashes = CRASHES, seed = null,
+} = {}) {
   return createRound({
-    levels: LEVELS, levelId, game: GAME, universe: UNIVERSE, basket, crashes, random,
+    levels: LEVELS, levelId, game: GAME, universe: UNIVERSE, basket, crashes, random, seed,
   });
 }
 
@@ -538,6 +540,59 @@ test('level 2 passes on making a guess, and the stars are the accuracy', () => {
   const result = r.reveal();
   assert.equal(result.passed, true, 'every guess passes level 2, as registered');
   assert.equal(result.stars, 2, 'within 1 bet but not within half a bet');
+});
+
+// ------------------------------------------------------------- trying again
+
+test('a round can be seeded from the build that just missed', () => {
+  const { round: first } = play(3, ['JNJ', 'TLT', 'GOOGL', 'LQD', 'COP'], 3.5);
+  const again = round(3, { seed: { picks: [...first.picks], dollars: { ...first.dollars } } });
+  assert.deepEqual(again.picks, first.picks);
+  assert.deepEqual(again.dollars, first.dollars);
+  assert.equal(again.state, BUILD, 'a retry starts at the build, not at the guess');
+  assert.equal(again.guess, null, 'the guess came along with the portfolio');
+  assert.equal(again.result, null);
+  assert.equal(again.buildComplete(), true, 'the carried build is not ready to play');
+  // And it is a build, not a photograph: the player can change it.
+  again.togglePick('JNJ');
+  assert.equal(again.hasPick('JNJ'), false);
+});
+
+test("level 4's required holding and its floor survive the carry", () => {
+  // QQQ is dealt with the round and already held, so only the other three are
+  // picked here - toggling a required holding is what removing it means.
+  const { round: first } = play(4, ['JNJ', 'TLT', 'GLD'], 0.4);
+  const again = round(4, { seed: { picks: [...first.picks], dollars: { ...first.dollars } } });
+  assert.ok(again.picks.includes('QQQ'));
+  assert.equal(again.dollars.QQQ >= again.floorOf('QQQ'), true, 'QQQ came back under its floor');
+  assert.throws(() => again.togglePick('QQQ'), /cannot be removed/);
+});
+
+test("level 6's crash window still refuses a holding it cannot replay", () => {
+  // PLTR had not listed in February 2020. A seed is checked against the same
+  // rule the picker enforces, so a build carrying it is refused here rather
+  // than discovered at the reveal.
+  assert.throws(
+    () => round(6, { seed: { picks: ['VOO', 'PLTR', 'BND', 'GLD'], dollars: { VOO: 4000, PLTR: 3000, BND: 2000, GLD: 1000 } } }),
+    /PLTR/,
+  );
+});
+
+test('a seed that is wrong is refused, with what is wrong with it', () => {
+  const ok = { picks: ['JNJ', 'TLT', 'GOOGL', 'LQD', 'COP'], dollars: { JNJ: 2000, TLT: 2000, GOOGL: 2000, LQD: 2000, COP: 2000 } };
+  assert.doesNotThrow(() => round(3, { seed: ok }));
+
+  // Money that does not add up to the budget.
+  assert.throws(() => round(3, { seed: { ...ok, dollars: { ...ok.dollars, JNJ: 1000 } } }),
+    /adds up to 9000, not 10000/);
+  // The wrong number of holdings for the level.
+  assert.throws(() => round(3, { seed: { picks: ok.picks.slice(0, 4), dollars: ok.dollars } }),
+    /holds 4, and this level asks for 5/);
+  // A ticker this level does not offer.
+  assert.throws(() => round(3, { seed: { picks: ['NOPE', ...ok.picks.slice(1)], dollars: { ...ok.dollars, NOPE: 2000 } } }),
+    /does not offer/);
+  // A dealt level has nothing to carry back.
+  assert.throws(() => round(2, { seed: ok }), /is dealt, so there is nothing to carry back/);
 });
 
 // ------------------------------------------------------ what the reveal says

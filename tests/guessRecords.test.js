@@ -44,7 +44,7 @@ import { mountMyPortfolio } from '../js/myPortfolio.js';
 import { PARTICIPANT_KEY, newId, participantId } from '../js/participant.js';
 import { SEEN_POOL_KEY } from '../js/seenPool.js';
 import { validateLevels } from '../js/levels.js';
-import { PROGRESS_KEY, recordLevel, starsOf } from '../js/progress.js';
+import { PROGRESS_KEY, recordLevel, starsOf, triesOf } from '../js/progress.js';
 
 const root = new URL('..', import.meta.url);
 const readJson = (name) => JSON.parse(readFileSync(fileURLToPath(new URL(name, root)), 'utf8'));
@@ -527,6 +527,49 @@ test("a ping says whether everything before that level had been passed", async (
     before = b.sent.length;
     ctx.startRound(1);
     assert.deepEqual(pingsSince(before), [{ level: 1, passed: true }]);
+  } finally { b.restore(); }
+});
+
+test('trying again with the same portfolio sends nothing and pings nothing', async () => {
+  // Levels 3 to 6 send no guess record at all - RECORDING_LEVELS is 2 and 7 -
+  // so a retry cannot reach Hypothesis 3 by any route. Asserted rather than
+  // reasoned about, because "it only sends on two levels" is exactly the kind
+  // of thing a later change breaks quietly.
+  const b = browser();
+  try {
+    const ctx = await mountLearn(b.root);
+    play(ctx, 3, 2.0);
+    const before = b.sent.length;
+    const missed = ctx.round;
+
+    ctx.retry(missed);
+    assert.deepEqual(ctx.round.picks, missed.picks, 'the portfolio did not come back');
+    assert.deepEqual(ctx.round.dollars, missed.dollars);
+    ctx.round.toGuess();
+    ctx.round.setGuess(2.5);
+    ctx.round.reveal(ctx.game);
+    ctx.finish(ctx.round);
+
+    assert.equal(b.sent.length, before, `a retry sent something: ${b.sent.slice(before).join(' | ')}`);
+    assert.equal(ctx.records.length, 0, 'a level 3 round produced a guess record');
+  } finally { b.restore(); }
+});
+
+test('a retry is a second finished attempt, and is counted as one', async () => {
+  // js/progress.js counts a try as a finished attempt that earned no star,
+  // and the count is what the saved record keeps. A retry is a real attempt,
+  // so it counts - a player who misses twice has missed twice.
+  const b = browser();
+  try {
+    const ctx = await mountLearn(b.root);
+    play(ctx, 3, 2.0);
+    const after = triesOf(ctx.progress, 3);
+    ctx.retry(ctx.round);
+    ctx.round.toGuess();
+    ctx.round.setGuess(2.5);
+    ctx.round.reveal(ctx.game);
+    ctx.finish(ctx.round);
+    assert.equal(triesOf(ctx.progress, 3), after + 1, 'the retry was not counted as an attempt');
   } finally { b.restore(); }
 });
 

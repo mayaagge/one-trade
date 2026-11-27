@@ -643,7 +643,7 @@ function buildWhyCard(level, {
 export function createRound({
   levels, levelId, game, universe = [], why = null, groups = null, basket = null,
   crashes = null, random = Math.random, dealt = null, endDate = null, level: given = null,
-  emit = () => {},
+  emit = () => {}, seed = null,
 }) {
   // A MODE THAT IS NOT A LEVEL hands its own level-shaped block in: the weekly
   // challenge is not in the ladder and has no number, but it is built, guessed
@@ -721,6 +721,50 @@ export function createRound({
     Object.keys(level.holdings?.minShare ?? {}).map((t) => [t, floorFor(level, t, total)]),
   );
 
+  /**
+   * A build handed in from a round that has already been played.
+   *
+   * WHAT IT IS FOR: "Try again" on a level that was missed. A player who built
+   * five holdings, read the "Why?" card and now wants to swap one of them
+   * should not have to pick the other four again - that is four taps of
+   * punishment for having read the explanation, which is the opposite of what
+   * the card is for.
+   *
+   * CHECKED, NOT TRUSTED, even though the only caller hands back a build this
+   * same level produced a moment ago. A seed that is quietly wrong would put a
+   * player on a build screen that cannot be completed, with nothing on it
+   * saying why - and the checks cost nothing, because every rule is already
+   * written down here for the picker to enforce.
+   */
+  function validateSeed(given) {
+    if (given === null) return null;
+    const where = `level ${level.id}: the build handed to "try again"`;
+    const picks = given.picks ?? [];
+    if (!Array.isArray(picks) || picks.length === 0) throw new Error(`${where} has no holdings`);
+    if (isFixed(level)) throw new Error(`${where} is dealt, so there is nothing to carry back`);
+    for (const ticker of picks) {
+      if (!pool.includes(ticker)) throw new Error(`${where} holds ${ticker}, which this level does not offer`);
+      if (!canHold(ticker)) throw new Error(`${where} holds ${ticker}, which this level's window cannot replay`);
+    }
+    if (new Set(picks).size !== picks.length) throw new Error(`${where} holds something twice`);
+    for (const ticker of required) {
+      if (!picks.includes(ticker)) throw new Error(`${where} is missing ${ticker}, which this level deals`);
+    }
+    if (wanted !== null && picks.length !== wanted) {
+      throw new Error(`${where} holds ${picks.length}, and this level asks for ${wanted}`);
+    }
+    if (!usesMoney(level)) return { picks, dollars: {} };
+    const dollars = given.dollars ?? {};
+    const keys = Object.keys(dollars);
+    if (keys.length !== picks.length || !picks.every((t) => Number.isFinite(dollars[t]))) {
+      throw new Error(`${where} does not carry a dollar amount for each of its holdings`);
+    }
+    const sum = picks.reduce((at, t) => at + dollars[t], 0);
+    if (sum !== total) throw new Error(`${where} adds up to ${sum}, not ${total}`);
+    return { picks, dollars: { ...dollars } };
+  }
+  const seeded = validateSeed(seed);
+
   const round = {
     level,
     levelId: level.id,
@@ -749,11 +793,11 @@ export function createRound({
      */
     kindFloor: kindRule ? { ...kindRule, dollars: kindFloorDollars } : null,
     /** The player's picks, in the order they were picked, any required ones first. */
-    picks: drawn ? Object.keys(drawn.dollars) : [...required],
+    picks: seeded ? [...seeded.picks] : (drawn ? Object.keys(drawn.dollars) : [...required]),
     /** Dollars per holding, whole dollars summing to the total. Empty when a level uses no money. */
-    dollars: drawn
+    dollars: seeded ? { ...seeded.dollars } : (drawn
       ? { ...drawn.dollars }
-      : (usesMoney(level) && required.length > 0 ? splitWithFloors(required, total, floors) : {}),
+      : (usesMoney(level) && required.length > 0 ? splitWithFloors(required, total, floors) : {})),
     /** Null until the player moves the slider: nothing is shown to anchor on. */
     guess: null,
     /** Filled in by reveal(). */

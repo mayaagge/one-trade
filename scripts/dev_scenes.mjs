@@ -237,6 +237,23 @@ export const scenes = [
     },
   },
   {
+    id: 'learn-17b-l3-try-again',
+    note: 'Level 3 missed, tried again - the same portfolio and the card that explained it',
+    seed: ALL_PLAYED,
+    async run(page) {
+      await open(page, '#learn');
+      await startLevel(page, 3);
+      // The same five as the reveal above, which make 2.06 bets and miss the
+      // 3 the level asks for - so the reveal offers to try again.
+      await pick(page, ['NVDA', 'VOO', 'BND', 'GLD', 'JNJ']);
+      await btn(page, 'Next: your guess').click();
+      await slide(page, 3.2);
+      await btn(page, 'Reveal the answer').click();
+      await page.waitForTimeout(150);
+      await btn(page, 'Try again with this portfolio').click();
+    },
+  },
+  {
     id: 'learn-18-l3-share-card',
     note: 'Level 3, the share card drawn',
     dark: true,

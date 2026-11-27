@@ -6287,3 +6287,82 @@ Maya's call and has not been taken.**
 No code and no tests changed; 1,248 passing, unchanged.
 
 Educational, not investment advice.
+
+## Player feedback 13: try again, keeping the portfolio and the card, 27 November 2026 (session 2.45)
+
+**From the playtest.** A missed level offered "Play this level again", which
+threw the portfolio away. A player who had just read the "Why?" card and
+wanted to swap one holding had to pick the other four again - four taps of
+punishment for having read the explanation, which is the opposite of what the
+card is for.
+
+The reveal now offers **"Try again with this portfolio"**, and the card that
+explained the miss comes with it onto the build screen, headed "Why that one
+missed".
+
+### Which levels, derived rather than listed
+
+`offersRetry()` asks three questions, and together they pick out levels 3 to 6
+without naming a single level number:
+
+- the round was **missed** - a pass has the next level to go to;
+- the portfolio is the **player's own** - levels 2 and 7 are dealt, and a
+  fixed round has nothing to carry back;
+- the level **uses money** - which is what makes a second go at the same
+  holdings worth anything.
+
+That last one is why level 1 is out, and the reason is not that it is level 1:
+its answer is a correlation between two holdings and does not move with the
+split, so the same pair would give the same number. Offering it would be
+inviting a player to replay an identical round. A test enumerates every level
+and asserts the set comes out as 3, 4, 5 and 6, so a new level cannot land in
+or out of it by accident.
+
+### The seed is checked, not trusted
+
+`createRound` takes a `seed` of picks and dollars, and validates it against
+every rule the picker already enforces: in this level's pool, holdable in this
+level's window, no duplicates, the required holdings present, the right number
+of them, a dollar amount for each, and a sum that is exactly the budget.
+
+The only caller hands back a build this same level produced a moment ago, so
+the checks should never fire. They are there because a seed that is quietly
+wrong would put a player on a build screen that cannot be completed with
+nothing on it saying why - and the rules were all already written down. A test
+covers level 4's dealt QQQ coming back above its floor and still unremovable,
+and level 6 refusing PLTR, which had not listed in February 2020.
+
+### What it does not touch
+
+**Hypothesis 3, by two separate routes.** Levels 3 to 6 send no guess record at
+all - `RECORDING_LEVELS` is 2 and 7 - and neither of those offers a retry,
+being dealt. A test plays level 3, retries, finishes, and asserts nothing left
+the browser and no record was made, rather than leaving that to reasoning.
+
+**The try count.** A retry is a real finished attempt and is counted as one: a
+player who misses twice has missed twice. Asserted, because it would have been
+easy to make a retry invisible to the record and call it kindness.
+
+### Two notes on what is around it
+
+The hint that currently appears on a build screen after three failed tries
+will show up on a retry too, until session 9 removes every level's hint. That
+is the standing decision recorded earlier today, and it is noted here so the
+overlap is not reported as a bug in the meantime.
+
+A new scene, `learn-17b-l3-try-again`, puts the rebuild in the screenshot and
+accessibility sweeps. The level-3 reveal scene that already existed turned out
+to be a missed round - NVDA, VOO, BND, GLD and JNJ make 2.06 bets against the
+3 the level asks for - so it now carries the new button, and the new scene
+just clicks it.
+
+### Checked, not assumed
+
+1,248 to **1,257 passing**. Screenshotted at 375px: the card sits under the
+challenge line reading "Why that one missed - NVDA is 20% of your money but
+62% of your risk", with all five holdings still picked below it. Contrast
+table empty, no heading out of order. The carried card is drawn quieter than
+the reveal's own copy, in the same warm tone the non-stock chips use, because
+it describes the attempt behind the player rather than the one in front.
+
+Educational, not investment advice.

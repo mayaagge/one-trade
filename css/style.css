@@ -894,6 +894,11 @@ label.lede { display: block; }
   color: var(--text-secondary);
 }
 .why-card-lead { margin: 0 0 6px; font-weight: 600; }
+/* The same card, carried onto the build screen by "Try again". It describes
+   the attempt behind the player rather than the one in front of them, so it
+   is marked as looking backwards - the heading says "Why that one missed" -
+   and sits quieter than the reveal's own copy. */
+.why-card-carried { border-left-color: var(--other-kind); background: transparent; }
 .why-card-text { margin: 0; }
 
 /* Level 7's summary: the three guesses laid out together. A row is marked by a

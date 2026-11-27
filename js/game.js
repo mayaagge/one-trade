@@ -501,6 +501,18 @@ function renderBuild(ctx, round) {
   view.append(roundHead(ctx, round, 'Build'));
   view.append(h('p', 'lede', round.level.challenge));
 
+  // THE CARD THAT EXPLAINED THE MISS, carried here by "Try again" so a player
+  // can act on it while they read it rather than from memory. It describes the
+  // portfolio still on the screen, which is why it survives the move; any
+  // other way into this level drops it (see startRound).
+  if (ctx.carried && ctx.carried.levelId === round.levelId) {
+    const card = h('section', 'why-card why-card-carried');
+    card.append(h('h2', 'why-card-head', 'Why that one missed'));
+    if (ctx.carried.card.leadIn) card.append(h('p', 'why-card-lead', ctx.carried.card.leadIn));
+    card.append(h('p', 'why-card-text', ctx.carried.card.text));
+    view.append(card);
+  }
+
   // THE HINT, after three finished attempts that earned nothing. It points at
   // what to think about and never at a portfolio: levels.json carries the words
   // so they can be edited without touching code, and scripts/check_levels.mjs
@@ -1045,9 +1057,35 @@ export function renderReveal(ctx, round) {
   return view;
 }
 
+/**
+ * Should this reveal offer to try again with the SAME portfolio?
+ *
+ * DERIVED, NOT A LIST OF LEVEL NUMBERS. Three things have to be true, and
+ * together they pick out levels 3 to 6 without naming them:
+ *
+ *   - the round was MISSED, because a pass has the next level to go to;
+ *   - the portfolio is the player's own, so there is something to carry back
+ *     (levels 2 and 7 are dealt, and a fixed round has nothing to change);
+ *   - the level uses MONEY, which is what makes a second go at the same
+ *     holdings worth anything. Level 1's answer is a correlation between two
+ *     holdings and does not move with the split, so the same pair would give
+ *     the same number - an invitation to repeat an identical round.
+ */
+export function offersRetry(round) {
+  const result = round.result;
+  return Boolean(result) && result.passed === false && !round.fixed && round.usesMoney;
+}
+
 /** Learn's own buttons: the next level, this one again, and the menu. */
 function defaultAfterReveal(ctx, round) {
   const nodes = [];
+  // TRY AGAIN, KEEPING THE PORTFOLIO, above the rest: on a missed level it is
+  // the thing a player who has just read the "Why?" card wants, and the card
+  // comes with them to the build screen.
+  if (offersRetry(round)) {
+    nodes.push(button('Try again with this portfolio', 'btn btn-primary btn-wide',
+      () => ctx.retry(round)));
+  }
   const next = ctx.nextLevelId(round.level.id);
   if (next !== null) {
     nodes.push(button(`Next: level ${next}`, 'btn btn-primary btn-wide', () => ctx.startRound(next)));
@@ -1480,7 +1518,29 @@ export async function mountLearn(root, { session = null, progress = null } = {})
     crashes,
     /** Set by a reveal that draws a chart, and only once the view is attached. */
     redrawChart: null,
-    startRound(levelId) {
+    /**
+     * Play this level again from the portfolio that just missed, with the
+     * "Why?" card that explained it carried onto the build screen.
+     *
+     * THE CARD IS THE POINT OF THE BUTTON. "Try again" that threw away the
+     * explanation would be asking a player to remember a paragraph while they
+     * rebuild; carrying it means the thing they are acting on is in front of
+     * them while they act on it.
+     */
+    retry(round) {
+      ctx.carried = round.result?.whyCard
+        ? { levelId: round.levelId, card: round.result.whyCard }
+        : null;
+      ctx.startRound(round.levelId, {
+        seed: { picks: [...round.picks], dollars: { ...round.dollars } },
+      });
+    },
+    /** The "Why?" card carried back by a retry, or null. */
+    carried: null,
+    startRound(levelId, { seed = null } = {}) {
+      // A carried card belongs to the level it came from and to the round it
+      // is carried into. Starting anything else drops it.
+      if (seed === null || ctx.carried?.levelId !== levelId) ctx.carried = null;
       // ONE PING PER LEVEL PER VISIT, and the dedup has to be here rather than
       // at the Worker: a ping carries no per-browser id (docs/PRD.md's "What
       // leaves the browser"), so nothing downstream can tell a replay from a
@@ -1527,7 +1587,7 @@ export async function mountLearn(root, { session = null, progress = null } = {})
       }
       ctx.series = null;
       ctx.round = createRound({
-        levels, levelId, game, universe, groups, why, basket, crashes,
+        levels, levelId, game, universe, groups, why, basket, crashes, seed,
         // LEVEL 2'S RECORD, which is half of Hypothesis 3. Its error is what the
         // sign test pairs with the same player's level-7 error, so a round that
         // sent nothing here would leave the registered test uncomputable - and

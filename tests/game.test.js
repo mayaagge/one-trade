@@ -25,6 +25,7 @@ import {
 import { createRound } from '../js/round.js';
 import {
   allPassedBefore,
+  offersRetry,
   basketFrom,
   seenPoolIds,
   buildHint,
@@ -420,6 +421,45 @@ test('only level 1 asks for a flat picker, and it says why in the file', () => {
     if (level.id === 1) continue;
     assert.equal(level.picker, undefined, `level ${level.id} now has a picker rule`);
   }
+});
+
+// ------------------------------------------------------------- trying again
+
+test('"Try again with this portfolio" is offered on exactly levels 3 to 6', () => {
+  // DERIVED FROM THE ROUND, not from a list of numbers: missed, built by the
+  // player, and scored on something the money moves. Those three pick out 3
+  // to 6 - and the test enumerates every level so a new one cannot quietly
+  // land in or out of the set.
+  const offered = [];
+  for (const level of LEVELS.levels) {
+    const round = {
+      level,
+      levelId: level.id,
+      fixed: level.holdings?.fixed === true,
+      usesMoney: level.id !== 1,
+      result: { passed: false },
+    };
+    if (offersRetry(round)) offered.push(level.id);
+  }
+  assert.deepEqual(offered, [3, 4, 5, 6]);
+});
+
+test('a round that passed, or has no result, is not offered a retry', () => {
+  const base = { fixed: false, usesMoney: true };
+  assert.equal(offersRetry({ ...base, result: { passed: true } }), false,
+    'a pass has the next level to go to');
+  assert.equal(offersRetry({ ...base, result: null }), false);
+  // A series part carries passed: null until all three are in, and is dealt.
+  assert.equal(offersRetry({ ...base, fixed: true, result: { passed: null } }), false);
+});
+
+test('level 1 is left out because the same pair gives the same answer', () => {
+  // Its measure is a correlation between two holdings and does not move with
+  // the split, so "try again with this portfolio" would be an invitation to
+  // play an identical round. Nothing about it being level 1.
+  assert.equal(offersRetry({
+    fixed: false, usesMoney: false, result: { passed: false },
+  }), false);
 });
 
 // --------------------------------------------------- what each ticker is
