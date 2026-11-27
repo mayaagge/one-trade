@@ -6366,3 +6366,31 @@ the reveal's own copy, in the same warm tone the non-stock chips use, because
 it describes the attempt behind the player rather than the one in front.
 
 Educational, not investment advice.
+
+### Follow-on: the outreach copy stops promising a time (same day, session 2.45)
+
+With the ten-minute goal retired, the copy that quoted it had to go too -
+otherwise the game would still be promising in public the thing it had just
+stopped measuring. Changed in docs/PRD.md: the market table's "One Trade takes
+10 minutes" and "an instructor can run in 15 minutes", the positioning line's
+"a play time under 15 minutes", the roadmap's "under 15 minutes", the student
+segment's "10 minutes, no sign-up", the instructor segment's "A 15-minute
+live-data activity", and two message templates - "a 10-minute game" and "It
+takes 15 minutes". The claim is **short, free, no sign-up**.
+
+A new rule under "Rules for every channel", which is the durable form of this:
+**never promise how long it takes.** A number is a promise about a stranger's
+reading speed that nothing in the game can keep, and once it is made, every
+later decision about explaining something properly gets measured against it.
+
+**What is deliberately left.** Asking a club for a 15-minute slot, and the
+lesson plan coming in a 15-minute and a 50-minute version, are time you are
+ASKING for rather than time you are promising - the rule says so explicitly so
+the distinction survives. Competitors' own times stay as they are. The
+README's "a round takes one to two minutes" is left too and is Maya's call: it
+describes the build-guess-reveal loop rather than how long anything takes to
+finish, and it is the one number here that nothing was ever measured against.
+
+`scripts/dev_phone.mjs` stays, by decision.
+
+Educational, not investment advice.

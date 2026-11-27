@@ -33,12 +33,12 @@ The space is crowded with stock games and finance-literacy apps, but almost none
 | [NGPF STAX](https://www.etf.com/sections/index-investor-corner/new-online-game-teaches-investing) | High school, free | Long-term investing; 20 years of choices in about 20 minutes across savings, stocks, index funds, bonds and gold | Long-run wealth | Closest rival. One Trade is for university students and goes deeper on one idea: hidden overlap between holdings |
 | [Stock-Trak](https://www.stocktrak.com/stocktrak-product/), [HowTheMarketWorks](https://howthemarketworks.com/), [SIFMA Stock Market Game](https://en.wikipedia.org/wiki/Stock_market_simulator) | High school and college classes | Trading with live prices over a term | Portfolio performance and rankings | Rounds take minutes, not a term; returns score nothing |
 | [Zogo](https://www.fool.com:443/the-ascent/personal-finance/zogo-review/) | Gen Z, through banks and credit unions | Bite-sized personal finance lessons, with rewards | Completing lessons | One Trade uses real market data and has the player build things, not answer quizzes |
-| [Bloomberg Market Concepts](https://qmplus.qmul.ac.uk/mod/page/view.php?id=3871442) | University finance students | Markets and the Bloomberg Terminal; 10 to 15 hours | A certificate | One Trade takes 10 minutes and needs no terminal or sign-up |
+| [Bloomberg Market Concepts](https://qmplus.qmul.ac.uk/mod/page/view.php?id=3871442) | University finance students | Markets and the Bloomberg Terminal; 10 to 15 hours | A certificate | One Trade is short and free, and needs no terminal or sign-up |
 | [Wharton WRDS Mechanics of Diversification](https://wrds-www.wharton.upenn.edu/pages/grid-items/mechanics-diversification/) | Students at subscribing universities | Variance-covariance, two-asset sets, limits of diversification | Nothing; an interactive tool | Same topic, but behind an institutional login and built for the classroom, not for play |
-| [St. Louis Fed](https://www.stlouisfed.org/education/diversification-and-risk), Economics Network classroom activities | Teachers | Diversification through paper exercises and slides | Nothing | One Trade is the live, digital version an instructor can run in 15 minutes |
+| [St. Louis Fed](https://www.stlouisfed.org/education/diversification-and-risk), Economics Network classroom activities | Teachers | Diversification through paper exercises and slides | Nothing | One Trade is the live, digital version of the same activity |
 | [PortfolioPilot](https://portfoliopilot.com/portfolio-management/look-through-analysis), [Koyfin](https://www.koyfin.com/blog/check-etf-overlap-portfolio/) | People who already invest | What their real funds hold in common | Nothing; analysis tools | One Trade needs no real portfolio |
 
-**Where One Trade fits:** stock games ask "can you pick winners?" One Trade asks "do you know what you're actually betting on?" It is the only free option that combines live prices, a university audience, a play time under 15 minutes, and a lesson about risk instead of returns.
+**Where One Trade fits:** stock games ask "can you pick winners?" One Trade asks "do you know what you're actually betting on?" It is the only free option that combines live prices, a university audience, no sign-up, and a lesson about risk instead of returns.
 
 **What to learn from the others:**
 
@@ -201,7 +201,7 @@ back. It was not.
 
 ## Feature roadmap
 
-Each feature borrows the strongest idea from a competitor, without giving up what sets One Trade apart: under 15 minutes, no sign-up, and rewards for understanding risk, never for returns. There are three tiers, and the next tier starts only when the previous one is live.
+Each feature borrows the strongest idea from a competitor, without giving up what sets One Trade apart: short, free, no sign-up, and rewards for understanding risk, never for returns. There are three tiers, and the next tier starts only when the previous one is live.
 
 ### Tier 1: at launch
 
@@ -494,10 +494,10 @@ Reach students in groups, through the people who already gather them: instructor
 
 | Segment | What they want | Message | Where to reach them |
 | --- | --- | --- | --- |
-| Students in intro econ, finance or business | Something quick that connects to class | "Is your diversified portfolio really one trade? 10 minutes, no sign-up." | Course forums through the instructor; class group chats |
+| Students in intro econ, finance or business | Something quick that connects to class | "Is your diversified portfolio really one trade? Short, free, no sign-up." | Course forums through the instructor; class group chats |
 | Curious students outside finance | To start investing without jargon or embarrassment | "Play this before you invest your first $100." | Dorm and club group chats; short videos on Instagram and TikTok; campus newspaper |
 | Investing and finance club members | Activities for meetings; something to compete on | "Run a 15-minute diversification challenge at your next meeting." | Club presidents; club newsletters |
-| Instructors, TAs, financial wellness staff | A ready activity with no setup and no student data | "A 15-minute live-data activity on diversification, lesson plan included." | Office hours; department emails; teaching resource lists |
+| Instructors, TAs, financial wellness staff | A ready activity with no setup and no student data | "A live-data activity on diversification, lesson plan included." | Office hours; department emails; teaching resource lists |
 | Beginning investors with real accounts | To know whether their funds overlap | "Is your index fund plus tech ETF one trade?" | Investing subreddits, with moderator permission |
 
 ### Growth built into the game
@@ -564,11 +564,11 @@ Under $100: pizza for two club sessions, about 50 printed QR flyers, and optiona
 
 **Group chat or friend:**
 
-I made a 10-minute game with pretend money and live market data. It shows how many real bets your portfolio makes, and most people guess way off. No sign-up. Can you beat 3 stars on level 3? [link]
+I made a short game with pretend money and live market data. It shows how many real bets your portfolio makes, and most people guess way off. No sign-up. Can you beat 3 stars on level 3? [link]
 
 **Professor or financial wellness office:**
 
-Hi [name], I'm a freshman in [major]. I built a free browser game that teaches diversification with live market data: students build portfolios with pretend money and guess how many independent bets they've made. It takes 15 minutes, needs no sign-up, collects no student data, and comes with a one-page lesson plan. Could I show it to you for 5 minutes, or could it be shared with your students? [link]
+Hi [name], I'm a freshman in [major]. I built a free browser game that teaches diversification with live market data: students build portfolios with pretend money and guess how many independent bets they've made. It needs no sign-up, collects no student data, and comes with a one-page lesson plan. Could I show it to you for 5 minutes, or could it be shared with your students? [link]
 
 **Club president:**
 
@@ -577,6 +577,8 @@ Hi [name], could I have 15 minutes at a meeting to run a diversification challen
 ### Rules for every channel
 
 - Every post and screen says "educational, not investment advice". Never promise returns.
+
+- **Never promise how long it takes.** Added 27 November 2026, with the clarity goal that replaced the ten-minute target (BUILD_LOG.md, player feedback 6). "Short, free, no sign-up" is the claim; a number is a promise about a stranger's reading speed that nothing in the game can keep, and the moment it is made, every later decision about explaining something properly is measured against it. Asking a club for a 15-minute slot is a different thing and is fine — that is time you are asking for, not time you are promising.
 
 - Follow each community's self-promotion rules, and ask moderators first when unsure.
 
