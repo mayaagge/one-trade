@@ -24,7 +24,7 @@ import { buildReturns } from '../js/returns.js';
 import { GAME_DAYS } from '../scripts/build_game_data.mjs';
 import { validateLevels, levelById } from '../js/levels.js';
 import { createRound, createSeries } from '../js/round.js';
-import { renderReveal, renderSeriesSummary, revealLine } from '../js/game.js';
+import { newSession, renderReveal, renderSeriesSummary, revealLine } from '../js/game.js';
 import { cardText, shareMessage, cardFromResult, cardFromSeries } from '../js/shareCard.js';
 
 const root = new URL('..', import.meta.url);
@@ -214,4 +214,65 @@ test('a guess far from the answer keeps its own label anchor', () => {
   const guessLabel = view.querySelector('mark-guess-label');
   const answerLabel = view.querySelector('mark-answer-label');
   assert.notEqual(guessLabel.style.left, answerLabel.style.left);
+});
+
+// ----------------------------------------- the share note, once per visit
+//
+// "The card shows your stars and one line about the result. Never your
+// holdings, your money, or - on the mystery-portfolio levels - the answer."
+// 23 words, and it used to be on EVERY reveal: 69 words across levels 1 to 3
+// alone, where reading is 89% of the time to finish (BUILD_LOG.md session
+// 2.34). A player who read it on their first reveal does not need it again.
+//
+// KEYED TO THE LEVEL, NOT TOGGLED ON RENDER. draw() re-renders the same screen
+// for all sorts of reasons; a flag flipped on first paint would make the note
+// vanish from the very reveal it belongs to. The session remembers WHICH level
+// said it, so that reveal keeps it and later ones go without.
+
+/** Play one single-question level and draw its reveal against a given session. */
+function revealWithSession(levelId, picks, guess, session) {
+  const round = createRound({ levels: LEVELS, levelId, game: GAME, universe: UNIVERSE });
+  for (const ticker of picks) round.togglePick(ticker);
+  if (round.state === 'build') round.toGuess();
+  round.setGuess(guess);
+  round.reveal(GAME);
+  const restore = withDocument();
+  try {
+    return renderReveal(context({ session }), round);
+  } finally { restore(); }
+}
+
+const hasShareNote = (view) => view.all().some((n) => n.classList?.contains?.('share-note'));
+
+test('the share note is on the first reveal of a visit', () => {
+  const session = newSession(null);
+  const view = revealWithSession(1, ['VOO', 'VTI'], 0.9, session);
+  assert.ok(hasShareNote(view), 'a player must be told what the card does and does not carry');
+});
+
+test('and not on a later level\'s reveal in the same visit', () => {
+  const session = newSession(null);
+  revealWithSession(1, ['VOO', 'VTI'], 0.9, session);
+  const later = revealWithSession(3, ['VOO', 'BND', 'GLD', 'XOM', 'JNJ'], 3.2, session);
+  assert.ok(!hasShareNote(later), 'the note was already read on level 1 this visit');
+});
+
+test('redrawing the same reveal keeps its note', () => {
+  const session = newSession(null);
+  revealWithSession(1, ['VOO', 'VTI'], 0.9, session);
+  const again = revealWithSession(1, ['VOO', 'VTI'], 0.9, session);
+  assert.ok(hasShareNote(again), 'a redraw of the screen that owns the note must not lose it');
+});
+
+test('with no session at all, the note is shown - the safe default', () => {
+  const round = createRound({ levels: LEVELS, levelId: 1, game: GAME, universe: UNIVERSE });
+  for (const ticker of ['VOO', 'VTI']) round.togglePick(ticker);
+  round.toGuess();
+  round.setGuess(0.9);
+  round.reveal(GAME);
+  const restore = withDocument();
+  try {
+    assert.ok(hasShareNote(renderReveal(context(), round)),
+      'a caller without a session should get the privacy note, not lose it');
+  } finally { restore(); }
 });

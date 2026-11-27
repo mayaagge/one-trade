@@ -5336,3 +5336,108 @@ and there would be no before-and-after. The list keeps.
 1,189 tests pass, unchanged - nothing here is code.
 
 Educational, not investment advice.
+
+## Shortening the text on levels 1 to 3, 27 November 2026, 04:12 UTC (session 2.35)
+
+**Measured at the moment of the change: `one_trade_guesses` held 0 rows**
+(`one_trade_guesses_playtest` held 8, all of them this project's own smoke
+tests). So no real player has yet sent a guess record, and **every player
+Hypothesis 3 ever measures will have seen the shortened text.** That is the
+whole reason to do this now rather than after launch: the registered 60-day
+window will span one version of the game, not two, and nothing in the analysis
+has to carry a "before and after the copy changed" caveat.
+
+### 1,340 words to 1,178
+
+| Screen | Before | After | Saved |
+| --- | --- | --- | --- |
+| The Learn menu | 277 | 166 | 111 |
+| Level 2 reveal | 239 | 193 | 46 |
+| Level 3 reveal | 212 | 189 | 23 |
+| Level 1 reveal | 212 | 212 | 0 - it is the first reveal, it keeps the note |
+| Build and guess screens | unchanged | unchanged | 0 |
+| **Total** | **1,340** | **1,178** | **162** |
+
+And the estimate from `npm run phone`, which matters most at the slow end:
+
+| Reading speed | Before | After |
+| --- | --- | --- |
+| 250 wpm | 6m 11s | 5m 32s |
+| 200 wpm | 7m 31s | 6m 43s |
+| 175 wpm | 8m 29s | 7m 33s |
+| 150 wpm | 9m 45s | **8m 41s** |
+| 125 wpm | 11m 33s, over | **10m 15s, still over by 15s** |
+
+At 150 words a minute the headroom went from 15 seconds to 1m 19s. At 125 it
+still fails, by 15 seconds rather than by 1m 33s.
+
+### What changed, and what deliberately did not
+
+* **A locked level card shows its title and its concept, not its challenge.**
+  On a first visit six of seven cards are locked, so this was handing a new
+  player the full rules of six levels they cannot start - 111 words, the single
+  biggest saving on the list. **Rendering only:** `levels.json` keeps both
+  fields exactly as docs/PRD.md's level table states them, which is why
+  `tests/prdLevels.test.js` still passes untouched.
+* **The share-card note appears once a visit, not on every reveal.** Keyed to
+  the level that first showed it rather than toggled on first paint - `draw()`
+  re-renders the same screen on every slider nudge, and a flag would have taken
+  the note off the very reveal it belongs to. A caller with no session at all
+  still gets it: a privacy note should fail towards being said.
+* **Level 2's 37 words on the shared pool became 19 and a link.** The full
+  explanation is now `POOL_METHOD` on the Research page under "How the two
+  portfolios are matched", where a reader who wants the method can find it.
+  That text is research method, not teaching, and a player mid-round is not in
+  a methods section.
+* **No rule, number, threshold or Why?-card rule was touched.** `levels.json`
+  is a six-line diff; every level rule and every pool answer is byte-identical,
+  checked rather than asserted.
+
+### The bond fund: the definition was wrong, and tightening carried it through
+
+The 43-word effective-bets definition on level 2 ended "a bond fund with a
+small share of the dollars can still be a real second bet". **That was wrong,
+and it had been wrong since it was written.** A bond fund with a small dollar
+share and low volatility contributes almost nothing to portfolio variance, so
+it adds almost nothing to the count. The claim has the lesson backwards.
+
+**The tightening preserved the error faithfully.** The 34-word version kept all
+three ideas intact - and reported as much - but "all three ideas intact" is a
+check that the edit preserved the meaning, not a check that the meaning was
+right. Those are different questions and only the first one was asked.
+
+**Maya caught it by reading the claim against the PRD and the Why? cards**,
+which is the check that works: the project already said the opposite in four
+places, and level 2 was the sole outlier.
+
+| Where | What it says |
+| --- | --- |
+| docs/PRD.md line 324 | "It counts risk, not money, so a bond fund adds little" |
+| why.json, the bond card | "takes less of the risk than of the money, and adds less to the count than its size suggests" |
+| why.json, the weekly card | "a bond fund that holds a big share of the money and almost none of the risk" |
+| levels.json, the other definition | "a quiet holding can take a big share of the money while adding little to the count" |
+| **levels.json, level 2** | **"a small bond holding can still be a real second bet"** |
+
+Now: "It measures risk, not money: a bond fund can hold much of the money yet
+add little to the count." 38 words - four more than the wrong 34-word version,
+and the four words are worth it. Both definitions in `levels.json` now point
+the same way, and both agree with the PRD and the cards.
+
+**The lesson for next time is about the shape of the check, not about bonds.**
+Tightening prose asks "does this still mean what it meant?" and that question
+cannot find a sentence that meant the wrong thing to begin with. Copy being
+edited is a good moment to read it against whatever else claims the same fact -
+which is exactly the sweep that found it, once somebody thought to run it.
+
+### Checked, not assumed
+
+Both README screenshots were retaken and came back **byte-identical** to the
+committed ones. That is not a coincidence worth skipping over: the reveal scene
+opens a fresh visit and goes straight to level 3, so level 3's reveal IS the
+first reveal of that visit and keeps the share note - and the build screenshot
+never carried the challenge text, which lives on the menu. Compared with `cmp`
+rather than eyeballed.
+
+1,196 tests pass, 7 of them new.
+
+Educational, not investment advice.

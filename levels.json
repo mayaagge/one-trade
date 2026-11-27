@@ -189,8 +189,12 @@
           "says": "within half a bet"
         }
       },
-      "explain": "Effective bets counts independent sources of risk, not holdings. Five holdings that move together are closer to one bet. It counts risk rather than money, so a bond fund with a small share of the dollars can still be a real second bet.",
-      "why": "This portfolio is drawn from a pool of 20, and level 7's first mystery portfolio comes from the same pool, so the two are equally hard on average. That is how Hypothesis 3 measures whether players improve.",
+      "explain": "Effective bets counts independent sources of risk, not holdings: five that move together are closer to one bet. It measures risk, not money: a bond fund can hold much of the money yet add little to the count.",
+      "why": "Drawn from a pool of 20 that level 7 also uses, so the two are equally hard on average.",
+      "whyMore": {
+        "text": "How Hypothesis 3 uses this pool",
+        "href": "#research"
+      },
       "poolRef": "guessPool",
       "share": {
         "headline": "I guessed the bets in a mystery portfolio — {band}. {ending}",

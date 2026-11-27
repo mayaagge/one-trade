@@ -40,6 +40,26 @@ export const CLAIMS = {
 // Also from the PRD: the limit this page has to state for Hypothesis 3.
 export const HYPOTHESIS3_LIMIT = 'There is no control group. Players who reach level 7 may already be the stronger ones, so this shows improvement during the game, not proof that learning lasts or transfers.';
 
+/**
+ * How level 2 and level 7 are made comparable - the full version.
+ *
+ * PREREG.md registers that "level 2's portfolio and the first of level 7's
+ * mystery portfolios are both drawn at random from one pool of 20, so on
+ * average they are equally hard". This is where that is explained at length,
+ * because level 2's own reveal is a round a player is in the middle of, not a
+ * methods section: it carries one line and a link to this heading
+ * (BUILD_LOG.md session 2.35).
+ */
+export const POOL_METHOD = 'Level 2 deals a portfolio at random from a published pool of 20, '
+  + 'and the first of level 7’s three mystery portfolios is drawn from that same pool - so the '
+  + 'two questions are equally hard on average, and the difference between a player’s error on '
+  + 'each is about what they learned rather than about which portfolio they happened to get. The '
+  + 'pool is in levels.json, so every portfolio and every answer can be read. A portfolio this '
+  + 'browser has already been shown is left out of the later draw: being asked the one you just '
+  + 'saw would measure memory instead. That exclusion keeps each draw uniform over all 20 - '
+  + 'PREREG_AMENDMENT_3.md section 2 sets out why - and level 7’s other two portfolios come '
+  + 'from a separate pool that enters no verdict at all.';
+
 /** Format a number for the page. Returns an em dash for anything missing. */
 export function fmt(value, places = 3) {
   if (value === null || value === undefined || !Number.isFinite(value)) return '—';
@@ -405,6 +425,14 @@ function renderHypothesis3(results) {
   head.append(h('p', 'claim', CLAIMS.hypothesis3), verdictChip(h3.verdict));
   node.append(head);
   node.append(paragraph(h3.note, 'panel-sub'));
+
+  // THE FULL POOL EXPLANATION LIVES HERE, not mid-round. Level 2's reveal used
+  // to spend 37 words on it, which is research method rather than teaching -
+  // and reading is 89% of the time to finish levels 1 to 3 (BUILD_LOG.md
+  // session 2.34). The level now carries one line and a link to this heading.
+  node.append(h('h3', null, 'How the two portfolios are matched'));
+  node.append(paragraph(POOL_METHOD));
+
   const limit = h('p', 'limit');
   limit.append(h('strong', null, 'Limit: '), document.createTextNode(HYPOTHESIS3_LIMIT));
   node.append(limit);

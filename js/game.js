@@ -194,6 +194,9 @@ export function newSession(progress = null) {
     // coming back tomorrow genuinely is a new one to count. See the note on
     // docs/PRD.md's success targets - pings count visits, not people.
     pingedLevels: new Set(),
+    // Which level's reveal said what the share card carries. Null until the
+    // first reveal of the visit claims it - see wantsShareNote().
+    shareNoteLevel: null,
   };
 }
 
@@ -257,7 +260,6 @@ function levelCard(ctx, level, { continueId, allPassed }) {
     stars ? starText(stars) : 'not played'));
   card.append(head);
   card.append(h('p', 'level-concept', level.concept));
-  card.append(h('p', 'level-challenge', level.challenge));
 
   // IN ORDER, and now by PASSING: level N+1 unlocks once level N has at least
   // one star. Level 1 is always open. js/progress.js carries the rule and the
@@ -265,6 +267,19 @@ function levelCard(ctx, level, { continueId, allPassed }) {
   const ids = ctx.levels.levels.map((l) => l.id);
   const unlocked = isUnlocked(ctx.progress, level.id, ids);
   const before = ids[ids.indexOf(level.id) - 1];
+
+  // THE CHALLENGE WAITS UNTIL THE LEVEL DOES. On a first visit six of the seven
+  // cards are locked, and this used to hand a new player the full rules of six
+  // levels they cannot start - 111 words of the menu's 277, read before level 1
+  // begins, on a screen where reading is 89% of the time to finish levels 1 to 3
+  // (BUILD_LOG.md sessions 2.33 and 2.34). The title and the concept still say
+  // what each level is about, which is what a player choosing where they are up
+  // to actually needs.
+  //
+  // RENDERING ONLY. levels.json keeps both fields exactly as docs/PRD.md's level
+  // table states them, and tests/prdLevels.test.js still checks them against it.
+  if (unlocked) card.append(h('p', 'level-challenge', level.challenge));
+
   if (!unlocked) {
     card.classList.add('level-locked');
     card.append(h('p', 'level-lock-note', `Pass level ${before} to unlock this one.`));
@@ -759,6 +774,15 @@ export function gapSentence(round, line) {
   return `Out by ${shown}.`;
 }
 
+/** The "there is more about this on the Research page" link, when a level has one. */
+function whyMoreLink(more) {
+  const wrap = h('p', 'explain explain-more');
+  const link = h('a', null, more.text);
+  link.setAttribute('href', more.href);
+  wrap.append(link);
+  return wrap;
+}
+
 /**
  * The reveal.
  *
@@ -898,6 +922,11 @@ export function renderReveal(ctx, round) {
   view.append(h('h2', 'section-head', 'The idea'));
   view.append(h('p', 'explain', level.explain));
   view.append(h('p', 'explain', level.why));
+  // A level whose "why" points somewhere fuller says so with a link rather than
+  // by printing the whole thing. Level 2's pool explanation is research method,
+  // not teaching: the short line is what a player needs mid-round, and Research
+  // mode carries the rest (BUILD_LOG.md session 2.35).
+  if (level.whyMore) view.append(whyMoreLink(level.whyMore));
 
   const holdings = h('p', 'note', result.tickers
     .map((t) => (round.usesMoney ? `${t} ${money(result.dollars[t])}` : t))
@@ -909,7 +938,7 @@ export function renderReveal(ctx, round) {
   // what happened, then decides whether to post it.
   view.append(shareRow(cardFromResult(
     level, result, shareUrl(ABOUT, globalThis.location ?? null), { subtitle: ctx.cardSubtitle ?? null },
-  )));
+  ), { note: wantsShareNote(ctx.session, level.id) }));
 
   // WHERE TO GO NEXT BELONGS TO THE MODE. Learn offers the next level and a
   // replay; the weekly challenge has neither - its next portfolio arrives on
@@ -950,7 +979,7 @@ function defaultAfterReveal(ctx, round) {
  *
  * NOTHING IS SENT ANYWHERE. Every path hands the image to the player.
  */
-function shareRow(content) {
+function shareRow(content, { note = true } = {}) {
   const row = h('div', 'share-row');
   const status = h('p', 'share-status');
   const holder = h('div', 'share-holder');
@@ -1000,10 +1029,36 @@ function shareRow(content) {
   });
 
   row.append(share, status, preview, holder);
-  row.append(h('p', 'share-note',
-    'The card shows your stars and one line about the result. Never your holdings, '
-    + 'your money, or - on the mystery-portfolio levels - the answer.'));
+  if (note) {
+    row.append(h('p', 'share-note',
+      'The card shows your stars and one line about the result. Never your holdings, '
+      + 'your money, or - on the mystery-portfolio levels - the answer.'));
+  }
   return row;
+}
+
+/**
+ * Should this reveal carry the share-card note?
+ *
+ * ONCE A VISIT. 23 words on every reveal is 69 across levels 1 to 3, where
+ * reading is 89% of the time to finish (BUILD_LOG.md session 2.34), and a
+ * player who read it on their first reveal does not need it on their third.
+ *
+ * KEYED TO THE LEVEL, NOT TOGGLED ON RENDER. draw() re-renders the same screen
+ * on every slider nudge and every redraw; a flag flipped on first paint would
+ * take the note off the very reveal it belongs to. The session remembers WHICH
+ * level said it, so that one keeps it however often it is drawn.
+ *
+ * NO SESSION MEANS SHOW IT. A caller without one - a test, or anything new -
+ * should fail towards saying what the card carries rather than towards silence.
+ */
+function wantsShareNote(session, levelId) {
+  if (!session) return true;
+  if (session.shareNoteLevel === null || session.shareNoteLevel === undefined) {
+    session.shareNoteLevel = levelId;
+    return true;
+  }
+  return session.shareNoteLevel === levelId;
 }
 
 /**
@@ -1089,6 +1144,11 @@ export function renderSeriesSummary(ctx, series) {
   view.append(h('h2', 'section-head', 'The idea'));
   view.append(h('p', 'explain', level.explain));
   view.append(h('p', 'explain', level.why));
+  // A level whose "why" points somewhere fuller says so with a link rather than
+  // by printing the whole thing. Level 2's pool explanation is research method,
+  // not teaching: the short line is what a player needs mid-round, and Research
+  // mode carries the rest (BUILD_LOG.md session 2.35).
+  if (level.whyMore) view.append(whyMoreLink(level.whyMore));
 
   const days = series.rounds[0].result.days;
   const first = series.rounds[0].result;
@@ -1097,7 +1157,8 @@ export function renderSeriesSummary(ctx, series) {
   // Level 7's card is built from the VERDICT and nothing else - not from the
   // three results - because the stars are all it is allowed to know. Its three
   // portfolios come from the pools, and other players will be dealt them.
-  view.append(shareRow(cardFromSeries(level, verdict, shareUrl(ABOUT, globalThis.location ?? null))));
+  view.append(shareRow(cardFromSeries(level, verdict, shareUrl(ABOUT, globalThis.location ?? null)),
+    { note: wantsShareNote(ctx.session, level.id) }));
 
   view.append(button('Play this level again', 'btn btn-primary btn-wide', () => ctx.startRound(level.id)));
   view.append(button('Back to the levels', 'btn btn-quiet btn-wide', () => ctx.toMenu()));

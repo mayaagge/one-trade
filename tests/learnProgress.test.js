@@ -307,3 +307,56 @@ test('the hint reaches the build screen, and only once it is earned', () => {
     assert.equal(levelHint(context(passed), level), null);
   } finally { restore(); }
 });
+
+// -------------------------------------------- what a locked card gives away
+//
+// READING IS 89% OF THE TIME TO FINISH LEVELS 1 TO 3 (BUILD_LOG.md session
+// 2.33), and on a first visit six of the seven cards are locked - so the menu
+// was handing a new player the full challenge text of six levels they are not
+// allowed to start. The title and the one-word concept stay; the challenge
+// waits until the level is unlocked.
+//
+// levels.json is NOT touched by this: both fields stay exactly as the PRD's
+// level table states them, and tests/prdLevels.test.js still checks them.
+
+const classText = (card, className) => card.all()
+  .filter((n) => n.classList?.contains?.(className))
+  .map((n) => n._text ?? '')
+  .join(' ');
+
+test('a locked card shows its concept but not its challenge', () => {
+  const { restore } = screen();
+  try {
+    const view = renderMenu(context(emptyProgress()));
+    for (const id of IDS.slice(1)) {
+      const card = cardFor(view, id);
+      const level = LEVELS.levels.find((l) => l.id === id);
+      assert.equal(classText(card, 'level-concept'), level.concept,
+        `level ${id} should still say what it is about`);
+      assert.equal(classText(card, 'level-challenge'), '',
+        `level ${id} is locked and should not spend a new player's reading on its challenge`);
+    }
+  } finally { restore(); }
+});
+
+test('level 1 is open on a fresh browser, so it shows its challenge', () => {
+  const { restore } = screen();
+  try {
+    const card = cardFor(renderMenu(context(emptyProgress())), 1);
+    const level = LEVELS.levels.find((l) => l.id === 1);
+    assert.equal(classText(card, 'level-challenge'), level.challenge);
+  } finally { restore(); }
+});
+
+test('passing a level reveals the next one\'s challenge', () => {
+  const { restore } = screen();
+  try {
+    const progress = recordLevel(emptyProgress(), 1, { stars: 1, passed: true, guess: 0.9, value: 0.9 });
+    const view = renderMenu(context(progress));
+    const level2 = LEVELS.levels.find((l) => l.id === 2);
+    assert.equal(classText(cardFor(view, 2), 'level-challenge'), level2.challenge,
+      'level 2 is unlocked now and should say what it asks for');
+    assert.equal(classText(cardFor(view, 3), 'level-challenge'), '',
+      'level 3 is still locked');
+  } finally { restore(); }
+});
