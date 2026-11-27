@@ -539,6 +539,10 @@ function renderBuild(ctx, round) {
     view.append(tickerPicker(round, {
       groups: ctx.tickers.groups,
       redraw: ctx.draw,
+      // levels.json decides, not this file: level 1 hides the group headings
+      // because they give away which pairs move together, and its pickerNote
+      // says so. Every other level, and every other mode, keeps them.
+      grouped: round.level.picker?.grouped !== false,
       // A holding this round's window cannot replay is shown disabled with its
       // reason - PLTR had not listed in February 2020 - rather than left out. A
       // level without a crash window has nothing to refuse.

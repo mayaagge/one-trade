@@ -93,19 +93,42 @@ export function errorView(title, detail) {
  * @param {Function} [options.reasonFor] why a ticker cannot be picked here, or null
  *        if it can. Crash replay uses it for a holding that had not listed yet in
  *        the window being replayed; Learn passes none.
+ * @param {boolean} [options.grouped] false for one alphabetical list with no
+ *        headings, which is level 1 and nothing else. See the note below.
  */
-export function tickerPicker(build, { groups, redraw, reasonFor = () => null }) {
+export function tickerPicker(build, {
+  groups, redraw, reasonFor = () => null, grouped = true,
+}) {
   const wrap = h('div', 'picker');
   const inPool = new Set(build.pool);
 
-  for (const group of groups) {
+  // ONE ALPHABETICAL LIST, ON A LEVEL THAT ASKS FOR ONE. levels.json carries
+  // the flag and the reason (level 1's pickerNote): the group headings are a
+  // map of which holdings move together, and level 1 is the level that asks a
+  // player to work that out from the prices instead of reading it off a
+  // label. The sections are what is dropped, not the chips - same buttons,
+  // same ids, same behaviour, one row.
+  //
+  // SORTED HERE RATHER THAN IN THE FILE. tickers.json's order is its groups'
+  // order, which is the thing being hidden; sorting the names at the point of
+  // drawing means a new ticker lands in the right place with no second list
+  // to maintain.
+  const sections = grouped ? groups : [{
+    key: 'all',
+    label: null,
+    tickers: groups
+      .flatMap((group) => group.tickers.map((t) => (typeof t === 'string' ? t : t.ticker)))
+      .sort((a, b) => a.localeCompare(b)),
+  }];
+
+  for (const group of sections) {
     const names = group.tickers
       .map((t) => (typeof t === 'string' ? t : t.ticker))
       .filter((t) => inPool.has(t));
     if (names.length === 0) continue;
 
     const section = h('section', 'picker-group');
-    section.append(h('h2', 'picker-group-label', group.label));
+    if (group.label) section.append(h('h2', 'picker-group-label', group.label));
     const row = h('div', 'picker-row');
     for (const ticker of names) {
       const held = build.hasPick(ticker);

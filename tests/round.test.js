@@ -508,20 +508,25 @@ test('level 3: passing with a wild guess is 1 star, and failing is none', () => 
   assert.equal(failed.stars, 0, 'a failed level scores nothing, however good the guess');
 });
 
-test('level 1: the second star is the right bucket, the third is within 0.10', () => {
-  const close = play(1, ['VOO', 'VTI'], 0.95).result;      // actual ~1.00
-  assert.equal(close.stars, 3);
-  assert.equal(close.buckets.actual, 'same');
-  assert.equal(close.buckets.guess, 'same');
+test('level 1: the second star is within 0.20, the third within 0.10', () => {
+  // A DISTANCE SINCE 27 NOVEMBER 2026, when the bar moved to 0.70 and landed
+  // on a bucket edge: every passing pair is then in the "same bet" bucket, so
+  // the bucket could no longer be worth a star. The buckets are still here and
+  // still named on the reveal, which the last assertion holds.
+  const close = play(1, ['VOO', 'VTI'], 0.95).result;      // actual ~0.996
+  assert.equal(close.stars, 3, 'within 0.10');
 
-  const bucketOnly = play(1, ['VOO', 'VTI'], 0.75).result; // same bucket, > 0.10 off
-  assert.equal(bucketOnly.stars, 2);
-  assert.equal(bucketOnly.buckets.guess, 'same');
+  const near = play(1, ['VOO', 'VTI'], 0.85).result;       // 0.146 out
+  assert.equal(near.stars, 2, 'within 0.20 but not 0.10');
 
-  const wrongBucket = play(1, ['VOO', 'VTI'], 0.4).result;  // "partly", and far off
-  assert.equal(wrongBucket.stars, 1);
-  assert.equal(wrongBucket.buckets.guess, 'partly');
-  assert.equal(wrongBucket.buckets.labels.partly, 'partly the same bet');
+  const wide = play(1, ['VOO', 'VTI'], 0.75).result;       // 0.246 out
+  assert.equal(wide.stars, 1, 'outside both bands - and the right bucket no longer saves it');
+  assert.equal(wide.buckets.guess, 'same', 'the buckets are still worked out and shown');
+
+  const far = play(1, ['VOO', 'VTI'], 0.4).result;
+  assert.equal(far.stars, 1);
+  assert.equal(far.buckets.guess, 'partly');
+  assert.equal(far.buckets.labels.partly, 'partly the same bet');
 });
 
 test('level 2 passes on making a guess, and the stars are the accuracy', () => {
@@ -538,20 +543,33 @@ test('level 2 passes on making a guess, and the stars are the accuracy', () => {
 // ------------------------------------------------------ what the reveal says
 
 test('the reveal formats the number so it cannot contradict the pass check', () => {
-  // VTI + VXUS is the near miss: 0.7997 against a 0.80 threshold. Rounded to 2
-  // decimals it would read "0.80" and fail, so it is shown to 4.
-  const { result } = play(1, ['VTI', 'VXUS'], 0.8);
-  assert.equal(result.passed, false);
-  assert.equal(result.shown.split('.')[1].length, 4, `shown as ${result.shown}`);
-  assert.ok(Number(result.shown) < 0.8, 'what the screen shows still fails the check');
-  assert.match(result.line, /misses the 0\.8000 needed/);
+  // THE PROPERTY, NOT THE DECIMAL COUNT. What must hold is that the number on
+  // the screen is on the same side of the bar as the verdict. How many
+  // decimals that takes depends on how close the pair lands, and since the bar
+  // moved to 0.70 no pair in level 1's pool lands inside the 0.005 window that
+  // forces four - the nearest miss is VOO with NVDA at 0.6800, two points
+  // under. The four-decimal rule itself is exercised directly against
+  // formatMeasure() in tests/levels.test.js and tests/format.test.js, where a
+  // value can be put exactly where it needs to be.
+  const bar = LEVELS.levels.find((level) => level.id === 1).pass.threshold;
+  for (const pair of [['VOO', 'NVDA'], ['VTI', 'VXUS'], ['VOO', 'VTI']]) {
+    const { result } = play(1, pair, 0.8);
+    assert.equal(Number(result.shown) >= bar, result.passed,
+      `${pair.join('/')} shows ${result.shown} and the verdict says passed=${result.passed}`);
+    assert.ok(result.line.startsWith(result.shown),
+      `"${result.line}" does not start with "${result.shown}"`);
+  }
+  // And the near miss is a miss, stated plainly.
+  const nearMiss = play(1, ['VOO', 'NVDA'], 0.8).result;
+  assert.equal(nearMiss.passed, false);
+  assert.match(nearMiss.line, /misses the 0\.700 needed/);
 });
 
 test('a clear pass reads as a pass, in the same words', () => {
   const { result } = play(1, ['VOO', 'VTI'], 0.95);
   // Three decimals on level 1, measure and threshold alike: VOO and VTI
   // correlate at about 0.996, and "1.00" would claim a perfect pair.
-  assert.match(result.line, /clears the 0\.800 needed/);
+  assert.match(result.line, /clears the 0\.700 needed/);
   assert.equal(result.shown.split('.')[1].length, 3, `shown as ${result.shown}`);
   assert.ok(result.line.startsWith(result.shown), `"${result.line}" does not start with "${result.shown}"`);
 });

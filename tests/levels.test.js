@@ -78,7 +78,11 @@ test('every level asks for a guess before the reveal, and explains itself', () =
 test('the thresholds are the ones in the PRD levels table', () => {
   assert.equal(level1.pass.measure, 'correlation');
   assert.equal(level1.pass.comparison, '>=');
-  assert.equal(level1.pass.threshold, 0.8);
+  // 0.70 since 27 November 2026, the floor of the "same bet" bucket. It was
+  // 0.8, which was not a number the game used anywhere else.
+  assert.equal(level1.pass.threshold, 0.7);
+  assert.equal(level1.pass.threshold, level1.buckets.find((b) => b.key === 'same').min,
+    "the bar is the same-bet bucket's floor, which is where it came from");
   assert.deepEqual(level1.holdings, { exactly: 2 });
 
   assert.equal(level2.pass.measure, 'guess');
@@ -197,12 +201,12 @@ test('weightsFromDollars() turns the pretend money into weights that sum to 1', 
 // ------------------------------------------------------------------ passing
 
 test('passes() compares the unrounded measure, and the threshold itself passes', () => {
-  assert.equal(passes(level1, 0.8), true, 'exactly the threshold is a pass');
+  assert.equal(passes(level1, 0.7), true, 'exactly the threshold is a pass');
   // A billionth under the threshold counts AS the threshold, which is the same
   // slack the star bands give a guess - see the tolerance tests further down.
   // Anything further out than that is still measured as it is: 1e-8 under fails.
-  assert.equal(passes(level1, 0.8 - BAND_TOLERANCE / 10), true);
-  assert.equal(passes(level1, 0.79999999), false);
+  assert.equal(passes(level1, 0.7 - BAND_TOLERANCE / 10), true);
+  assert.equal(passes(level1, 0.69999999), false);
   assert.equal(passes(level1, 0.95), true);
   assert.equal(passes(level3, 3), true);
   assert.equal(passes(level3, 2.99999999), false);
@@ -315,12 +319,17 @@ test('the close-to-threshold window is wide enough to cover 2-decimal rounding',
 });
 
 test('resultLine() prints the measure and the threshold to the same precision', () => {
-  assert.equal(resultLine(level1, 0.7997), '0.7997 misses the 0.8000 needed');
+  // A hair under level 1's bar of 0.70, where two decimals would round to the
+  // bar itself and read as a pass. Four decimals on both sides instead.
+  assert.equal(resultLine(level1, 0.6997), '0.6997 misses the 0.7000 needed');
   // Level 1 reveals three decimals, and the threshold is printed to the same
   // three: a correlation that rounds to 1.00 is not a pair that moves together
   // perfectly, and the card posts this number.
-  assert.equal(resultLine(level1, 0.95), '0.950 clears the 0.800 needed');
-  assert.equal(resultLine(level1, 0.9962), '0.996 clears the 0.800 needed');
+  assert.equal(resultLine(level1, 0.95), '0.950 clears the 0.700 needed');
+  assert.equal(resultLine(level1, 0.9962), '0.996 clears the 0.700 needed');
+  // VTI with VXUS, 0.7997: the pair this example used to be built on, back
+  // when the bar was 0.80 and it was the near miss. It passes now.
+  assert.equal(resultLine(level1, 0.7997), '0.800 clears the 0.700 needed');
   assert.equal(resultLine(level3, 3.07), '3.07 clears the 3.00 needed');
   assert.equal(resultLine(level3, 2.9996), '2.9996 misses the 3.0000 needed');
   assert.equal(resultLine(level2, 2.1), null, 'level 2 has no threshold to print');
@@ -651,10 +660,13 @@ test('the pass check gives the same 1e-9 slack the star bands give a guess', () 
   assert.equal(passes(level5, 0.35 + nudge), true);
   assert.equal(passes(level5, 0.3501), false);
 
-  // Level 1, "correlation >= 0.80": a hair under counts as 0.80 and passes; the
-  // real near miss in the pool, VTI with VXUS at 0.7997, is nowhere near it.
-  assert.equal(passes(level1, 0.8 - nudge), true);
-  assert.equal(passes(level1, 0.7997), false);
+  // Level 1, "correlation >= 0.70": a hair under counts as 0.70 and passes.
+  // The real near miss in the pool is VOO with NVDA at 0.6796, two points
+  // under, nowhere near the slack - and VTI with VXUS at 0.7997, which WAS
+  // the near miss under the old bar of 0.80, now clears comfortably.
+  assert.equal(passes(level1, 0.7 - nudge), true);
+  assert.equal(passes(level1, 0.6796), false);
+  assert.equal(passes(level1, 0.7997), true);
 
   // Level 3, "at least 3 bets".
   assert.equal(passes(level3, 3 - nudge), true);

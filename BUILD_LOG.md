@@ -5912,3 +5912,142 @@ touched: a guess record carries the level, the guess and the actual value, and
 no star.
 
 Educational, not investment advice.
+
+## Player feedback 5: level 1's picker, its hint, and its pass bar, 27 November 2026 (session 2.41)
+
+Three changes to one level, from the playtest. New in the repo:
+`scripts/check_pass_bar.mjs`, which prints and writes nothing, like the other
+two calibration scripts.
+
+### One alphabetical list, no group headings
+
+**Item 1 of the round.** levels.json carries the flag and the reason:
+
+> One alphabetical list, no group headings. The headings are a map of which
+> pairs move together, and level 1 is the level that asks a player to find that
+> out for themselves - a player who reads "Core US funds" over VOO and VTI has
+> been handed the answer rather than having found it.
+
+`tickerPicker()` takes `grouped`, defaulting to true, so every other level and
+every other mode is untouched; the flag is read from `level.picker.grouped`
+rather than from a condition on the level's id, so a reader of levels.json can
+see which level does this and why. The sorting happens at the point of drawing
+rather than in the file: tickers.json's order IS its group order, which is the
+thing being hidden, and a second hand-maintained list would drift.
+
+The chips keep their per-ticker ids, which is not cosmetic - js/screen.js finds
+the control a player just tapped by id across a redraw, because a chip is
+announced as "Add GLD" and then "Remove GLD". A test holds that.
+
+Screenshotted at 375px rather than reasoned about: 14 chips, four rows, and the
+whole level now sits above the fold.
+
+### Level 1's hint is deleted, not rewritten
+
+Its hint said "look for a pair from the same heading", which this session made
+impossible to follow. The standing decision (recorded earlier today) is that no
+level will have a hint at all, so it goes rather than being reworded; the other
+six follow in session 9, and the ideas land in the About tab and the Why? cards.
+The ticker-naming guard on hints now runs over the six that remain and asserts
+which six they are, so the next deletion has to be deliberate.
+
+### The pass bar moves from 0.80 to 0.70
+
+**The rule was stated before the numbers were looked at**, and it is the rule
+docs/PRD.md already applies to every value it fixes - a number the game already
+uses elsewhere. Level 1 asks a player to "pick two holdings that move together",
+and the game defines moving together in exactly one place: **0.70 and above is
+the same bet**, in the daily puzzle and in level 1's own buckets. 0.80 was not a
+number the game used anywhere else, and it asked for something stricter than the
+game's own definition of the thing the level teaches without naming what.
+
+Checked over **every pair the game can offer** - all 780 from the 40 playable
+tickers, live window, none set aside:
+
+| Bar | Pairs at or above | Share | Across how many holdings |
+| --- | --- | --- | --- |
+| 0.70 | 30 of 780 | 3.8% | 19 |
+| 0.75 | 18 of 780 | 2.3% | 14 |
+| 0.80 | 12 of 780 | 1.5% | 12 |
+
+In level 1's own pool of 14 the passing pairs go from 8 of 91 to 16 of 91. The
+shares checked the rule and did not choose it: had 0.70 been cleared by most
+pairs, the answer was to say so and leave the bar alone.
+
+### And the second star had to move with it, in the same change
+
+This is the part worth being careful about. Session 2.40 examined level 1 and
+**deliberately kept** its bucket-based second star, on this reasoning: its bar
+of 0.80 sat above its top bucket edge of 0.70, so passing pairs were clear of
+the edge - 0 of 8 within the three-star band of one - and the bucket was a real
+judgement rather than a coin flip.
+
+Moving the bar to 0.70 retires that reason in a single step. The bar IS the
+edge, so a pair cannot pass without being in the "same bet" bucket, and the
+measurement confirms it: **8 of the 16 passing pairs now sit within the band of
+an edge, against 0 of 8 before.** Level 1 acquires the exact defect the first
+amendment was written for, by a different route. So its two-star band becomes
+within 0.20 - twice its own three-star band, the same rule levels 4, 5 and 6
+took - in this change rather than in a later one that would have had to
+rediscover it.
+
+Both docs/PRD.md amendments are kept, in order, with the first one's "examined
+and left alone" reasoning marked as superseded rather than rewritten. The band
+did not move on its own merits; it followed the bar, and the record should say
+so.
+
+Swept over all 201 guesses level 1's slider offers, against its new median
+passing answer of 0.8304: **6 gain a star, none lose one.** It is the only one
+of the four levels where the change is purely gentler.
+
+### The four-decimal rule is now inert on this level, and that is recorded
+
+"A displayed number never disagrees with the pass check" shows 4 decimals when a
+result lands within 0.005 of its threshold. At 0.80 that fired on a real pair -
+VTI and VXUS at 0.7997, which the PRD used as its worked example and which three
+tests were built on. At 0.70 nothing in the pool comes near: the closest miss is
+VOO with NVDA at 0.6800, two points under. The rule is unchanged and still
+right; it has nothing to fire on.
+
+So the three tests were rewritten around **the property rather than the decimal
+count**: what the screen shows must sit on the same side of the bar as the
+verdict, whatever precision that takes. That is a better test than counting
+decimals was. The 4-decimal behaviour itself is still exercised directly against
+`formatMeasure()` in tests/levels.test.js and tests/format.test.js, where a
+value can be put exactly where it needs to be rather than hoping a real pair
+lands there.
+
+### check_levels.mjs needed no change, and that is the finding
+
+Asked for, and checked rather than assumed: `grep -c threshold` shows it reads
+every bar from levels.json, including level 1's, and `grep 0.8` finds nothing.
+It picked up the new bar on its own - 16 winning designs, nearest miss 0.68 VOO
++ NVDA - with no edit. A new invariant test covers what the change could have
+broken instead: **a level whose pass bar is one of its own bucket edges may not
+score a star on that bucket.** That is the rule behind both amendments, stated
+once so a future level cannot reintroduce the defect by accident.
+
+### Logged to watch, not acted on: the ladder is wildly uneven
+
+The pass-rate table turned up something nobody asked about. Share of randomly
+drawn designs that pass, live window: **level 3 at 1.4%** (17 of 1,199), level 6
+4.6%, level 1 8.8%, level 5 10.5%, **level 4 at 56.1%** (635 of 1,131). Level 3
+is the third thing a new player meets and the last in the 15-minute classroom
+cut, and it is by some distance the hardest in the game; level 4 passes more
+often than not.
+
+Maya's call, and the right one: **change nothing now.** A pass rate over random
+draws is not a pass rate over what a person builds, and a player who has just
+been taught to spread across groups is not drawing at random. It goes in
+docs/PRD.md under Milestone 4 as "to watch in the next playtest", where five
+people and no help can answer whether level 3 is actually a wall.
+
+### Checked, not assumed
+
+1,231 to **1,232 passing**, with 14 failing on the way through - every one a
+test that encoded the 0.80 bar or the bucket-based star, and each rewritten
+rather than loosened. `node scripts/check_levels.mjs` still finds every level
+solvable. Four of level 1's reveal sentences printed and read. The a11y run
+reports an empty contrast table.
+
+Educational, not investment advice.

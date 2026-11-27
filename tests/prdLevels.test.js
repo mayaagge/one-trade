@@ -300,8 +300,14 @@ test('a two-star distance is exactly twice the three-star one, as the amendment 
   // rather than only in the prose.
   const amended = LEVELS.levels.filter((level) => Array.isArray(level.buckets)
     && level.stars.two.test === 'within');
-  assert.deepEqual(amended.map((level) => level.id), [4, 5, 6],
+  assert.deepEqual(amended.map((level) => level.id), [1, 4, 5, 6],
     'the set of levels scoring a bucket level on a distance has changed');
+  // Level 1 joined them in the second amendment, when its pass bar moved onto
+  // a bucket edge and gave it the same defect by a different route. No level
+  // with buckets scores its second star on them any more - and the rule that
+  // decides it is stated below, as an invariant rather than a list.
+  const onBucket = LEVELS.levels.filter((level) => level.stars.two.test === 'bucket');
+  assert.deepEqual(onBucket, [], 'a level still scores its second star on a bucket');
   for (const level of amended) {
     assert.equal(level.stars.two.of, level.stars.three.of * 2,
       `level ${level.id}: ${level.stars.two.of} is not twice ${level.stars.three.of}`);
@@ -337,6 +343,27 @@ test("the scoring table's bucket edges are the buckets levels.json defines", () 
     const written = [...new Set(numbersIn(row.buckets.split('—')[0]))].sort((a, b) => a - b);
     assert.deepEqual(edges, written,
       `level ${id}: the PRD's buckets read "${row.buckets.split('—')[0].trim()}"`);
+  }
+});
+
+test('a level whose pass bar IS a bucket edge never scores a star on that bucket', () => {
+  // THE INVARIANT BEHIND BOTH AMENDMENTS, stated once so a future level cannot
+  // reintroduce the defect by accident. Stars are awarded only to a portfolio
+  // that passed, so if the bar sits on a bucket edge then every passing answer
+  // falls in the same bucket: "name the right bucket" degenerates into "guess
+  // on the passing side of the bar", which punishes an error one way and
+  // forgives the same error the other. Levels 4, 5 and 6 were built that way;
+  // level 1 became so when its bar moved to 0.70 on 27 November 2026.
+  for (const level of LEVELS.levels) {
+    if (!Array.isArray(level.buckets) || !Number.isFinite(level.pass.threshold)) continue;
+    const edges = level.buckets
+      .map((bucket) => bucket.min)
+      .filter((min) => min !== null && min > -1);
+    const onEdge = edges.some((edge) => Math.abs(edge - level.pass.threshold) <= 1e-9);
+    if (!onEdge) continue;
+    assert.equal(level.stars.two.test, 'within',
+      `level ${level.id}'s bar of ${level.pass.threshold} is a bucket edge, so its second `
+      + 'star cannot be that bucket');
   }
 });
 

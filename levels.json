@@ -76,7 +76,6 @@
       "title": "Two of a kind",
       "concept": "Correlation",
       "challenge": "Pick two holdings with different names that move together.",
-      "hint": "Two funds that hold almost the same companies move almost as one, whatever their names are. Look for a pair from the same heading rather than two names you recognise.",
       "holdings": {
         "exactly": 2
       },
@@ -96,7 +95,11 @@
         "BAC",
         "NVDA"
       ],
-      "poolNote": "Fourteen names with several same-bet pairs in them, and a near miss that matters: VTI and VXUS correlate at 0.7997 over the current window, a hair under the threshold. It is shown to 4 decimals so the number on screen cannot read as a pass.",
+      "poolNote": "Fourteen names with several same-bet pairs in them. Sixteen of the 91 pairs clear the bar, and the nearest miss is VOO and NVDA at 0.6796 - two points under, which is a better lesson than a hair under it was: one AI stock and the whole index are partly the same bet, not the same bet. The 4-decimal rule still stands for a pair that lands within 0.005 of the bar; no pair in this pool does today.",
+      "picker": {
+        "grouped": false
+      },
+      "pickerNote": "One alphabetical list, no group headings. The headings are a map of which pairs move together, and level 1 is the level that asks a player to find that out for themselves - a player who reads \"Core US funds\" over VOO and VTI has been handed the answer rather than having found it. Every other level keeps the headings, and level 3's lesson is explicitly about counting them. From playtest feedback, 27 November 2026.",
       "guess": {
         "measure": "correlation",
         "prompt": "Before the reveal: how closely do these two move together, from -1 to 1?",
@@ -109,8 +112,8 @@
       "pass": {
         "measure": "correlation",
         "comparison": ">=",
-        "threshold": 0.8,
-        "says": "a correlation of 0.80 or more"
+        "threshold": 0.7,
+        "says": "a correlation of 0.70 or more"
       },
       "buckets": [
         {
@@ -133,8 +136,9 @@
       "stars": {
         "pass": 1,
         "two": {
-          "test": "bucket",
-          "says": "naming the right bucket"
+          "test": "within",
+          "of": 0.2,
+          "says": "within 0.20 of the real correlation"
         },
         "three": {
           "test": "within",
@@ -149,7 +153,8 @@
       },
       "revealPlaces": 3,
       "revealPlacesNote": "A correlation is revealed to THREE decimals, not the two every other level uses. Two is not enough here: a real 0.9962 reads as \"1.00\", which claims a pair that moves together perfectly and is a claim the card then posts. Three reads 0.996. This is the revealed answer only - guess.places still describes the slider, which moves in hundredths - and js/round.js formats the panel, the result line, the \"Why?\" card and the share card through it together, so no two of them can disagree about the same pair.",
-      "revealLabel": "How closely they really move together"
+      "revealLabel": "How closely they really move together",
+      "barNote": "The bar is 0.70, the floor of the \"same bet\" bucket that the daily puzzle and this level's own buckets already use. It was 0.80 until 27 November 2026, which was not a number the game used anywhere else and asked for something stricter than the game's own definition of moving together without naming what. Because the bar is now a bucket edge, every passing pair sits in the \"same bet\" bucket, so the second star is a distance rather than that bucket - see docs/PRD.md and BUILD_LOG.md, player feedback 5."
     },
     {
       "id": 2,

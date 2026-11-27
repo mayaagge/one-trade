@@ -440,17 +440,17 @@ test('level 1 never gets a risk-share card', () => {
 });
 
 test('the card and the reveal panel show a near-miss correlation the same way', () => {
-  // VTI and VXUS correlate just under level 1's 0.80 threshold over this window.
-  // The panel shows 4 decimals so it cannot read as a pass; the card has to show
-  // the same string, or the screen contradicts itself about whether the level
-  // was passed. The number itself is not hard-coded here: it is a hair under 0.8
-  // on the frozen snapshot and a hair under on the live file too, but not the
-  // same hair, and what is being checked is that the two agree.
-  const { result } = play(1, ['VTI', 'VXUS'], 0.8);
+  // VOO and NVDA are level 1's near miss since the bar moved to 0.70 on 27
+  // November 2026: about 0.68, two points under. The card has to show the same
+  // string as the panel, or the screen contradicts itself about whether the
+  // level was passed. The number is not hard-coded - it differs between the
+  // frozen snapshot and the live file - and what is checked is that the two
+  // surfaces agree and that neither reads as a pass.
+  const { result } = play(1, ['VOO', 'NVDA'], 0.7);
   assert.equal(result.passed, false);
-  assert.equal(result.value > 0.79 && result.value < 0.8, true,
-    `VTI and VXUS should be a near miss, not ${result.value}`);
-  assert.match(result.shown, /^0\.\d{4}$/, 'the panel should show 4 decimals near the threshold');
+  assert.equal(result.value > 0.6 && result.value < 0.7, true,
+    `VOO and NVDA should be a near miss, not ${result.value}`);
+  assert.ok(Number(result.shown) < 0.7, `the panel shows ${result.shown}, which reads as a pass`);
   assert.equal(result.whyCard.values.r, result.shown);
   assert.equal(result.whyCard.text.includes(result.shown), true);
 });

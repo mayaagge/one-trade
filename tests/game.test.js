@@ -40,9 +40,10 @@ import {
 } from '../js/game.js';
 import { emptyProgress, recordLevel, starsOf } from '../js/progress.js';
 import { validateCrashes } from '../js/crash.js';
+import { withDocument } from './stubDom.js';
 // The picker, the allocator and the money they are written in now live in
 // js/build.js, shared with Crash replay.
-import { floorNotes, money } from '../js/build.js';
+import { floorNotes, money, tickerPicker } from '../js/build.js';
 import { SEEN_POOL_KEY } from '../js/seenPool.js';
 
 /** A localStorage for one test, and the teardown that takes it away again. Same pattern as tests/progress.test.js. */
@@ -250,14 +251,18 @@ test('a 3-star reveal names all three bands and asks for nothing more', () => {
   assert.doesNotMatch(text, /missed it/, 'a nested band cannot be skipped');
 });
 
-test('the explanation for level 1 uses its bucket band, not a bets band', () => {
-  // Bucket right (both 0.85 and 0.98 are "the same bet"), distance missed:
-  // 0.13 is outside the 0.10 band.
+test("the explanation for level 1 uses its own distances, not a bets band", () => {
+  // Level 1's bands are 0.20 and 0.10, not the 1 and 0.5 a bets count uses -
+  // on a correlation from -1 to 1 those would hand out two and three stars for
+  // any guess at all. 0.13 out: inside 0.20, outside 0.10.
   const text = starsExplanation(levelById(LEVELS, 1), {
     passed: true, stars: 2, guess: 0.85, value: 0.98,
   });
-  assert.match(text, /naming the right bucket/);
-  assert.match(text, /within 0\.10 of the real correlation/);
+  assert.match(text, /2 for within 0\.20 of the real correlation/);
+  assert.match(text, /3 stars needed within 0\.10 of the real correlation/);
+  // The bucket is no longer part of the scoring, so it is not part of the
+  // sentence either - it is on the reveal's own bucket line instead.
+  assert.ok(!/bucket/.test(text), `the bucket is back in the star sentence: ${text}`);
 });
 
 test('no shipped level can strand its two-star band any more', () => {
@@ -335,6 +340,83 @@ test('level 5 now scores the same error the same way in both directions', () => 
   // And the three-star band is untouched by the amendment.
   assert.equal(starsFor(level, { guess: actual + 0.04, actual, passed: true }), 3);
   assert.equal(starsFor(level, { guess: actual - 0.04, actual, passed: true }), 3);
+});
+
+// ------------------------------------------------------------- the picker
+
+/** The least a build has to be for tickerPicker() to draw it. */
+function stubBuild(pool, picks = []) {
+  const held = new Set(picks);
+  return {
+    pool,
+    required: [],
+    hasPick: (ticker) => held.has(ticker),
+    canAddPick: () => true,
+    togglePick: (ticker) => (held.has(ticker) ? held.delete(ticker) : held.add(ticker)),
+  };
+}
+
+const GROUPS = TICKERS.groups;
+const chipsOf = (node) => node.querySelectorAll('chip').map((chip) => chip._text);
+
+test('a flat picker is one alphabetical list with no group headings', () => {
+  // PLAYER FEEDBACK 1 OF 16. The headings are a map of which holdings move
+  // together, and level 1 is the level that asks a player to find that out
+  // from the prices. "Core US funds" written over VOO and VTI hands them the
+  // answer instead.
+  const restore = withDocument();
+  try {
+    const pool = levelById(LEVELS, 1).pool;
+    const node = tickerPicker(stubBuild(pool), {
+      groups: GROUPS, redraw: () => {}, grouped: false,
+    });
+    assert.equal(node.querySelectorAll('picker-group-label').length, 0, 'a heading survived');
+    assert.equal(node.querySelectorAll('picker-group').length, 1, 'more than one section');
+    assert.deepEqual(chipsOf(node), [...pool].sort((a, b) => a.localeCompare(b)));
+  } finally { restore(); }
+});
+
+test('a flat picker still carries every chip id focus depends on', () => {
+  // js/screen.js finds the control a player just tapped by its id across a
+  // redraw, because a chip is announced as "Add GLD" and then "Remove GLD" -
+  // the label changes and the id does not. Dropping the sections must not
+  // drop those.
+  const restore = withDocument();
+  try {
+    const pool = levelById(LEVELS, 1).pool;
+    const node = tickerPicker(stubBuild(pool, ['GLD']), {
+      groups: GROUPS, redraw: () => {}, grouped: false,
+    });
+    for (const ticker of pool) {
+      assert.ok(node.querySelector(`[id="chip-${ticker}"]`), `no chip id for ${ticker}`);
+    }
+    const gld = node.querySelector('[id="chip-GLD"]');
+    assert.equal(gld.getAttribute('aria-pressed'), 'true');
+    assert.equal(gld.getAttribute('aria-label'), 'Remove GLD');
+  } finally { restore(); }
+});
+
+test('a grouped picker keeps its headings, which is every other level', () => {
+  const restore = withDocument();
+  try {
+    const node = tickerPicker(stubBuild(UNIVERSE), { groups: GROUPS, redraw: () => {} });
+    const headings = node.querySelectorAll('picker-group-label').map((n) => n._text);
+    assert.deepEqual(headings, GROUPS.map((group) => group.label));
+    // And grouped is the default, so a caller that says nothing gets headings.
+    assert.equal(chipsOf(node).length, UNIVERSE.length);
+  } finally { restore(); }
+});
+
+test('only level 1 asks for a flat picker, and it says why in the file', () => {
+  // The flag is data, not a condition in js/game.js, so a reader of
+  // levels.json can see which level hides its headings and for what reason.
+  const flat = LEVELS.levels.filter((level) => level.picker?.grouped === false);
+  assert.deepEqual(flat.map((level) => level.id), [1]);
+  assert.match(flat[0].pickerNote, /alphabetical/);
+  for (const level of LEVELS.levels) {
+    if (level.id === 1) continue;
+    assert.equal(level.picker, undefined, `level ${level.id} now has a picker rule`);
+  }
 });
 
 // ------------------------------------------------- what a count ping carries

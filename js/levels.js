@@ -121,6 +121,7 @@ export function validateLevels(data) {
       }
     }
     validateGuess(level);
+    validatePicker(level);
     validateHoldings(level, data);
     validateBuckets(level);
     validateStars(level);
@@ -545,6 +546,31 @@ export function kindFloorFor(level, data) {
  * basket - so level 4's lowest bucket says `"min": null` rather than inventing a
  * floor. Any earlier bucket without one would swallow every value below it.
  */
+/**
+ * How a level draws its picker, which is one flag and only one.
+ *
+ * ABSENT MEANS GROUPED, so every level that says nothing keeps the headings it
+ * has always had and only the level that opts out is different. Checked here
+ * rather than left to the renderer because a typo - "grouping", "group" - would
+ * silently restore the headings on the one level whose lesson depends on them
+ * being gone, and nothing on the screen would look wrong.
+ */
+function validatePicker(level) {
+  const picker = level.picker;
+  if (picker === undefined) return;
+  const where = `level ${level.id}`;
+  if (typeof picker !== 'object' || picker === null || Array.isArray(picker)) {
+    throw new Error(`${where}: picker must be an object`);
+  }
+  const keys = Object.keys(picker);
+  if (keys.length !== 1 || keys[0] !== 'grouped') {
+    throw new Error(`${where}: picker takes one key, "grouped", not ${keys.join(', ') || 'nothing'}`);
+  }
+  if (typeof picker.grouped !== 'boolean') {
+    throw new Error(`${where}: picker.grouped must be true or false`);
+  }
+}
+
 function validateBuckets(level) {
   if (!Array.isArray(level.buckets)) return;
   const where = `level ${level.id}`;

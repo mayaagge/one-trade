@@ -78,15 +78,21 @@ test('85% of level 5\'s passing answers sit within the three-star band of an edg
   assert.match(PRD, /85% of level 5's passing answers sit within the three-star band of an edge/);
 });
 
-test("level 1's passing answers hug no edge, which is why it kept its bucket", () => {
+test("level 1's answers hug an edge now that its bar IS that edge", () => {
+  // THE BEFORE FIGURES ARE HISTORY AND THE PRD KEEPS THEM: at a bar of 0.80,
+  // 0 of 8 passing pairs sat within the three-star band of an edge, which is
+  // why the first amendment left level 1 alone. Moving the bar to 0.70 put it
+  // ON the edge, and the room went: a pair cannot pass without being in the
+  // "same bet" bucket. That is why the band followed the bar.
   const { hugging, spread: s } = analysed[1]();
-  assert.equal(hugging.of, 8);
-  assert.equal(hugging.count, 0, 'a level 1 answer now sits within 0.10 of a bucket edge');
-  assert.equal(hugging.distance.median.toFixed(4), '0.2483');
-  assert.ok(hugging.distance.median > 2 * level(1).stars.three.of,
-    'the nearest edge is no longer clear of the band by more than double');
-  assert.equal(s.median.toFixed(4), '0.9483');
-  assert.match(PRD, /0 of 8; the nearest edge is a median 0\.2483 away/);
+  assert.equal(hugging.of, 16, 'the passing-pair count at the 0.70 bar has moved');
+  assert.equal(hugging.count, 8);
+  assert.equal(s.median.toFixed(4), '0.8304');
+  assert.ok(hugging.distance.median < 2 * level(1).stars.three.of,
+    'the nearest edge is still clear of twice the band, so the defect would not apply');
+  // Both amendments are on the page, with the before figures kept visible.
+  assert.match(PRD, /0 of 8; the nearest edge a median 0\.2483 away/);
+  assert.match(PRD, /8 of its 16 passing pairs now sit within the band of an edge/);
 });
 
 test('level 5 scored the same error differently by direction, before the amendment', () => {
@@ -108,9 +114,12 @@ test('level 5 scored the same error differently by direction, before the amendme
 
 // --------------------------------------------------- what the amendment moved
 
-test('the amendment moved levels 4, 5 and 6, and left level 1 alone', () => {
-  assert.deepEqual([...AMENDED_LEVELS].sort(), [4, 5, 6]);
-  assert.equal(level(1).stars.two.test, 'bucket', 'level 1 lost its bucket after all');
+test('all four bucket levels now score the second star on a distance', () => {
+  // Levels 4, 5 and 6 by the first amendment; level 1 by the second, when its
+  // pass bar moved onto a bucket edge.
+  assert.deepEqual([...AMENDED_LEVELS].sort(), [1, 4, 5, 6]);
+  assert.deepEqual([...AMENDED_LEVELS].sort(), [...REGISTERED_BUCKET_LEVELS].sort(),
+    'a level registered on a bucket is no longer amended, or the other way round');
   for (const id of AMENDED_LEVELS) {
     assert.equal(level(id).stars.two.test, 'within', `level ${id} still scores a bucket`);
     assert.equal(level(id).stars.two.of, level(id).stars.three.of * TWO_STAR_MULTIPLE);
@@ -127,12 +136,12 @@ test('the gains and losses are the ones the PRD reports, swept over every guess'
     counts[id] = { gained: sweep.gained.length, lost: sweep.lost.length };
   }
   assert.deepEqual(counts, {
-    1: { gained: 0, lost: 0 },   // kept its bucket, so nothing moved at all
+    1: { gained: 6, lost: 0 },   // purely gentler, once its bar moved too
     4: { gained: 1, lost: 3 },
     5: { gained: 5, lost: 0 },
     6: { gained: 2, lost: 5 },
   });
-  assert.match(PRD, /level 5 gains a star on 5 guesses and loses one on none; level 4 gains on 1 and loses on 3; level 6 gains on 2 and loses on 5/);
+  assert.match(PRD, /level 5 gains a star on 5 guesses and loses one on none; level 4 gains on 1 and loses on 3; level 6 gains on 2 and loses on 5; level 1, once its bar moved too, gains on 6 and loses on none/);
 });
 
 test('every guess level 5 gained is one that was punished for crossing the edge', () => {

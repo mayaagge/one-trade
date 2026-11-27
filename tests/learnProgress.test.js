@@ -363,7 +363,23 @@ test('a level offers its hint on the fourth attempt, not before', () => {
   } finally { restore(); }
 });
 
-test('every level carries a hint, and none of them names a winning portfolio', () => {
+test('level 1 carries no hint at all, and the build screen offers none', () => {
+  // THE FIRST OF THE HINTS TO GO. No level will have one - the decision is in
+  // BUILD_LOG.md, and sessions 9 and 10 take the other six out and fold their
+  // ideas into the About tab and the Why? cards. Level 1's went first because
+  // it told a player to "look for a pair from the same heading", and this
+  // session removed the headings.
+  const level = LEVELS.levels.find((one) => one.id === 1);
+  assert.equal(level.hint, undefined, 'level 1 has a hint again');
+  const failedThrice = [1, 2, 3].reduce(
+    (record) => recordLevel(record, 1, { stars: 0, error: 0.9 }), emptyProgress(),
+  );
+  assert.equal(triesOf(failedThrice, 1), 3, 'the tries were not counted');
+  assert.equal(levelHint(context(failedThrice), level), null,
+    'level 1 offered a hint after three failed tries');
+});
+
+test('a hint that still exists names no winning portfolio', () => {
   // A HINT THAT NAMES A PORTFOLIO IS AN ANSWER KEY. The rule is checkable: a
   // hint may not contain a ticker this game carries, because a list of tickers
   // is what a winning design IS. It may talk about groups, headings and what
@@ -373,11 +389,19 @@ test('every level carries a hint, and none of them names a winning portfolio', (
   // challenge line already says "Keep at least 30% in QQQ" and the build screen
   // deals it locked. Naming the holding the level forces gives nothing away
   // about the other three, which are the whole puzzle.
+  //
+  // THE RULE OUTLIVES THE HINTS. When session 10 folds these ideas into the
+  // Why? cards, this check moves there with them - the card knows the player's
+  // own holdings, so the risk is larger, not smaller.
   const universe = readJson('tickers.json').groups
     .flatMap((group) => group.tickers.map((t) => (typeof t === 'string' ? t : t.ticker)));
   const allowed = { 4: ['QQQ'] };
 
-  for (const level of LEVELS.levels) {
+  const withHints = LEVELS.levels.filter((level) => level.hint !== undefined);
+  assert.deepEqual(withHints.map((level) => level.id), [2, 3, 4, 5, 6, 7],
+    'the set of levels still carrying a hint has changed');
+
+  for (const level of withHints) {
     assert.equal(typeof level.hint, 'string', `level ${level.id} has no hint`);
     assert.ok(level.hint.length > 40, `level ${level.id}'s hint is too short to help`);
     const named = universe.filter((ticker) => new RegExp(`\\b${ticker}\\b`).test(level.hint));

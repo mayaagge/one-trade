@@ -102,19 +102,26 @@ export function edgesOf(level) {
 export const REGISTERED_BUCKET_LEVELS = new Set([1, 4, 5, 6]);
 
 /**
- * The levels the amendment actually moved - a subset, decided by this report.
+ * The levels whose two-star band is now a distance.
  *
- * LEVEL 1 KEPT ITS BUCKET, and the sweep below is why. None of its passing
- * answers sits within the three-star band of an edge (0 of 8), so its bucket
- * test is a real judgement with room either side rather than a coin flip on
- * which side of a threshold a near-perfect guess fell. Moving it would have
- * changed 5 of the 201 guesses its slider offers and every one of them
- * DOWNWARDS: a player who said 0.72 about a pair correlating 0.95 named the
- * right bucket - "these are the same bet", which is the whole lesson of level
- * 1 - and would have lost the star for it. A change asked for because stars
- * were too harsh should not make a level harsher.
+ * LEVEL 1 WAS LEFT OUT OF THE FIRST AMENDMENT AND JOINED IN THE SECOND, hours
+ * apart, and the two reasons are worth keeping together. At a bar of 0.80 none
+ * of its passing answers sat within the three-star band of a bucket edge (0 of
+ * 8), so the bucket was a real judgement with room either side; moving it then
+ * would have changed 5 of the 201 guesses its slider offers and every one of
+ * them DOWNWARDS, taking a star from a player who said 0.72 about a pair
+ * correlating 0.95 - the right bucket, and the whole lesson of level 1.
+ *
+ * Then the bar moved to 0.70, which IS the edge, and the room disappeared: a
+ * passing pair now sits in the "same bet" bucket by definition. The band
+ * followed the bar rather than being moved on its own merits.
+ *
+ * THE COMPARISON THIS SCRIPT DRAWS FOR LEVEL 1 holds the new bar fixed and
+ * varies only the star rule, which is the right isolation: the bar's own case
+ * is argued in docs/PRD.md and checked by scripts/check_pass_bar.mjs, and
+ * mixing the two would make neither legible.
  */
-export const AMENDED_LEVELS = new Set([4, 5, 6]);
+export const AMENDED_LEVELS = new Set([1, 4, 5, 6]);
 
 /**
  * Stars under the bands as registered, and under the rules in levels.json now,
