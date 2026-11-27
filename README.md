@@ -4,7 +4,7 @@
 
 [**Play it →**](https://mayaagge.github.io/one-trade/)
 
-No sign-up, no accounts, nothing installed. A round takes one to two minutes.
+No sign-up, no accounts, nothing installed.
 
 It teaches one idea: **different tickers can be the same bet.** An S&P 500 fund, a tech fund and NVIDIA rise and fall together, so holding all three is closer to one trade than to three. That is the name.
 
@@ -19,15 +19,15 @@ It teaches one idea: **different tickers can be the same bet.** An S&P 500 fund,
 
 ## Why it exists
 
-Most stock games ask "can you pick winners?" This one asks "do you know what you're actually betting on?" Returns never score points, and there is no leaderboard — the only thing it rewards is understanding where your risk actually sits.
+Most stock games ask "can you pick winners?" This one asks "do you know what you're actually betting on?" Returns never score points, and there is no leaderboard. The only thing it rewards is understanding where your risk actually sits.
 
 The measure behind it is the **effective number of bets** (Meucci 2009): split the covariance matrix of daily returns into principal components, work out each component's share of total variance, and take the exponential of the entropy of those shares. Five holdings that all move together score close to 1. Five that genuinely behave differently score close to 5. All of it runs in your browser.
 
 ## The research, and what it actually found
 
-Three hypotheses were written down and **tagged in git before a single price was downloaded** (`prereg`, `prereg-v2`, `prereg-v3`). The tag timestamps precede the first commit containing price data, which anyone can check. Every result is published whichever way it came out — including the two below that went against the claim.
+Three hypotheses were written down and **tagged in git before a single price was downloaded** (`prereg`, `prereg-v2`, `prereg-v3`). The tag timestamps precede the first commit containing price data, which anyone can check. Every result is published whichever way it came out, including the two below that went against the claim.
 
-**Hypothesis 1 — hidden concentration.** *Claim: a beginner combining a broad index fund, a tech fund and individual AI stocks has far fewer independent sources of risk than holdings.*
+**Hypothesis 1, hidden concentration.** *Claim: a beginner combining a broad index fund, a tech fund and individual AI stocks has far fewer independent sources of risk than holdings.*
 
 **The verdict is "not supported".** Two tests were run and both are published, but they are not equals: the headline test carries the verdict, and the registered one is printed beside it because it is what was registered, not because it decides anything ([PREREG_AMENDMENT_2.md](PREREG_AMENDMENT_2.md) §5, written before any price was downloaded).
 
@@ -36,25 +36,25 @@ Three hypotheses were written down and **tagged in git before a single price was
 | Headline: correlation-only ratio R | 0.773 | below 0.60 | **not supported** | **the verdict** |
 | Registered: effective risk sources ÷ holdings | 0.327 | below 0.60 | supported | reported as registered |
 
-**Why they disagree.** Both ask "how much less diversified is this than it looks?", but they divide by different things. The registered test divides effective bets by the *number of holdings* — and that falls for two unrelated reasons at once: holdings moving together, and money spread unevenly. The sampler spreads money very unevenly on purpose, and a portfolio with most of its money in one name has few effective bets however its holdings move. **The giveaway is the independence benchmark: run the same sampler on holdings with no correlation whatsoever and the median still lands at 0.523 — already under the 0.60 bar.** That test is passed before correlation enters the room, so "supported" there is not on its own evidence for the claim.
+**Why they disagree.** Both ask "how much less diversified is this than it looks?", but they divide by different things. The registered test divides effective bets by the *number of holdings*, and that falls for two unrelated reasons at once: holdings moving together, and money spread unevenly. The sampler spreads money very unevenly on purpose, and a portfolio with most of its money in one name has few effective bets however its holdings move. **The giveaway is the independence benchmark: run the same sampler on holdings with no correlation whatsoever and the median still lands at 0.523, already under the 0.60 bar.** That test is passed before correlation enters the room, so "supported" there is not on its own evidence for the claim.
 
-The headline test removes exactly that confusion: it compares each portfolio against *itself* with correlations switched off, holding the same weights and the same volatilities, so the weights cancel out and only correlation is left. Measured that way, correlation costs about a quarter — 0.773, against a bar of 0.60 — and the claim does not hold.
+The headline test removes exactly that confusion: it compares each portfolio against *itself* with correlations switched off, holding the same weights and the same volatilities, so the weights cancel out and only correlation is left. Measured that way, correlation costs about a quarter (0.773, against a bar of 0.60), and the claim does not hold.
 
-Two further honest marks against it: the headline test did **not** separate the beginner set from the diversified control set (0.773 against 0.844, a gap of 0.072, short of the 0.100 required before claiming separation), and a disagreement between two measures is itself a result — it says they answer different questions, and it is not resolved by picking the more flattering one.
+Two further honest marks against it: the headline test did **not** separate the beginner set from the diversified control set (0.773 against 0.844, a gap of 0.072, short of the 0.100 required before claiming separation), and a disagreement between two measures is itself a result: it says they answer different questions, and it is not resolved by picking the more flattering one.
 
-**Hypothesis 2 — a tightening market.** *Claim: AI stocks move more closely with the broad market now than they did before the AI trade.*
+**Hypothesis 2, a tightening market.** *Claim: AI stocks move more closely with the broad market now than they did before the AI trade.*
 
-**Not supported — and it went the other way.** Correlation between the equal-weight AI basket and the equal-weight S&P 500 (RSP) *fell* from **0.527** in the earliest 12 months to **0.473** in the most recent twelve: a difference of **−0.054**, where the test needed +0.10. The 90% block-bootstrap interval is [−0.273, +0.052], which contains zero.
+**Not supported, and it went the other way.** Correlation between the equal-weight AI basket and the equal-weight S&P 500 (RSP) *fell* from **0.527** in the earliest 12 months to **0.473** in the most recent twelve: a difference of **−0.054**, where the test needed +0.10. The 90% block-bootstrap interval is [−0.273, +0.052], which contains zero.
 
-**Hypothesis 3 — players learn.** **Collecting.** No player data exists yet; collection closes 60 days after launch, and needs 60 players reaching level 7 before it can be computed at all.
+**Hypothesis 3, players learn. Collecting.** No player data exists yet. The window runs from the `launch` tag, 27 November 2026 at 22:20:16 UTC, to 26 January 2027 at the same time: exactly the 60 days the pre-registration asks for, bounded at the start by a public git timestamp rather than by a date chosen afterwards. It needs 60 players reaching level 7 before it can be computed at all.
 
 **Robustness:** both hypotheses were rerun 13 times, dropping one AI basket name each time. No single stock changes a verdict.
 
-Full methods, thresholds, windows and limitations: [`PREREG.md`](PREREG.md) (frozen), its three amendments, and [`docs/PRD.md`](docs/PRD.md). Read them before trusting any number here — the known weaknesses are listed explicitly, including that Hypothesis 3 has no control group and that today's AI leaders were picked before their past was measured.
+Full methods, thresholds, windows and limitations: [`PREREG.md`](PREREG.md) (frozen), its three amendments, and [`docs/PRD.md`](docs/PRD.md). Read them before trusting any number here. The known weaknesses are listed explicitly, including that Hypothesis 3 has no control group and that today's AI leaders were picked before their past was measured.
 
 ## Reproducing the verdicts
 
-Every published verdict comes from the committed snapshot `data/prices.json`, never a fresh download — Yahoo's adjusted closes for dividend payers are not reproducible between fetches (refetching KO disagreed with the snapshot on 1,731 of 2,513 days, by up to 8.1e-7 relative). `scripts/run_research.mjs` reads that file and no other, and records its SHA-256 in `data/results.json`:
+Every published verdict comes from the committed snapshot `data/prices.json`, never a fresh download. Yahoo's adjusted closes for dividend payers are not reproducible between fetches (refetching KO disagreed with the snapshot on 1,731 of 2,513 days, by up to 8.1e-7 relative). `scripts/run_research.mjs` reads that file and no other, and records its SHA-256 in `data/results.json`:
 
 ```
 ec4a34cc67ae086325e0c782ea8e4fd9fcc77705ed048c48dd9f795d163e1605
@@ -66,7 +66,7 @@ node scripts/run_research.mjs      # rewrites data/results.json from the snapsho
 
 ## How to run locally
 
-Needs Node 24+ and Python 3. No build step, no bundler, no framework — it is plain HTML, CSS and JavaScript.
+Needs Node 24+ and Python 3. No build step, no bundler, no framework: it is plain HTML, CSS and JavaScript.
 
 ```bash
 git clone git@github.com:mayaagge/one-trade.git
@@ -77,7 +77,7 @@ python3 -m http.server 8000        # then open http://localhost:8000
 Tests:
 
 ```bash
-node --test "tests/**/*.test.js"   # 1,187 tests
+node --test "tests/**/*.test.js"   # 1,281 tests
 ```
 
 The browser maths is checked against numpy known-answer fixtures to 1e-9. To regenerate those fixtures you need numpy in a virtualenv:
@@ -98,12 +98,41 @@ node scripts/check_weekly.mjs      # the weekly challenge is still passable
 
 Two kinds of anonymous record go to a Cloudflare Worker, and nothing else ever:
 
-- **A count ping:** the level reached, and the source code from the link that brought you (`?src=club-ucla`). No identifier of any kind.
+- **A count ping:** the level reached, whether every level before it had been passed, and the source code from the link that brought you (`?src=club-ucla`). No identifier of any kind.
 - **A guess record:** a random per-browser ID, the level, the guess, the actual answer, and the date. Five fields, exactly, and a test fails the build if a sixth appears.
 
-No tickers, no dollar amounts, no weights, no names, no emails, no IP addresses stored. Your portfolios, stars and progress stay in your own browser's storage, and the game works without that storage at all. Breaking the Worker entirely changes nothing a player can see — there is a test for that too.
+No tickers, no dollar amounts, no weights, no names, no emails, no IP addresses stored. Your portfolios, stars and progress stay in your own browser's storage, and the game works without that storage at all. Breaking the Worker entirely changes nothing a player can see, and there is a test for that too.
 
-The whole Worker is [`worker/src/index.js`](worker/src/index.js) and [`worker/src/validate.js`](worker/src/validate.js) — around 240 lines, mostly comments and input validation — and it holds no secret.
+The whole Worker is [`worker/src/index.js`](worker/src/index.js) and [`worker/src/validate.js`](worker/src/validate.js): around 240 lines, mostly comments and input validation, and it holds no secret.
+
+## What changed from playtesting
+
+Watching people play produced sixteen changes, shipped on 27 November 2026. Every one is written up in [`BUILD_LOG.md`](BUILD_LOG.md) with what was wrong, what was done and what it cost.
+
+**Things that were broken**
+
+1. A level you had played and failed said "not played" on the list, because a score of zero read as no score at all.
+2. Levels unlocked only by *passing* the one before, so a player stuck on level 4 never met levels 5, 6 or 7. Finishing is now enough. The count ping gained a `passed` flag so the success targets still measure what they say.
+3. The stars panel credited you with "2 for naming the right bucket" when you had named the wrong one and earned three stars another way.
+4. On levels 4, 5 and 6 the pass threshold *was* a bucket edge, so "name the right bucket" punished a guess two points high and forgave the same error two points low. The second star is a distance now.
+5. Level 1's bar was 0.80, a number used nowhere else in the game. It is 0.70, where the game already defines "the same bet".
+
+**Things that were confusing**
+
+6. Level 1's picker grouped holdings by sector, which gave away which pairs move together. It is one alphabetical list.
+7. Nothing said what a ticker *was*. Every build screen now has a "What are these?" list with each holding's full name and kind.
+8. Level 6 asks for 60% in stocks and gave you no way to tell which holdings were stocks. The four that are not now say so on the chip.
+9. You could not see how the money was split while guessing. Both the build and guess screens now show it, from the same component, so level 2 and level 7 ask identically.
+10. A correlation does not look like anything. Level 1's pair is drawn as two lines from the same starting point: a same-bet pair stays together, an unrelated one wanders apart.
+11. "Try again" threw your portfolio away. It keeps it now, and brings the "Why?" card with it.
+
+**Things that needed saying better**
+
+12. Every level now defines the term its question is about, in one line, in the same place. The three bets levels use identical wording.
+13. The longer explanations left the levels for a new About tab, which explains every word in plain language and what each level teaches.
+14. Every "Why?" card was rewritten as three short lines: what happened in your holdings, how that compares with your guess, and one thing to try next.
+15. No level offers a hint any more. Hints arrived while you were still guessing, which is the moment the game is meant to leave alone.
+16. The ten-minute target for levels 1 to 3 was retired. It was measured by counting words, so it rewarded deleting explanation, which is the opposite of what the playtest asked for. The goal is now that every screen is clear, concise and helpful to a beginner.
 
 ## Layout
 
@@ -123,7 +152,9 @@ The whole Worker is [`worker/src/index.js`](worker/src/index.js) and [`worker/sr
 
 ## Credits and licence
 
-Built by [Maya Agge](https://github.com/mayaagge). Market data from Yahoo Finance via an unofficial endpoint, labelled as unofficial educational data throughout.
+Built by [Maya Agge](https://github.com/mayaagge), with [Claude Code](https://claude.com/claude-code) as a pair programmer. I made every design decision and set every threshold, and reviewed every piece of wording. The build log records which, and why. [`BUILD_LOG.md`](BUILD_LOG.md) is the whole working record, including the mistakes and what they cost.
+
+Market data from Yahoo Finance via an unofficial endpoint, labelled as unofficial educational data throughout.
 
 Measure from Meucci, A. (2009), "Managing Diversification", *Risk* 22(5).
 

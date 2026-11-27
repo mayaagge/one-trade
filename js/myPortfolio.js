@@ -208,9 +208,12 @@ function renderEnter(ctx) {
   const head = h('header', 'round-head');
   head.append(h('p', 'round-step', 'Enter your holdings'));
   head.append(h('h1', null, 'My real portfolio'));
-  head.append(h('p', 'lede', 'Put in what you actually hold, in dollars, and see the same '
-    + 'measures the rest of this game uses. The amounts become shares in your browser; '
-    + 'they are what the measures are worked out from.'));
+  // NAMES WHAT YOU GET, like Sandbox's. "The same measures the rest of this
+  // game uses" only means something to somebody who has already seen them,
+  // and this is a screen people arrive at from outside.
+  head.append(h('p', 'lede', 'Put in what you actually hold, in dollars, and see what it does: '
+    + 'how many separate bets it makes, where the risk sits, and which holdings move '
+    + 'together. The amounts stay in your browser and are never sent anywhere.'));
   // THE PROMISE GOES ABOVE THE BOXES, not only in the footer: somebody decides
   // whether to type their real holdings in before they type them, not after.
   head.append(h('p', 'privacy-line privacy-lead', PRIVACY_LINE));

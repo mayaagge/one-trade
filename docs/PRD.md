@@ -319,13 +319,13 @@ Amended on 26 November 2026 by PREREG_AMENDMENT_3.md, before any real guess reco
 
 3. Each guess sends one anonymous record: a random per-browser ID, level, guess, actual value and date. No tickers, amounts or personal data.
 
-4. Data collection closes 60 days after launch.
+4. Data collection closes 60 days after launch. As dates: the window is rows timestamped at or after **27 November 2026, 22:20:16 UTC** (the `launch` tag) and before **26 January 2027, 22:20:16 UTC**. See "The launch window, as dates" below for why the tag, and only the tag, defines launch.
 
 5. **The window opens at the `launch` tag, added 27 November 2026** (BUILD_LOG.md session 2.38). The analysis reads only rows timestamped at or after an annotated git tag named `launch`, created on launch day and pushed to GitHub, whose timestamp is therefore public and fixed before the rows it admits exist. A start bound chosen afterwards, by looking at the rows and deciding which ones were "real", is a researcher degree of freedom; a tag is not.
 
    **This is a second guard, not the one that excludes the author's own testing.** PREREG_AMENDMENT_3.md section 3 already registers that the analysis reads only the `GUESSES` dataset and never `GUESSES_PLAYTEST`, which is where every `?src=playtest` row goes - the 8 rows in `data/guess_exports/` are all in the playtest file and `GUESSES` holds none. That rule is timestamped on GitHub and is what keeps Maya's play out of the test. The tag bound catches the different case it cannot: a stray row that reached `GUESSES` itself before the game was open to anybody - from a smoke test against the live Worker, say, or a `?src` that was mistyped and so never matched `playtest`.
 
-   **The tag does not exist yet.** It has to be created on launch day, and nothing in the repo can create it; until it does, the analysis has no start bound and must not be run. See the launch-window table below for how the tag's date relates to the 26 November Pages date.
+   **The tag exists: 27 November 2026, 22:20:16 UTC.** Created and pushed, so its timestamp is public. It is also the definition of launch for every other date in this document: see "The launch window, as dates" below.
 
 **Supported if:** at least 60 players reach level 7, their median level-7 error is at most 70% of their median level-2 error, and a one-sided sign test on each player's improvement gives p below 0.05.
 
@@ -444,12 +444,16 @@ The project is done when students have played it, at least one instructor has us
 
 Written down on 27 November 2026, because "60 days after launch" and "day 80" are not dates until somebody works them out, and all three of these decide when something has to happen.
 
+**One definition, fixed 27 November 2026: launch is the `launch` tag, and every date below counts from its timestamp.** The table used to count from the day GitHub Pages first served the site, 26 November, while Hypothesis 3's window started at the tag. Those are different days, and the gap between them made the collection window **59 days against the 60 PREREG.md registers**. There is only one honest way to settle it, because only one of the two candidates is a public, immutable timestamp that the registered analysis already points at.
+
 | What | Date | Where it comes from |
 | --- | --- | --- |
-| **Launch** | **26 November 2026** | GitHub Pages first served the site from `main`. The Worker's `/guess` route went live the next day, 27 November, so no guess record can predate it — the window below is therefore one day conservative, in the safe direction |
-| **The `launch` tag** | **not created yet** | An annotated git tag named `launch`, to be created on launch day and pushed. Its timestamp, not this table, is the start bound Hypothesis 3's analysis applies to the rows — see Hypothesis 3, point 5. Created now it would read 27 November, a day after Pages, which is the same one-day-conservative direction as the row above: it can only exclude rows, never admit an early one |
-| **Collection closes** | **25 January 2027** | Launch plus the 60 days PREREG.md registers for Hypothesis 3. No guess record after this date enters the registered test |
-| **Export runs** | **26 December 2026, 25 January 2027, 14 February 2027** | `npm run export`, monthly. Workers Analytics Engine keeps data about three months, so the rows must be out of it and into a file before the last of these — which is launch plus 80 days, and the last safe date rather than the intended one |
+| **Launch** | **27 November 2026, 22:20:16 UTC** | The annotated `launch` tag, pushed to GitHub, so the timestamp is public and cannot be moved. This is the single definition every row below uses |
+| GitHub Pages first served the site | 26 November 2026 | A fact about hosting, kept because it is true, and **not** a boundary for anything. Nothing was collected from a visitor that day: every row in both datasets before the tag is the author's own testing |
+| **Collection closes** | **26 January 2027, 22:20:16 UTC** | The tag plus the 60 days PREREG.md registers. The analysis reads rows with a timestamp at or after the tag and before this, which is exactly 60 days |
+| **Export runs** | **27 December 2026, 26 January 2027, 15 February 2027** | `npm run export`, monthly. Workers Analytics Engine keeps data about three months, so the rows must be out of it and into a file before the last of these, which is the tag plus 80 days: the last safe date rather than the intended one |
+
+**What this changed, and what it did not.** The close moved from 25 to 26 January and each export date by one day. Nothing registered moved: PREREG.md says "60 days after launch" and this is the first arrangement under which that is literally true. The previous one would have closed the window a day early, which is the direction that loses data rather than the direction that flatters a result, but it was still wrong.
 
 ### Launch is done when
 
@@ -733,7 +737,7 @@ Things measured but deliberately not acted on yet, because what they mean depend
 
 - **The ladder's difficulty is wildly uneven, and level 3 is the hard one.** On the live window, the share of randomly drawn designs that pass each level: level 3 **1.4%** (17 of 1,199), level 6 4.6%, level 1 8.8%, level 5 10.5%, **level 4 56.1%** (635 of 1,131). So level 3 — the third thing a new player meets, and the last one in the 15-minute classroom cut — is by some distance the hardest in the game, and level 4 passes more often than not. `node scripts/check_pass_bar.mjs` prints the table. **Nothing is being changed on this now**: a pass rate over random draws is not a pass rate over what a person builds, and a player who has just been taught to spread across groups is not drawing at random. Whether level 3 is actually a wall is a question for five people and no help, which is what this milestone is for. Watch where they stall, and how many reach level 4 without being told anything.
 
-**Run `npm run export` monthly: 26 December 2026, 25 January 2027 when collection closes, and 14 February 2027 at the latest.** Workers Analytics Engine retains data for about three months; the registered 60-day collection window already uses most of that margin, and 14 February is launch plus 80 days — the last safe date, not the intended one. The script is idempotent: every run is a full, fresh pull of whatever is still in each dataset, never an append, so running it early or twice costs nothing. See "The launch window, as dates" above. Added 26 November 2026 (BUILD_LOG.md session 2.29), set to monthly on 27 November 2026 (session 2.36).
+**Run `npm run export` monthly: 27 December 2026, 26 January 2027 when collection closes, and 15 February 2027 at the latest.** Workers Analytics Engine retains data for about three months; the registered 60-day collection window already uses most of that margin, and 15 February is the tag plus 80 days, the last safe date rather than the intended one. The script is idempotent: every run is a full, fresh pull of whatever is still in each dataset, never an append, so running it early or twice costs nothing. See "The launch window, as dates" above. Added 26 November 2026 (BUILD_LOG.md session 2.29), set to monthly on 27 November 2026 (session 2.36).
 
 **Check:** the success targets table is filled in with real numbers, met or not, and Hypothesis 3 has a verdict.
 

@@ -6916,3 +6916,81 @@ that has no guess.
 1,280 to **1,281 passing**.
 
 Educational, not investment advice.
+
+## The launch window was 59 days, and the README was a day stale, 27 November 2026 (session 2.52)
+
+### One definition of launch, because two of them cost a day
+
+docs/PRD.md counted every date from the day GitHub Pages first served the
+site, **26 November**. Hypothesis 3's window, registered in the same document,
+started at the `launch` tag, **27 November, 22:20:16 UTC**. Two definitions of
+the same word, a day apart, and the collection window between them came to
+**59 days against the 60 PREREG.md registers.**
+
+Caught by Maya reading the dates against each other, which is the only way it
+could have been caught: nothing checks a document against itself.
+
+**The tag wins, and it is not a close call.** It is a public, immutable
+timestamp, it is already what the registered analysis points at (Hypothesis 3,
+point 5), and it falls after `/guess` went live so nothing can predate it.
+"GitHub Pages first served the site" is a fact about hosting with no record
+attached to it: nothing was collected from a visitor that day, and every row
+in both datasets before the tag is this project's own testing.
+
+| | Was | Is |
+| --- | --- | --- |
+| Launch | 26 November 2026 | **27 November 2026, 22:20:16 UTC**, the tag |
+| Collection closes | 25 January 2027 | **26 January 2027, 22:20:16 UTC** |
+| Export runs | 26 Dec, 25 Jan, 14 Feb | **27 Dec 2026, 26 Jan 2027, 15 Feb 2027** |
+
+The window is now rows timestamped at or after the tag and before the tag plus
+60 days, which is exactly the registered 60. **Nothing registered moved.**
+PREREG.md says "60 days after launch" and this is the first arrangement under
+which that is literally true; the old one would have closed the window a day
+early, which is the direction that loses data rather than the direction that
+flatters a result, but it was wrong either way.
+
+**The tag was not re-cut**, by decision. Deleting and re-tagging to 26
+November would mean rewriting a published timestamp, which is the single thing
+the tag exists to prevent. The derived dates moved instead.
+
+Changed in docs/PRD.md's launch-window table, Hypothesis 3's points 4 and 5,
+Milestone 4's export line, and CLAUDE.md's export command. **This log's older
+entries are not edited**: sessions 2.29 and 2.36 record what was decided then,
+and a later entry supersedes rather than overwrites, which is the same rule
+PREREG.md gets.
+
+### The README
+
+Rewritten where it had gone stale or vague:
+
+- **"A round takes one to two minutes" is gone.** The last time claim in the
+  project, left behind when the ten-minute goal was retired.
+- **1,187 tests becomes 1,281.**
+- The count ping's description gains the `passed` flag it has carried since
+  session 2.38.
+- Hypothesis 3 now gives its **exact window** rather than "60 days after
+  launch", with the sentence that makes it checkable: bounded at the start by
+  a public git timestamp rather than a date chosen afterwards.
+- **Twenty em dashes rewritten**, not swapped, under the rule from session
+  2.50.
+- A new section, **"What changed from playtesting"**: all sixteen changes in
+  plain words, grouped as things that were broken, things that were confusing,
+  and things that needed saying better.
+- Credits say the game was built with Claude Code as a pair programmer, with
+  Maya making every design decision, setting every threshold and reviewing
+  every piece of wording, and point at this file for which and why.
+
+### And one more lede that named nothing
+
+My real portfolio said "see the same measures the rest of this game uses",
+which has Sandbox's problem from the session before: it only means something
+to somebody who has already seen them, and that screen is one people arrive at
+from outside. It now names the three, and says plainly that the amounts stay
+in the browser.
+
+Crash replay's lede was read and left alone. It already says what it does.
+
+1,281 tests pass, unchanged: nothing here is code.
+
+Educational, not investment advice.
