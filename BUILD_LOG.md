@@ -4826,4 +4826,19 @@ confirms none of them trip the new limit.
 
 1,174 tests pass.
 
+### Checked, not assumed: did the rejected pre-playtest smoke test reach GUESSES?
+
+Before every `/guess` call in the live smoke test carried `?src=playtest`,
+one earlier attempt to send an untagged request was rejected at the tool
+level before it ran - which should mean nothing was ever sent. "Should
+mean" is exactly the gap this project does not leave open elsewhere -
+PREREG_AMENDMENT_2.md proves no price was ever downloaded the same way,
+by checking `git log --all --diff-filter=A --name-only` rather than
+asserting it - so this was checked rather than assumed: Maya created a scoped `Account Analytics: Read` API token,
+exported it locally, and ran `scripts/export_guesses.mjs` against the real
+Analytics Engine SQL API. **`one_trade_guesses` queried back 0 rows.**
+`one_trade_guesses_playtest` queried back exactly 2 - the level-2 and
+level-7 smoke-test records sent with `?src=playtest`, as intended. Nothing
+reached the dataset Hypothesis 3 reads; nothing to log as excluded.
+
 Educational, not investment advice.
