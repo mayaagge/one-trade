@@ -3,16 +3,16 @@
 // GUESSES_PLAYTEST Analytics Engine datasets and writes them to local JSON
 // files, before Cloudflare's retention window deletes them.
 //
-// RUN WEEKLY DURING THE 60-DAY COLLECTION WINDOW. DAY 80 AFTER LAUNCH IS THE
-// LAST SAFE DATE. Cloudflare's own docs put Workers Analytics Engine
-// retention at about three months (90-92 days); Hypothesis 3's registered
-// collection window alone is 60 days, so day 80 leaves about ten days of
-// margin on top of that without leaning on the exact upper edge of a figure
-// Cloudflare does not guarantee precisely. A weekly cadence means missing
-// one run costs at most a week, not the whole 60. See BUILD_LOG.md session
-// 2.29 for the sources and the reasoning. Every run is a full, fresh pull
-// of whatever is still in each dataset - never an append - so running it
-// again never duplicates anything and running it early costs nothing.
+// RUN MONTHLY: 26 DECEMBER 2026, 25 JANUARY 2027 WHEN COLLECTION CLOSES, AND
+// 14 FEBRUARY 2027 AT THE LATEST. Cloudflare's own docs put Workers Analytics
+// Engine retention at about three months (90-92 days); Hypothesis 3's
+// registered collection window alone is 60 days, so 14 February - launch plus
+// 80 days - leaves about ten days of margin without leaning on the exact upper
+// edge of a figure Cloudflare does not guarantee precisely. It is the LAST SAFE
+// date, not the intended one. See BUILD_LOG.md sessions 2.29 and 2.36 for the
+// sources and the reasoning. Every run is a full, fresh pull of whatever is
+// still in each dataset - never an append - so running it again never
+// duplicates anything and running it early costs nothing.
 //
 // Needs two environment variables, never hardcoded (CLAUDE.md rule 7):
 //   CLOUDFLARE_ACCOUNT_ID   - from `npx wrangler whoami` in worker/
@@ -20,7 +20,7 @@
 //
 // RUN IT WITH `npm run export`, which reads both from a .env file in the repo
 // root if there is one and falls back to whatever is already exported if there
-// is not. Write that file once and the weekly run is one command:
+// is not. Write that file once and each run is one command:
 //
 //   printf 'CLOUDFLARE_ACCOUNT_ID=...\nCLOUDFLARE_API_TOKEN=...\n' > .env
 //

@@ -268,6 +268,8 @@ Amended on 26 November 2026 by PREREG_AMENDMENT_3.md, before any real guess reco
 
 2. For each player who reaches level 7, the error is the gap between their guess and the actual number of bets, on level 2 and again on level 7. **Which record counts, added by amendment 3:** for each player ID, the analysis reads the earliest level-2 row and the earliest level-7 row, by the timestamp Workers Analytics Engine puts on every row. A player's first-ever level-7 attempt is the earliest, whatever they do on a replay afterwards.
 
+   **The analysis must check for same-second ties, and report them rather than resolve them.** Those timestamps are second-granular, verified against the live datasets on 27 November 2026 (BUILD_LOG.md session 2.33): three records sent a second apart came back ordered `02:54:20`, `02:54:21`, `02:54:22`. So two rows landing inside one second under a single player ID cannot be ordered by timestamp, and "the earliest" would be ambiguous between them. Real play cannot produce that — each capstone guess needs a new portfolio read, a slider moved and a reveal screen passed through, which is tens of seconds, and the level-2/level-7 pair the test compares is whole levels apart. A tie is therefore not a reading of the data to settle but a sign the rows did not come from a person playing, which is known weakness 10. The analysis counts such ties, names the IDs, and reports them; it does not pick one row and carry on. This is a note on how the analysis runs, not a change to the registered rule — amendment 3 fixes which row counts, and this says what to do when the data cannot answer that.
+
 3. Each guess sends one anonymous record: a random per-browser ID, level, guess, actual value and date. No tickers, amounts or personal data.
 
 4. Data collection closes 60 days after launch.
@@ -392,7 +394,7 @@ Written down on 27 November 2026, because "60 days after launch" and "day 80" ar
 | --- | --- | --- |
 | **Launch** | **26 November 2026** | GitHub Pages first served the site from `main`. The Worker's `/guess` route went live the next day, 27 November, so no guess record can predate it — the window below is therefore one day conservative, in the safe direction |
 | **Collection closes** | **25 January 2027** | Launch plus the 60 days PREREG.md registers for Hypothesis 3. No guess record after this date enters the registered test |
-| **Last safe export** | **14 February 2027** | Launch plus 80 days. Workers Analytics Engine keeps data about three months, so the rows must be out of it and into a file before then — `npm run export`, weekly from launch, not once at the end |
+| **Export runs** | **26 December 2026, 25 January 2027, 14 February 2027** | `npm run export`, monthly. Workers Analytics Engine keeps data about three months, so the rows must be out of it and into a file before the last of these — which is launch plus 80 days, and the last safe date rather than the intended one |
 
 ### Launch is done when
 
@@ -648,7 +650,7 @@ enter Hypothesis 3.
 
 Follow the 8-week plan above. Log weekly: players by source code, levels reached, responses, top complaint, change shipped. Ship at least two changes that came from players.
 
-**Run `npm run export` weekly from launch until 25 January 2027, and no later than 14 February 2027.** Workers Analytics Engine retains data for about three months; the registered 60-day collection window already uses most of that margin. A weekly run means no single missed run can lose more than a week of rows even if the last safe date is missed too, and the script is idempotent - re-exporting is always a full, fresh pull of whatever is still there, never an append. See "The launch window, as dates" above. Added 26 November 2026, BUILD_LOG.md session 2.29; dated 27 November 2026.
+**Run `npm run export` monthly: 26 December 2026, 25 January 2027 when collection closes, and 14 February 2027 at the latest.** Workers Analytics Engine retains data for about three months; the registered 60-day collection window already uses most of that margin, and 14 February is launch plus 80 days — the last safe date, not the intended one. The script is idempotent: every run is a full, fresh pull of whatever is still in each dataset, never an append, so running it early or twice costs nothing. See "The launch window, as dates" above. Added 26 November 2026 (BUILD_LOG.md session 2.29), set to monthly on 27 November 2026 (session 2.36).
 
 **Check:** the success targets table is filled in with real numbers, met or not, and Hypothesis 3 has a verdict.
 

@@ -44,8 +44,9 @@ I am a first-year at UChicago. I know Python, JavaScript, web pages, Github, and
 - Run JavaScript tests: node --test "tests/**/*.test.js"
 - Make test fixtures: python tests/make_fixtures.py
 - npm run export: pulls the guess records out of Analytics Engine to
-  data/guess_exports/. Run it weekly once collection starts, with .env
-  filled in. Not from a terminal you deploy the Worker from.
+  data/guess_exports/. Run it monthly once collection starts - 26 Dec 2026,
+  25 Jan 2027, and 14 Feb 2027 at the latest - with .env filled in. Not from
+  a terminal you deploy the Worker from.
 - npm run shots: screenshots every screen at phone width in both colour
   schemes, into gitignored screenshots/. Needs Playwright.
 - npm run checks: drives a real browser to check scroll position, focus

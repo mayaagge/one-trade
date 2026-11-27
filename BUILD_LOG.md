@@ -5441,3 +5441,51 @@ rather than eyeballed.
 1,196 tests pass, 7 of them new.
 
 Educational, not investment advice.
+
+## Monthly exports, and the tie check written into the analysis notes, 27 November 2026 (session 2.36)
+
+**The export runs monthly, not weekly: 26 December 2026, 25 January 2027 when
+collection closes, and 14 February 2027 at the latest.** Maya's call. Three runs
+rather than nine, with 14 February still the last safe date - launch plus 80
+days, against a retention window of about three months - rather than the
+intended one. The script was always idempotent (every run is a full fresh pull,
+never an append), so a monthly cadence changes how often it runs and nothing
+about what a run does.
+
+Updated in docs/PRD.md (the launch-window table and the Milestone 4 note),
+CLAUDE.md's command list, and `scripts/export_guesses.mjs`'s own header - that
+last one was not on the list, but it stated the weekly cadence in capitals and
+leaving it would have put the script and the docs in direct contradiction.
+
+**The old BUILD_LOG entries still say weekly, on purpose.** Session 2.29's
+heading is literally "The export script moves to a weekly cadence", and that is
+what happened on 26 November. Retro-editing it would make this log claim a
+decision was never taken; the log is the record of what was decided when, and a
+later entry supersedes rather than overwrites. Same reason PREREG.md is never
+edited and amendments are new files.
+
+### The same-second tie check is now in the analysis notes
+
+Session 2.33 found that Analytics Engine's row timestamps are second-granular,
+and recorded a tie check as something the analysis should do - but left it in
+this log only, reasoning that a rule for a case that cannot occur in real play
+does not belong in a pre-registration. That reasoning still holds for
+PREREG_AMENDMENT_3.md, which is timestamped on GitHub and stays as it is. It
+does not hold for docs/PRD.md, which is the living document and the place the
+analysis is actually described.
+
+So Hypothesis 3's test design now carries it, under point 2 beside the rule it
+qualifies: **the analysis counts same-second ties within one player ID, names
+the IDs, and reports them - it does not pick a row and carry on.** The
+distinction the note makes explicitly: amendment 3 fixes WHICH row counts, and
+this says what to do when the data cannot answer that. A tie is not a reading to
+settle, it is evidence the rows did not come from somebody playing, which is
+known weakness 10.
+
+Worth being clear that this is a reversal of session 2.33's "left unregistered
+on purpose", and a narrow one: the amendment is untouched, and what changed is
+that the PRD now says out loud what the analyst is supposed to do.
+
+1,196 tests pass, unchanged - none of this is code.
+
+Educational, not investment advice.
