@@ -16,7 +16,7 @@ It teaches one idea well: **different tickers can be the same bet.** An S&P 500 
 
 Built: the math engine with numpy known-answer tests, the page, Research mode, levels 1 to 7 with their "Why?" cards, Crash replay over the three registered windows, the daily "Same bet?" puzzle, the weekly challenge, the share card, progress saved in the browser, Sandbox, My real portfolio, the About tab, and the Worker's two routes — `/ping` and `/guess`, both anonymous, both writing to Workers Analytics Engine. Guess records leave the browser on levels 2 and 7 and reach `GUESSES`; `?src=playtest` rows are routed to `GUESSES_PLAYTEST` instead and enter no verdict.
 
-Not built: the classroom link, the completion code and its verify page, the one-page lesson plan, and the three-question feedback form — deferred from milestone 3 on 26 November and still deferred — plus the two launch-secondary modes below. There is no `/code` route and no secret in the Worker.
+Not built: the classroom link, the completion code and its verify page, and the one-page lesson plan, all deferred from milestone 3 on 26 November and still deferred, plus the two launch-secondary modes below. The three-question feedback form was deferred again on 27 November, this time as a decision rather than a wait: see milestone 3 step 4. There is no `/code` route and no secret in the Worker.
 
 **Core game loop** (one round takes 1 to 2 minutes):
 
@@ -166,7 +166,7 @@ The fuller version of every term is in the About tab, which is where depth goes 
 | **Research** | Read the three pre-registered hypotheses and their verdicts, and see the rolling correlation chart continue past the freeze date on live data | Launch |
 | **About** | What the game is and what every word in it means, in plain language: a bet, correlation, effective bets, share of risk, beta, how to build the intuition, and what each level teaches. Nothing in it is needed to play | Added 27 November 2026 |
 | **Classroom link** | An instructor picks levels and shares one link; a one-page lesson plan goes with it | Launch |
-| **Feedback** | Three-question form after level 3 | Launch |
+| **Feedback** | Three-question form after level 3 | **Deferred, 27 November 2026.** Not built and not being built for now; see milestone 3 step 4. Feedback comes from playtests and direct conversations instead |
 | **My real portfolio** | Enter real holdings in dollars; nothing is stored or sent | Launch, secondary |
 | **Explore the market** | Correlation heatmaps for calm, all and worst-10% days | Later, optional |
 | **See inside funds** | Named holdings inside each fund, from SEC filings | Later, optional |
@@ -483,7 +483,7 @@ Written down on 27 November 2026, because "60 days after launch" and "day 80" ar
 | Players who finish level 3 | 150 | Measured by **level 4** pings carrying `passed` - see below |
 | Players who reach level 7 | 60 | Level 7's ping carrying `passed`; also the minimum for Hypothesis 3 |
 | Classes or club sessions that use it | 3 | Classroom links created, confirmed by the host |
-| Feedback responses | 40 | Three-question form |
+| Feedback responses | 40, **on hold** | Three-question form. Paused 27 November 2026: no form exists and none is being built for now, so this row cannot be measured. It is kept rather than deleted because the target is still the right one if a form is ever added |
 | Changes shipped from feedback | 2, written up in the README | Git history |
 | Findings write-up | 1 post with all verdicts | Published link |
 
@@ -692,8 +692,15 @@ Worker never holds a secret.
 
 3. Deferred. See the note above.
 
-4. Deferred alongside step 3, pending whether a ready three-question form
-   exists to link to.
+4. **Deferred, 27 November 2026: decided not to add a form for now.** It had
+   been waiting on whether a ready three-question form existed to link to; the
+   answer is that none will be made yet. The only form worth linking would be
+   hosted elsewhere, and a page that promises nothing you build leaves the
+   browser should not send a player to a third party for the sake of a target
+   nobody is yet in a position to hit: no visitor outside this project has
+   ever reached the game. Feedback until then comes from playtests and direct
+   conversations, written up in BUILD_LOG.md as every change in this round of
+   sixteen already was.
 
 5. Break the Worker URL on purpose and confirm gameplay is completely
    unaffected — there is no price fallback to test for, since prices never

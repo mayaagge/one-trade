@@ -6828,3 +6828,42 @@ the framing was right, which is the test of whether the shot is the same shot.
 1,280 tests pass.
 
 Educational, not investment advice.
+
+## No feedback form for now, 27 November 2026 (session 2.51)
+
+**Maya's decision, and it closes a milestone-3 item rather than postponing it
+again.** Step 4 had read "Deferred alongside step 3, pending whether a ready
+three-question form exists to link to" since 26 November, which is a wait. It
+is now a decision: no form is being built, and the reason is written down
+beside it.
+
+The plan that was on the table was a link to a Google Form, three questions -
+did this change how you think about spreading money, which level lost you, and
+what one thing would you change - shown once on level 3's reveal with no query
+parameters on the URL. It is recorded here so that whoever picks this up has
+the design rather than only the fact that it was dropped.
+
+**Why not now.** The only form worth linking is hosted somewhere else, and the
+page promises that nothing you build leaves the browser. Sending a player to a
+third party is a real disclosure to make for a target nobody is yet in a
+position to hit: the pings dataset says **no visitor outside this project has
+ever reached the game**. A form with no traffic measures nothing and still
+costs the promise.
+
+**Marked in four places**, so a reader cannot find the old promise and believe
+it: milestone 3 step 4, the game-modes table, the success-targets row, and the
+status paragraph at the top, which had been lumping this in with the three
+items that are merely waiting.
+
+**The 40-response target is kept and marked on hold** rather than deleted. It
+is still the right number if a form is ever added, and a target removed is a
+target nobody argues with later.
+
+**Feedback until then comes from playtests and direct conversations, logged
+here.** That is not a downgrade from a plan - it is what produced all sixteen
+changes in this round, every one of them traceable to somebody watching
+somebody else play.
+
+No code changed; 1,280 tests pass.
+
+Educational, not investment advice.
