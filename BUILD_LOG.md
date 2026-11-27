@@ -4964,3 +4964,66 @@ a case that cannot occur in real play does not belong in a pre-registration,
 and PREREG_AMENDMENT_3.md is already timestamped on GitHub.
 
 Educational, not investment advice.
+
+## The README, and the GIF that is not in it, 27 November 2026 (session 2.30)
+
+`npm run export` first, because the export has to run weekly for 60 days and
+should not need re-deriving each week: node's `--env-file-if-exists` reads a
+gitignored `.env` and falls back to whatever is already exported when there
+is none, so both habits work.
+
+**The `.env` check was wrong the first time, and the correction is the point.**
+Asked to confirm `.env` was ignored before a real token went into it, the
+check that ran was `if [ -f .env ]; then git check-ignore ...; fi` - and since
+no `.env` existed, the branch that does the checking never executed. It
+reported "no .env present", which is a different fact entirely, and reads like
+a pass. `git check-ignore` works on paths that do not exist, which is exactly
+why it is the right tool and exactly why guarding it was wrong. Rerun
+properly: `.gitignore` line 8 matches, `git status` reports zero entries, and
+`git add -n .env` refuses with "paths are ignored by one of your .gitignore
+files". Maya also caught that the first draft of that check used a real
+`git add` rather than `-n`, which would have *staged* the placeholder in
+precisely the case being tested for - a broken ignore rule - and that `>` on
+the placeholder would have clobbered a real `.env` if one already existed.
+Both fixed before running. A check that cannot fail in the way you are
+worried about is not a check.
+
+### The README states the verdicts, including the ones that went the wrong way
+
+Read from `data/results.json` rather than written from memory, and the two
+negative results are in the table rather than behind a link:
+
+* Hypothesis 1's two tests disagree - "not supported" on the headline
+  correlation-only ratio R (beginner median 0.773 against a 0.60 threshold),
+  "supported" on the registered ratio (0.327). Both are stated, with the
+  reason they differ and the note that R did not separate the beginner set
+  from the control set either (0.773 against 0.844, a 0.072 gap against the
+  0.100 the page asks for).
+* Hypothesis 2 is "not supported" **and went the other way**: correlation
+  with RSP *fell* from 0.527 to 0.473, a difference of −0.054 where the test
+  needed +0.10, with a 90% interval of [−0.273, +0.052] containing zero. That
+  is the single most interesting number this project produced and it belongs
+  near the top of the README, not buried.
+* Hypothesis 3 reads "collecting", which is the honest state of it.
+
+Two claims in the first draft were wrong and were caught by checking rather
+than by review: it told a reader to `pip install numpy pandas` when
+`tests/make_fixtures.py` imports only numpy, and it described the Worker as
+"about 130 lines" by counting `index.js` and forgetting `validate.js` is also
+the Worker. 134 and 110, so "around 240 lines" across both.
+
+### The GIF is dropped, and docs/PRD.md says so rather than going quiet
+
+"The README has a live link, a 60-second demo GIF and 'How to run locally'"
+cannot be ticked, because there is no GIF: it needs a screen recording nobody
+has made. Maya's call was to ship without it. The launch item is therefore
+marked done for the parts that are done and **explicitly records the GIF as
+dropped, dated, with where it went** - Milestone 4's weeks 5 to 6, which
+already plan a 30-second recording. The alternative was leaving the item
+unticked with no reason attached, or ticking it and having the checklist
+quietly claim something untrue; a launch checklist that lies is worth less
+than one with an honest gap in it.
+
+1,187 tests pass.
+
+Educational, not investment advice.

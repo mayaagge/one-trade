@@ -400,7 +400,7 @@ The project is done when students have played it, at least one instructor has us
 
 - ☐ The classroom link, completion code, verify page and one-page lesson plan work end to end. Deferred past this launch — see milestone 3's note above, 26 November 2026.
 
-- ☐ The README has a live link, a 60-second demo GIF and "How to run locally".
+- ☑ The README has a live link and "How to run locally", plus the real verdicts — including the two that came out against the claim. **The 60-second demo GIF is dropped from this launch**, by decision on 27 November 2026 (BUILD_LOG.md session 2.30): it needs a screen recording nobody has made, and holding the launch for it buys less than shipping without it. It moves to Milestone 4's outreach work, where a 30-second recording is already on the 8-week plan for weeks 5 to 6 and will be made properly rather than hurriedly.
 
 ### Success targets, 60 days after launch
 
