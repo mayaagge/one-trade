@@ -12,9 +12,14 @@ jobs:
       # Two commits deep, so tests/puzzles.test.js can compare data/puzzles.json
       # against the parent of the commit being tested. Against HEAD alone it would
       # be comparing the file with itself, which no rewrite could ever fail.
+      # Tags too, because tests/launchWindow.test.js checks docs/PRD.md's
+      # launch date against the real `launch` tag. Without this the tag is
+      # absent in CI and that check would quietly skip in the one place it
+      # most needs to run.
       - uses: actions/checkout@v5
         with:
           fetch-depth: 2
+          fetch-tags: true
       - uses: actions/setup-node@v5
         with:
           node-version: 24

@@ -6994,3 +6994,45 @@ Crash replay's lede was read and left alone. It already says what it does.
 1,281 tests pass, unchanged: nothing here is code.
 
 Educational, not investment advice.
+
+### A test that reads the dates against each other (session 2.52)
+
+The 59-day window could not have been caught by anything in the suite: two
+statements in one document, each true on its own, disagreeing. Maya read them
+against each other. `tests/launchWindow.test.js` is that reading, written
+down, in five parts.
+
+1. **Collection closes exactly 60 days after launch**, to the second rather
+   than to the day, because both ends carry a time and a window off by a few
+   hours is still off.
+2. **The three export dates are the schedule the PRD describes**: the first
+   about a month in, the second the day collection closes, the third exactly
+   launch plus 80, and all three in order.
+3. **Hypothesis 3's prose states the same window as the table.** The dates
+   appear twice in one document, which is how they came apart the first time.
+4. **CLAUDE.md's export dates are the PRD's.** That second copy was stale for
+   a day when the window was corrected, which is what a second copy of a date
+   does.
+5. **The PRD's launch date is the `launch` tag's own timestamp.** The deepest
+   of the five: the other four hold the document to itself, and a document can
+   be perfectly consistent about a date that is not the tag's.
+
+**CI did not have the tag.** `actions/checkout` was set to `fetch-depth: 2`
+with no `fetch-tags`, so check 5 would have skipped silently in the one place
+it most needs to run. The workflow now sets `fetch-tags: true`. A clone
+genuinely without tags prints a line saying so rather than passing quietly.
+
+**Proved by breaking it.** The close date was set back to 25 January, the
+suite run, and three of the five failed with "the PRD's window is 59 days;
+PREREG.md registers 60" before the file was restored. A regression test that
+has never seen the regression is a guess.
+
+**The first draft of check 2 was wrong, and the document was right.** It
+compared an export date against the close as timestamps and failed on 22 hours
+and 20 minutes: an export is a day somebody runs a command on, written without
+a time, while launch and the close carry one. The comparison is day-granular
+now, and says why.
+
+1,281 to **1,286 passing**.
+
+Educational, not investment advice.
