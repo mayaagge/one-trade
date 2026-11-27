@@ -10,11 +10,13 @@ It teaches one idea well: **different tickers can be the same bet.** An S&P 500 
 
 **One-sentence pitch:** Build a portfolio with $10,000 of pretend money, guess how many bets you made, and find out from live market data.
 
-**Status, 26 November 2026:** milestones 1 and 2 are built and the site is live on GitHub Pages. The three hypotheses were registered and tagged (`prereg`, `prereg-v2`, `prereg-v3`) before any price was downloaded; the tag timestamps precede the first price commit. Hypotheses 1 and 2 have verdicts from the committed snapshot, and Hypothesis 3 reads "collecting" because no player data exists yet.
+**Status, 27 November 2026:** milestones 1, 2 and 3 are built, the site is live on GitHub Pages and the Cloudflare Worker is deployed. The three hypotheses were registered and tagged (`prereg`, `prereg-v2`, `prereg-v3`) before any price was downloaded; the tag timestamps precede the first price commit. Hypotheses 1 and 2 have verdicts from the committed snapshot, and Hypothesis 3 reads "collecting" — it now has somewhere to collect from, and no player data yet.
 
-Built: the math engine with numpy known-answer tests, the page, Research mode, levels 1 to 7 with their "Why?" cards, Crash replay over the three registered windows, the daily "Same bet?" puzzle, the weekly challenge, the share card, progress saved in the browser, Sandbox and My real portfolio.
+**The `launch` tag exists: 27 November 2026, 22:20 UTC, annotated and pushed.** Hypothesis 3's collection window starts there, which is the rule its test design registers. Everything recorded before it — 26 count pings and 8 guess records, every one of them the author's own testing — is outside the window by construction rather than by a later decision about which rows were real.
 
-Not built: everything in milestone 3 - the Cloudflare Worker and its three routes, the classroom link, the completion code and verify page, the lesson plan and the feedback form - plus the two launch-secondary modes below. Guess records are produced in the browser for levels 2 and 7 and collected in memory; nothing is sent anywhere, because there is nowhere to send it yet.
+Built: the math engine with numpy known-answer tests, the page, Research mode, levels 1 to 7 with their "Why?" cards, Crash replay over the three registered windows, the daily "Same bet?" puzzle, the weekly challenge, the share card, progress saved in the browser, Sandbox, My real portfolio, the About tab, and the Worker's two routes — `/ping` and `/guess`, both anonymous, both writing to Workers Analytics Engine. Guess records leave the browser on levels 2 and 7 and reach `GUESSES`; `?src=playtest` rows are routed to `GUESSES_PLAYTEST` instead and enter no verdict.
+
+Not built: the classroom link, the completion code and its verify page, the one-page lesson plan, and the three-question feedback form — deferred from milestone 3 on 26 November and still deferred — plus the two launch-secondary modes below. There is no `/code` route and no secret in the Worker.
 
 **Core game loop** (one round takes 1 to 2 minutes):
 
