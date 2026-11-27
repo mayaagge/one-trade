@@ -77,8 +77,14 @@ function renderBuild(ctx) {
   const head = h('header', 'round-head');
   head.append(h('p', 'round-step', 'Build a portfolio'));
   head.append(h('h1', null, 'Sandbox'));
-  head.append(h('p', 'lede', `Put ${money(build.total)} of pretend money into any holdings you like, `
-    + 'then see every measure this game computes - with no guess to make first.'));
+  // WHAT THE SCREEN ACTUALLY GIVES YOU, named. It used to promise "every
+  // measure this game computes", which names nothing, and end "with no guess
+  // to make first", which is a double negative about a mechanic a player
+  // arriving here first has never met. The three things below are the three
+  // panels the measures screen shows, in the order it shows them.
+  head.append(h('p', 'lede', `Build any portfolio with ${money(build.total)} of pretend money `
+    + 'and see what it does: how many separate bets it makes, where the risk sits, '
+    + 'and which holdings move together. Nothing here is scored.'));
   view.append(head);
 
   view.append(h('p', 'picker-count', build.picks.length === 0

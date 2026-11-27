@@ -87,7 +87,13 @@ export function renderSection(section) {
   node.append(h('h2', 'about-heading', section.heading));
   for (const text of section.paragraphs ?? []) node.append(paragraph(text));
   if (Array.isArray(section.levels)) {
-    const list = h('ol', 'about-levels');
+    // A PLAIN LIST, NOT AN ORDERED ONE. An <ol> numbers from 1 by position,
+    // and the title below already carries the level's own number, so every
+    // row read "1. 1. Two of a kind". The number has to be the level's rather
+    // than the list's: it is how a player refers to a level, and a list that
+    // renumbered by position would mislabel every row if one were ever left
+    // out of about.json.
+    const list = h('ul', 'about-levels');
     for (const level of section.levels) {
       const item = h('li', 'about-level');
       item.append(h('span', 'about-level-title', `${level.id}. ${level.title}`));

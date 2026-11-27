@@ -130,6 +130,30 @@ test('the About tab carries no links of its own', () => {
   } finally { restore(); }
 });
 
+test('the level list numbers each level once, with its own number', () => {
+  // It was an <ol> whose rows also carried "3. Three real bets", so every row
+  // read "1. 1. Two of a kind". The number has to be the level's own rather
+  // than the list's position: it is how a player refers to a level, and a
+  // positional number would mislabel every row below a level left out.
+  const restore = withDocument();
+  try {
+    const about = readJson('about.json');
+    const view = renderAbout(validateAbout(about));
+    const list = view.all().find((node) => node.className === 'about-levels');
+    assert.ok(list, 'About has no level list');
+    assert.equal(list.tagName, 'UL', 'an ordered list would number the rows a second time');
+
+    const titles = view.all()
+      .filter((node) => node.className === 'about-level-title')
+      .map((node) => node._text);
+    const levels = about.sections.find((s) => s.id === 'levels').levels;
+    assert.deepEqual(titles, levels.map((l) => `${l.id}. ${l.title}`));
+    for (const title of titles) {
+      assert.ok(!/^\s*\d+\.\s*\d+\./.test(title), `numbered twice: ${title}`);
+    }
+  } finally { restore(); }
+});
+
 test('links elsewhere are untouched, so this is a rule about About and not the site', () => {
   // Level 6's reveal points at About's intuition section. If that disappeared
   // the rule above would pass for the wrong reason.

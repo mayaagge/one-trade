@@ -6883,3 +6883,36 @@ to read anyway.
 1,280 tests pass, unchanged.
 
 Educational, not investment advice.
+
+### The level list was numbered twice, and Sandbox said nothing (session 2.51)
+
+Two things Maya spotted by looking at the screens.
+
+**"1. 1. Two of a kind."** About's level list was an `<ol>` whose rows also
+carried the level's own number, so every row was numbered twice. It is a `<ul>`
+now, and the number stays in the text on purpose: it is the level's own, which
+is how a player refers to a level, where a positional number would mislabel
+every row below any level left out of about.json. A test holds the element to
+being a plain list and every title to carrying exactly one number.
+
+**Sandbox's lede named nothing it gives you.** It read "then see every measure
+this game computes - with no guess to make first": a promise of "every
+measure", which names none of them, ending in a double negative about a
+mechanic somebody arriving at Sandbox first has never met.
+
+> Build any portfolio with $10,000 of pretend money and see what it does: how
+> many separate bets it makes, where the risk sits, and which holdings move
+> together. Nothing here is scored.
+
+The three things listed are the three panels the measures screen actually
+shows, in the order it shows them.
+
+**A test got stronger as a side effect.** It had asserted the word "guess"
+appears exactly once on the Sandbox build screen, because the lede's own
+sentence was the one legitimate use. The word is now absent, so the assertion
+is zero: no guess step, no guess control, and not even the word, on a screen
+that has no guess.
+
+1,280 to **1,281 passing**.
+
+Educational, not investment advice.

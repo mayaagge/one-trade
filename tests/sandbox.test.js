@@ -102,14 +102,17 @@ test('the build screen comes up with the whole ticker list and no guess', async 
     assert.deepEqual([...chips].sort(), [...universe].sort());
     for (const group of TICKERS.groups) assert.match(text, new RegExp(group.label));
 
-    // No guess step: no slider, no prompt, no stars. Tested as the CONTROL and
-    // the prompt rather than as the word, because the lede's own sentence is
-    // "with no guess to make first" - the one place the word belongs here.
+    // No guess step: no slider, no prompt, no stars, and since 27 November
+    // 2026 not even the word. The lede used to end "with no guess to make
+    // first", which was the one place it belonged here - a double negative
+    // about a mechanic somebody arriving at Sandbox first has never met - and
+    // the rewritten lede says what the screen gives instead.
     assert.equal(b.root.querySelectorAll('guess-slider').length, 0, 'a guess slider');
     assert.ok(!b.root.all().some((node) => node.tagName === 'INPUT'), 'an input control');
     assert.ok(!/guess the|your guess|Lock (it )?in|Reveal the answer|★|☆/i.test(text),
       `a guess step leaked in: ${text}`);
-    assert.equal((text.match(/guess/gi) ?? []).length, 1, 'the word "guess" appears more than once');
+    assert.equal((text.match(/guess/gi) ?? []).length, 0,
+      `the word "guess" is on a screen that has no guess: ${text}`);
     assert.equal(ctx.state, 'build');
   } finally { b.restore(); }
 });
