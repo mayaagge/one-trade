@@ -27,3 +27,8 @@ data/live_prices.json
 # the rest of that promise.
 node_modules/
 screenshots/
+
+# scripts/export_guesses.mjs's own output: a raw pull of real (anonymous)
+# player rows from Analytics Engine. Kept local rather than committed, same
+# reasoning as data/live_prices.json - it's a working copy, not the record.
+data/guess_exports/

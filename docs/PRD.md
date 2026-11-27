@@ -634,6 +634,8 @@ enter Hypothesis 3.
 
 Follow the 8-week plan above. Log weekly: players by source code, levels reached, responses, top complaint, change shipped. Ship at least two changes that came from players.
 
+**Run `scripts/export_guesses.mjs` by day 80 after launch, at the latest.** Workers Analytics Engine retains data for about three months; the registered 60-day collection window already uses most of that margin, so the rows behind Hypothesis 3 must be pulled out to a local file before Cloudflare's own retention deletes them, not after the analysis is already underway. Added 26 November 2026, BUILD_LOG.md session 2.27.
+
 **Check:** the success targets table is filled in with real numbers, met or not, and Hypothesis 3 has a verdict.
 
 ### Milestone 5: fund look-through (optional, a few days)

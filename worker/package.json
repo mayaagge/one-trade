@@ -1,0 +1,13 @@
+{
+  "name": "one-trade-worker",
+  "private": true,
+  "type": "module",
+  "description": "The Cloudflare Worker: two anonymous analytics routes, /ping and /guess. No price proxy - see docs/PRD.md's Architecture section.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.168.0"
+  }
+}

@@ -1,0 +1,46 @@
+# worker/wrangler.toml - the Worker's own config. No secrets live here:
+# completion codes (the one feature that would need one) are deferred. See
+# docs/PRD.md milestone 3's note, BUILD_LOG.md session 2.27.
+#
+# RATE-LIMIT SYNTAX IS A FIRST DRAFT. The [[ratelimits]] block below is
+# written from Cloudflare's current docs, but this is the first time this
+# project has used the binding - confirm it with `wrangler dev` before
+# trusting it, and fix the syntax here if wrangler's own error says otherwise.
+
+name = "one-trade-worker"
+main = "src/index.js"
+compatibility_date = "2026-11-27"
+
+[vars]
+# Plain, public, not a secret: the one site allowed to call /ping and /guess.
+ALLOWED_ORIGIN = "https://mayaagge.github.io"
+
+# Anonymous counts: the level reached and a source code. docs/PRD.md: "A
+# count ping carries the level reached and a source code from the link."
+[[analytics_engine_datasets]]
+binding = "PINGS"
+dataset = "one_trade_pings"
+
+# PREREG.md's five-field guess record. Hypothesis 3 reads this dataset only.
+[[analytics_engine_datasets]]
+binding = "GUESSES"
+dataset = "one_trade_guesses"
+
+# ?src=playtest rows land here instead - PREREG_AMENDMENT_3.md section 3.
+# Never read by Hypothesis 3's analysis.
+[[analytics_engine_datasets]]
+binding = "GUESSES_PLAYTEST"
+dataset = "one_trade_guesses_playtest"
+
+# Per-participant-id limit on /guess (no IP involved at all for this route).
+[[ratelimits]]
+name = "GUESS_LIMITER"
+namespace_id = "1001"
+simple = { limit = 20, period = 60 }
+
+# Per-IP limit on /ping, the one route with no better key. The IP is only
+# ever passed to this binding's own ephemeral counter - see worker/src/index.js.
+[[ratelimits]]
+name = "PING_LIMITER"
+namespace_id = "1002"
+simple = { limit = 30, period = 60 }

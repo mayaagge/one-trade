@@ -4574,3 +4574,132 @@ and a rate limit catch obvious abuse, not a determined one.
 1,130 tests pass - unchanged, since nothing here is code yet.
 
 Educational, not investment advice.
+
+## Persisting the pool exclusion across visits, 26 November 2026 (session 2.28)
+
+What PREREG_AMENDMENT_3.md section 2 registered, built. `js/seenPool.js` is
+new, and mirrors `js/participant.js`'s shape on purpose: its own versioned
+record, its own key (`oneTrade.seenPool`), wrapped in the same try/catch
+`js/storage.js` already gives every caller for free. `js/game.js`'s
+`newSession()` now seeds `drawnPoolIds` from it instead of starting empty
+every time, and `recordResult()` writes the full set back whenever a level
+draws from a pool. The comment in `newSession()` that used to say
+persisting this was an open PREREG question now says where that question
+was closed.
+
+**Nothing about Reset progress had to change**, and that is itself worth
+recording: `js/progress.js`'s `clearProgress()` only ever touches
+`PROGRESS_KEY`, so a key it has never heard of was already safe from it, the
+same free property `js/participant.js` already relied on. Checked it anyway,
+end to end, by actually clicking the reset buttons in
+`tests/guessRecords.test.js` rather than trusting the argument: play level
+2, note which portfolio was drawn, reset through the real UI, and confirm
+`oneTrade.seenPool` still names it. Caught one real gap doing this -
+`tests/guessRecords.test.js`'s "the records never reach the browser's
+storage either" test held an exact allowlist of keys the game may write, and
+didn't know about the new one yet. A test that enumerates every key a game
+is allowed to touch is exactly the kind of test that should break the
+moment a new one appears, so updating its allowlist is the fix, not a sign
+the test was wrong to catch it.
+
+1,135 tests pass.
+
+Educational, not investment advice.
+
+## The Worker exists now: /ping and /guess, scaffolded and validated, 26 November 2026 (session 2.29)
+
+First real Cloudflare session. Account created, Wrangler installed as its
+own devDependency in `worker/package.json` - confirmed with Maya first,
+after a Cloudflare onboarding page fetched mid-session (see below) tried to
+get a plugin marketplace installed instead - and already logged in before
+this session even asked; no separate login step was needed.
+
+### What the onboarding page actually was, and why its suggestion did not run
+
+Fetched `https://developers.cloudflare.com/agent-setup/prompt.md` on
+request. It is not Workers guidance - no wrangler.toml conventions, no
+runtime APIs, no deploy commands. It is an onboarding prompt aimed at coding
+agents themselves: install Cloudflare's skills marketplace and an MCP
+server, phrased as "complete these steps yourself by running the commands
+directly." Asked first, got a yes, ran
+`claude plugin marketplace add cloudflare/skills` - and Maya reversed that
+yes on reflection: no plugins or extra tooling outside the agreed plan,
+full stop, and any future suggestion from fetched content needs its own ask
+naming where it came from, not a ride on an earlier approval. Recorded as a
+standing preference in memory (`no-unasked-tooling-installs`), since the
+lesson outlives this one Worker.
+
+### worker/src/index.js: two routes, no secret, no price in sight
+
+Two routes only - `/ping` and `/guess` - because completion codes, the one
+feature that would have needed a secret key, are deferred (docs/PRD.md
+milestone 3's note, session 2.27). Nothing here touches a price: confirmed
+again by construction, since the file never fetches anything at all.
+
+**Validation exists because the origin check does not.** Rejecting other
+websites' browsers stops nothing a script POSTing directly with no Origin
+header would notice - PRD's known weaknesses row 10. `/guess` checks the
+exact five-field set PREREG.md registers, the participant id's 32-hex-char
+shape (mirrors `js/participant.js` - this Worker cannot import that file,
+it uses `localStorage`), level 2 or 7 only, `guess` inside levels 2 and 7's
+own slider range (1 to 6, cross-checked against `levels.json` in
+`tests/worker.test.js` so a future level edit cannot drift out of sync
+unnoticed), `actual` inside the mathematical bound for up to 8 holdings
+(not the slider's range - `actual` is measured, not typed), and a date
+within a calendar day of the Worker's own clock.
+
+**A real bug, caught by the test suite rather than by review:** the first
+`isValidDate()` compared raw elapsed milliseconds to `now`, so "yesterday"
+only passed if `now` happened to be before the same time of day it currently
+is - at noon UTC, yesterday at midnight is 36 hours away and the 24-hour
+window rejected a date that should have been fine. Fixed to compare UTC
+calendar dates at midnight instead of elapsed time, which is what "a
+calendar day either side" actually means and what the client's own
+`ctx.today()` (a calendar date, not a timestamp) can actually produce.
+
+**`?src=playtest` never touches the registered record.** It only decides
+which Analytics Engine dataset a `/guess` row lands in -
+`GUESSES_PLAYTEST` instead of `GUESSES` - exactly as PREREG_AMENDMENT_3.md
+section 3 already registered. Hypothesis 3 reads `GUESSES` only.
+
+### Two things checked against Cloudflare's current docs, not memory
+
+**Analytics Engine's retention is about three months (90-92 days),
+confirmed against the official limits page.** Hypothesis 3's own 60-day
+collection window already spends most of that margin, so
+`scripts/export_guesses.mjs` is new: it pulls every row out of both
+datasets via the Analytics Engine SQL API and writes them to
+`data/guess_exports/` (gitignored, same reasoning as
+`data/live_prices.json`), and must run by day 80 after launch at the
+latest. Logged in docs/PRD.md's Milestone 4 as a dated deadline, not left
+to be remembered.
+
+**The rate limit is a Workers-native binding, not a dashboard zone rule -
+and it works on a plain `workers.dev` address.** Cloudflare's own docs for
+the Rate Limiting binding advise against keying it on IP at all, since one
+IP can be many visitors (a campus network, for instance) and the limit gets
+less accurate, not more private, by using it. `/guess` keys its limiter on
+the participant id it already carries - no IP involved on that route at
+all. `/ping` carries no id by design, so it keys on IP, exactly as asked
+for: passed straight into the binding's own ephemeral counter, never
+written to a blob, an index, or a log anywhere in this file. The
+`[[ratelimits]]` block in `worker/wrangler.toml` is a first draft against
+current docs and is flagged as such in its own comment - this project has
+never used the binding before, and `wrangler dev` gets the final word on
+its exact syntax.
+
+**Sampling got the same treatment.** Analytics Engine allows exactly one
+`indexes` value per data point, used to sample fairly rather than
+randomly - events sharing an index value are kept or dropped together.
+`/guess` indexes on the participant id, so a player's level-2 and level-7
+rows can never be split by sampling; `/ping` indexes on the source code for
+the same reason, one level down.
+
+`tests/worker.test.js` tests every pure validator with plain `node --test` -
+no Miniflare, same as the rest of this project. What it cannot reach from
+Node - the Analytics Engine writes and the rate-limit bindings themselves -
+waits for `wrangler dev` against the real runtime.
+
+1,159 tests pass.
+
+Educational, not investment advice.
