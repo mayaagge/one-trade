@@ -5255,3 +5255,84 @@ for and what Maya will do.
 1,189 tests pass.
 
 Educational, not investment advice.
+
+## The real-phone run, and what to shorten later, 27 November 2026 (session 2.34)
+
+**Maya's own run of levels 1 to 3 on a real phone: 5 to 10 minutes, depending
+on how carefully she read.** That brackets the 7m 31s estimate from session
+2.33, and its upper end sits where the sensitivity table put 150 words a
+minute (9m 45s) - so the model was the right order of magnitude and the
+reading-speed term really is the one that decides it.
+
+**Launch item 7 is ticked, and it is close to the limit.** The caveat matters
+more than the tick: **Maya already knows this game.** She wrote every screen in
+it, so she is reading text she has read many times, is never once wondering
+what "effective bets" means, and never hunts for a ticker. A genuine
+first-time player has all of that ahead of them, and will sit at or past the
+upper end of her range. 10 minutes is met on the measurement that exists; it
+is not met comfortably, and the first real playtest (Milestone 4) is where
+that gets tested properly, with five people who have never seen it.
+
+### Where the words actually are
+
+Reading was 89% of the estimate, so this is the list worth having. Measured at
+375px by walking levels 1 to 3 and reading every text block of 8 words or more
+out of the DOM, sorted by length. **Nothing below has been shortened - this is
+a list of candidates for after launch, not a change.**
+
+| Screen | Words in blocks of 8+ | Total words on screen |
+| --- | --- | --- |
+| Level 2 reveal | 178 | 239 |
+| **The Learn menu** | **154** | **277** |
+| Level 1 reveal | 150 | 212 |
+| Level 3 reveal | 147 | 212 |
+| Level 2 build (the dealt portfolio) | 34 | 70 |
+| The three guess screens | 18 each | 55 to 60 each |
+| Level 1 and 3 build screens | 9 and 11 | 70 and 104 |
+
+**The three reveal screens are 475 words between them** - more than the menu,
+and the single biggest thing on this list. The build and guess screens are
+already lean and are not worth touching.
+
+Three specific candidates, in the order they look worth doing:
+
+1. **The Learn menu describes levels the player cannot play yet.** Its prose is
+   mostly the descriptions of levels 4 to 7 - "Build a 4-holding portfolio with
+   at least 60% in stocks, then hold it through the February to March 2020
+   crash" (30 words, level 6), "Three mystery portfolios, one after another"
+   (21, level 7), "Keep at least 30% in QQQ" (18, level 4). Under
+   pass-to-unlock those four levels are locked, so this is a first-time player
+   reading the rules of four games they are not allowed to start. A locked card
+   could carry one short line and reveal its description when it unlocks.
+   Biggest single saving on the list, and it costs nothing a player needs.
+
+2. **The share-card explainer is on all three reveals, verbatim.** "The card
+   shows your stars and one line about the result. Never your holdings, your
+   money, or - on the mystery-portfolio levels - the answer." 23 words, three
+   times, 69 in total across levels 1 to 3 - and a player who read it on level
+   1 does not need it again on 2 and 3. Show it once per visit, or shorten the
+   repeats to a clause.
+
+3. **The longest single block in the game is a definition.** 43 words on the
+   level 2 reveal: "Effective bets counts independent sources of risk, not
+   holdings. Five holdings that move together are closer to one bet. It counts
+   risk rather than money..." This one is load-bearing - it is the idea the
+   whole game teaches, met for the first time - so it is a candidate for
+   tightening rather than cutting, and it should be the last of the three
+   touched.
+
+Also noted, not recommended: the level 2 reveal spends 37 words explaining that
+its portfolio comes from a pool of 20 shared with level 7. That is research
+transparency rather than teaching, and shortening it would trade honesty for
+seconds. Left alone.
+
+### Why nothing was shortened today
+
+Asked not to, and it would have been the wrong order anyway: every one of these
+is player-facing copy on the screens the first playtest is about to measure.
+Cutting words now would mean the playtest measures text nobody has read yet,
+and there would be no before-and-after. The list keeps.
+
+1,189 tests pass, unchanged - nothing here is code.
+
+Educational, not investment advice.
