@@ -4930,4 +4930,37 @@ level 2's star is still saved. A lost record costs a row and nothing else.
 
 1,187 tests pass.
 
+### The manual pass, and the one thing it found
+
+Played the live site at `?src=playtest#learn` with the network tab open.
+Level 1 sent one `/ping` and nothing else; level 2 sent a `/ping` and a
+`POST /guess?src=playtest`, both 204, the body carrying exactly the five
+registered fields and the guess that was actually typed. Both rows arrived
+in `one_trade_guesses_playtest`; `one_trade_guesses` stayed at 0.
+
+Reaching level 7 by hand means genuinely passing levels 3 to 6, so the
+capstone's ordering was checked directly against the deployed Worker
+instead: three level-7 records, one id, sent one at a time a second apart,
+with distinguishable guesses. They came back out of the SQL API as
+`02:54:20 / 1.1`, `02:54:21 / 2.2`, `02:54:22 / 3.3` - written in the order
+sent, which is what PREREG_AMENDMENT_3.md section 1 rests on.
+
+**Those timestamps are second-granular, and that is worth writing down
+rather than leaving as something noticed and dropped.** Two rows landing
+inside the same second could not be ordered by timestamp alone, so "the
+earliest level-7 row" would be ambiguous between them. Real play cannot
+produce that: each capstone guess needs a new portfolio read, a slider
+moved and a reveal screen passed through, which is tens of seconds apart,
+and the level-2/level-7 pair the hypothesis actually compares is whole
+levels apart. So this is not a gap in the registered rule - it is a bound
+on when the rule is resolvable, and real play sits far inside it.
+
+What the analysis should do about it, when it runs: **check for same-second
+ties within one id and report them rather than silently picking one.** A tie
+is not a reading of the data to resolve, it is a sign the rows did not come
+from a person playing - which docs/PRD.md's known weaknesses row 10 already
+covers as unprovable-but-mitigated. Left unregistered on purpose: a rule for
+a case that cannot occur in real play does not belong in a pre-registration,
+and PREREG_AMENDMENT_3.md is already timestamped on GitHub.
+
 Educational, not investment advice.
