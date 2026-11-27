@@ -1062,7 +1062,18 @@ export function renderReveal(ctx, round) {
   stars.append(h('p', 'stars-why', starsExplanation(level, result)));
   view.append(stars);
 
-  if (result.buckets) {
+  // WHICH BUCKET, except where the card is about to say it. Levels 1, 4, 5 and
+  // 6 all name their buckets here; on level 1 the card that follows IS the
+  // bucket - "VOO and VTI move together almost every day, at 0.996. Two
+  // different names, one bet." - so the line above it read "That is the same
+  // bet. You said the same bet." and then the card said it again.
+  //
+  // CONDITIONED ON THE CARD, not on the level number: the bucket cards are the
+  // ones that restate a bucket, and a level that started using them would want
+  // the same treatment for the same reason.
+  const cardIsTheBucket = result.whyCard && PAIR_CARDS.includes(result.whyCard.key)
+    && result.buckets && result.whyCard.key === result.buckets.actual;
+  if (result.buckets && !cardIsTheBucket) {
     const labels = result.buckets.labels;
     view.append(h('p', 'bucket-line',
       `That is ${labels[result.buckets.actual]}. You said ${labels[result.buckets.guess]}.`));

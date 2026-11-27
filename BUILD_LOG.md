@@ -6668,3 +6668,23 @@ after. Contrast table empty. The level 1 reveal was screenshotted at 375px:
 one card, three lines, the chart between the second and the third.
 
 Educational, not investment advice.
+
+### Level 1 stops naming its bucket twice (same session, 2.48)
+
+The reveal printed "That is the same bet. You said the same bet." directly
+above a card opening "VOO and VTI move together almost every day, at 0.996.
+Two different names, one bet." Maya's call to drop the line.
+
+**Conditioned on the card, not on the level number.** The line goes when the
+card IS the bucket - which is the bucket cards, which is level 1 - and stays
+on levels 4, 5 and 6, whose cards are about a holding over a limit or a
+cushion in a crash and say nothing about which band the answer fell in. A
+level that started using bucket cards would want the same treatment for the
+same reason, and this gives it without anybody remembering to.
+
+The buckets themselves are untouched: still computed, still named in
+levels.json, still the daily puzzle's.
+
+1,273 to **1,274 passing**.
+
+Educational, not investment advice.

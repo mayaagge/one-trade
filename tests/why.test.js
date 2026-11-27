@@ -541,6 +541,22 @@ test('a pair card on a level that is not level 1 gets the chart too', () => {
     [result.whyCard.values.a, result.whyCard.values.b]);
 });
 
+test('level 1 does not name the bucket twice, and the other levels still name it once', () => {
+  // The reveal used to print "That is the same bet. You said the same bet."
+  // directly above a card that opened "...move together almost every day, at
+  // 0.996. Two different names, one bet." The line is dropped where the card
+  // restates it, which is level 1 and nothing else: level 5's card is about a
+  // holding over the risk limit and says nothing about which band the share
+  // fell in.
+  const one = play(1, ['VOO', 'VTI'], 0.9).result;
+  assert.equal(one.whyCard.key, one.buckets.actual, 'the card IS the bucket on level 1');
+
+  const five = play(5, ['VOO', 'BND', 'GLD', 'XOM'], 0.3).result;
+  assert.ok(five.buckets, 'level 5 still works out its buckets');
+  assert.notEqual(five.whyCard.key, five.buckets.actual,
+    'level 5 now restates its bucket in the card, so the line should go too');
+});
+
 // --- 5. the guess line ----------------------------------------------------
 
 test('a card says which way the guess fell, and why that means something', () => {
