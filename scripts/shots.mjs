@@ -13,6 +13,9 @@
 //   node scripts/shots.mjs            every scene, both schemes
 //   node scripts/shots.mjs --only=learn   just the scenes whose id starts "learn"
 //   node scripts/shots.mjs --scheme=light
+//   node scripts/shots.mjs --scroll-top   --fold shots start at the top of the
+//                                         screen rather than wherever the
+//                                         scene's last click left it
 //
 // HOW A STATE IS REACHED, in order of preference:
 //   1. real clicks, for anything a player could click;
@@ -39,11 +42,18 @@ import { scenes } from './dev_scenes.mjs';
 function parseArgs(argv) {
   const only = argv.find((a) => a.startsWith('--only='))?.slice(7) ?? null;
   const scheme = argv.find((a) => a.startsWith('--scheme='))?.slice(9) ?? null;
-  return { only, scheme };
+  // SCROLL BACK TO THE TOP BEFORE THE --fold SHOT. A scene that has to pick
+  // five tickers leaves the page scrolled wherever the last click put it, so
+  // the viewport shot opens mid-list with a half-cut row of chips at the top.
+  // That is honest for a design review - it is what the player is looking at -
+  // and wrong for a README, where the picture has to introduce the screen
+  // rather than resume it. The full-page shot is unaffected either way.
+  const scrollTop = argv.includes('--scroll-top');
+  return { only, scheme, scrollTop };
 }
 
 async function main() {
-  const { only, scheme } = parseArgs(process.argv.slice(2));
+  const { only, scheme, scrollTop } = parseArgs(process.argv.slice(2));
   const schemes = scheme ? [scheme] : ['light', 'dark'];
   const chosen = only ? scenes.filter((s) => s.id.startsWith(only)) : scenes;
   if (chosen.length === 0) throw new Error(`no scene id starts with "${only}"`);
@@ -86,6 +96,13 @@ async function main() {
           await page.waitForTimeout(900);
           const file = join(OUT, name, `${scene.id}.png`);
           await page.screenshot({ path: file, fullPage: true });
+          if (scrollTop) {
+            // Behaviour, not just pixels: js/screen.js restores a remembered
+            // position on redraw, so this scrolls and then waits a frame to be
+            // sure nothing puts it back before the shutter.
+            await page.evaluate(() => window.scrollTo(0, 0));
+            await page.waitForTimeout(150);
+          }
           await page.screenshot({ path: join(OUT, name, `${scene.id}--fold.png`) });
           written.push({ scene, name });
           process.stdout.write(`  ${name}  ${scene.id}\n`);

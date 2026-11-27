@@ -244,7 +244,7 @@ test('a 3-star reveal names all three bands and asks for nothing more', () => {
 
 test('the explanation for level 1 uses its bucket band, not a bets band', () => {
   const text = starsExplanation(levelById(LEVELS, 1), { passed: true, stars: 2 });
-  assert.match(text, /named the right bucket/);
+  assert.match(text, /naming the right bucket/);
   assert.match(text, /within 0\.10 of the real correlation/);
 });
 

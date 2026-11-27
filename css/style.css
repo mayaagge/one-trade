@@ -1216,7 +1216,7 @@ label.lede { display: block; }
    inside it and a collapsing box would stack them on the number above. */
 .numberline {
   position: relative;
-  height: 86px;
+  height: 98px;
   margin: 22px 2px 0;
 }
 .numberline-track {
@@ -1262,10 +1262,21 @@ label.lede { display: block; }
    where it sits relative to its own dot: translateX pushes the whole box
    clear of the anchor point first, so two labels sharing one anchor (the
    close case) start from either side of it and never cross back over it,
-   whatever their own widths are. */
+   whatever their own widths are.
+
+   AND THEY SIT IN THEIR OWN BAND, BELOW EVERYTHING ELSE, which is the only
+   reason a label cannot land on a marker or on the line. They used to be at
+   top 24px - inside the same vertical band as the dots (26 to 50) and the
+   track (34 to 37) - so the ONLY thing keeping a label off them was a 6px
+   horizontal nudge, against a dot that reaches 12px either side of its own
+   centre. Every one of the 24 cases scripts/dev_checks.mjs now sweeps
+   overlapped something. Horizontal offsets cannot fix that in general,
+   because a label's width depends on the number printed in it: the bands
+   have to be separate. The threshold tick ends at 52px, so 56px clears
+   everything above with room to spare. */
 .numberline-label {
   position: absolute;
-  top: 24px;
+  top: 56px;
   font-size: 0.75rem;
   white-space: nowrap;
   color: var(--text-secondary);

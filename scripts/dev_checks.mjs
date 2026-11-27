@@ -18,6 +18,14 @@
 //    under a total that insists on 100% is the kind of thing the eye slides
 //    past in a screenshot and a sum does not.
 //
+// 3. THE NUMBER LINE'S LABELS OVERLAPPING SOMETHING. Render the reveal's number
+//    line across a sweep of guess-and-answer pairs at two widths, read every
+//    box out with getBoundingClientRect, and intersect them. A screenshot of
+//    ONE pair cannot show this, which is exactly how "your guess 3.6" shipped
+//    sitting on top of its own marker: the pair in the screenshot looked fine.
+//    Overlap is a question about rendered text width against a transform, and
+//    neither a stub DOM nor a picture of one case can answer it.
+//
 // Educational, not investment advice.
 
 import { chromium } from 'playwright';
@@ -417,14 +425,162 @@ function sum(values) {
   return values.reduce((total, value) => total + value, 0);
 }
 
+// ------------------------------------------------ 3. the number line's labels
+//
+// THE SWEEP IS THE POINT. A label's box depends on how wide its text renders,
+// which depends on the number in it, so "does anything overlap" has to be asked
+// of many pairs rather than one. These are chosen to include every shape the
+// geometry can take: the two marks on top of each other, a hair apart, at
+// opposite ends, each one alone at an edge, and the case from the bug report.
+
+const LINE_WIDTHS = [
+  { id: '375px', width: 375 },
+  { id: 'desktop 1280px', width: 1280 },
+];
+
+/** [guess, answer] on level 2's own 1-to-6 scale, plus why each one is here. */
+const LINE_CASES = [
+  { guess: 3.6, answer: 2.68, note: 'the bug report: "your guess 3.6" over its own marker' },
+  { guess: 3.2, answer: 2.06, note: "the README's own screenshot" },
+  { guess: 2.68, answer: 2.68, note: 'exactly equal - both marks at one point' },
+  { guess: 2.7, answer: 2.68, note: 'a hair apart' },
+  { guess: 1, answer: 6, note: 'opposite ends, both at an edge' },
+  { guess: 6, answer: 1, note: 'opposite ends, reversed' },
+  { guess: 1, answer: 1.1, note: 'both hard against the left edge' },
+  { guess: 6, answer: 5.9, note: 'both hard against the right edge' },
+  { guess: 1, answer: 3, note: 'guess at the left edge, answer at the threshold' },
+  { guess: 5.9, answer: 3.02, note: 'long labels, mid-scale answer' },
+  { guess: 3, answer: 3, note: 'both exactly on the threshold tick' },
+  { guess: 2.9, answer: 3.1, note: 'straddling the threshold tick closely' },
+];
+
+/**
+ * Render the number line for one pair and report every box in it.
+ *
+ * The LEVEL is the real level 2 out of levels.json and the formatting is
+ * js/levels.js's own, so the only synthetic part is the pair of values - which
+ * is the part that has to be swept.
+ */
+async function measureLine(page, { guess, answer }) {
+  return page.evaluate(async ({ guess: g, answer: a }) => {
+    const [{ revealLine, numberLine }, { validateLevels, formatGuess }] = await Promise.all([
+      import('/js/game.js'),
+      import('/js/levels.js'),
+    ]);
+    const levels = validateLevels(await (await fetch('/levels.json')).json());
+    const level = levels.levels.find((l) => l.id === 2);
+
+    const round = {
+      level,
+      guessRange: () => ({ min: level.guess.min, max: level.guess.max }),
+      result: {
+        guess: g,
+        value: a,
+        shown: formatGuess(level, a),
+        passed: a >= (level.pass?.threshold ?? 0),
+      },
+    };
+    const line = revealLine(round);
+    if (!line) return { error: 'revealLine returned null' };
+
+    const host = document.createElement('div');
+    host.id = 'numberline-probe';
+    // Inside #view so it inherits the same width and type as the real reveal.
+    const view = document.getElementById('view');
+    view.replaceChildren(host);
+    host.append(numberLine(round, line));
+    // Let fonts and layout settle before measuring.
+    await document.fonts?.ready;
+
+    const box = (el) => {
+      const r = el.getBoundingClientRect();
+      return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, w: r.width, h: r.height };
+    };
+    const one = (sel) => {
+      const el = host.querySelector(sel);
+      return el ? { ...box(el), text: el.textContent.trim() } : null;
+    };
+    return {
+      guessMark: one('.mark-guess'),
+      answerMark: one('.mark-answer'),
+      track: one('.numberline-track'),
+      needTick: one('.numberline-need'),
+      needLabel: one('.numberline-need span'),
+      guessLabel: one('.mark-guess-label'),
+      answerLabel: one('.mark-answer-label'),
+      host: box(host),
+    };
+  }, { guess, answer });
+}
+
+/** Do two boxes share any actual area? Touching edges do not count. */
+function overlaps(a, b) {
+  if (!a || !b) return false;
+  const x = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+  const y = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+  return x > 0.5 && y > 0.5;
+}
+
+/** Every pair a label must stay clear of, named for the report. */
+function clashes(m) {
+  const found = [];
+  const labels = [['guess label', m.guessLabel], ['answer label', m.answerLabel]];
+  const obstacles = [
+    ['the guess marker', m.guessMark],
+    ['the answer marker', m.answerMark],
+    ['the line', m.track],
+    ['the threshold tick', m.needTick],
+    ['the "needed" label', m.needLabel],
+  ];
+  for (const [labelName, label] of labels) {
+    for (const [obstacleName, obstacle] of obstacles) {
+      if (overlaps(label, obstacle)) found.push(`${labelName} over ${obstacleName}`);
+    }
+  }
+  if (overlaps(m.guessLabel, m.answerLabel)) found.push('the two labels over each other');
+  // And nothing may run off the number line's own box, in either direction.
+  for (const [labelName, label] of labels) {
+    if (!label) continue;
+    if (label.left < m.host.left - 0.5) found.push(`${labelName} off the left edge`);
+    if (label.right > m.host.right + 0.5) found.push(`${labelName} off the right edge`);
+  }
+  return found;
+}
+
+async function checkNumberLine(browser) {
+  const rows = [];
+  for (const { id, width } of LINE_WIDTHS) {
+    const context = await browser.newContext({ viewport: { width, height: 900 } });
+    const page = await context.newPage();
+    try {
+      await seedInto(context, ALL_PLAYED);
+      await open(page, '#learn');
+      for (const testCase of LINE_CASES) {
+        try {
+          const m = await measureLine(page, testCase);
+          if (m.error) { rows.push({ width: id, ...testCase, error: m.error }); continue; }
+          rows.push({ width: id, ...testCase, clashes: clashes(m), measured: m });
+        } catch (error) {
+          rows.push({ width: id, ...testCase, error: error.message.split('\n')[0] });
+        }
+      }
+    } finally {
+      await context.close();
+    }
+  }
+  return rows;
+}
+
 async function main() {
   const server = await serve();
   const browser = await chromium.launch();
   let scroll;
   let percents;
+  let numberline;
   try {
     scroll = await checkScroll(browser);
     percents = await checkPercents(browser);
+    numberline = await checkNumberLine(browser);
   } finally {
     await browser.close();
     server.kill();
@@ -471,6 +627,34 @@ async function main() {
     }
     out.push('');
   }
+
+  out.push('');
+  out.push('## 3. The number line: does any label overlap anything?');
+  out.push('');
+  out.push('Every box read with getBoundingClientRect. A label may not share area with');
+  out.push('either marker (its own included), the line, the threshold tick, the "needed"');
+  out.push('label, or the other label - and may not run off the line\'s own box.');
+  out.push('');
+  out.push('| Width | guess | answer | result | what the case is for |');
+  out.push('| --- | --- | --- | --- | --- |');
+  let clean = 0;
+  let dirty = 0;
+  for (const row of numberline) {
+    if (row.error) {
+      out.push(`| ${row.width} | ${row.guess} | ${row.answer} | could not measure: ${row.error} | ${row.note} |`);
+      dirty += 1;
+      continue;
+    }
+    if (row.clashes.length === 0) {
+      clean += 1;
+      out.push(`| ${row.width} | ${row.guess} | ${row.answer} | clear | ${row.note} |`);
+    } else {
+      dirty += 1;
+      out.push(`| ${row.width} | ${row.guess} | ${row.answer} | **${row.clashes.join('; ')}** | ${row.note} |`);
+    }
+  }
+  out.push('');
+  out.push(`**${clean} clear, ${dirty} with an overlap.**`);
 
   process.stdout.write(`${out.join('\n')}\n`);
 }

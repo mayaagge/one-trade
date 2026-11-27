@@ -5027,3 +5027,93 @@ than one with an honest gap in it.
 1,187 tests pass.
 
 Educational, not investment advice.
+
+## Launch review, and three things it found, 27 November 2026 (session 2.31)
+
+### The dates were never dates
+
+docs/PRD.md said "60 days after launch" and "day 80" and nothing anywhere
+turned either into a date. Both are now in a table at the top of "Launch is
+done when": launch **26 November 2026**, collection closes **25 January
+2027**, last safe export **14 February 2027**.
+
+**And the launch date is a day earlier than collection could have started.**
+Pages served the site on the 26th; the Worker's `/guess` route only went live
+on the 27th, so no guess record can predate it. Keeping launch at the 26th
+makes the 60-day window close a day sooner than it strictly has to, which is
+the conservative direction, so it stands - but it is written down rather than
+left as a one-day discrepancy for somebody to find in the analysis.
+
+### 1. Every label on the number line overlapped something
+
+The bug report named three symptoms. All three were the same cause, and it
+was worse than reported: **labels, dots and the line all sat in one vertical
+band.** Labels were at `top: 24px`, dots at 26 to 50, the track at 34 to 37.
+The only thing keeping a label off a dot was a 6px horizontal nudge - against
+a dot that reaches 12px either side of its own centre. Hence "Jour guess".
+
+**A label's width depends on the number printed in it, so no horizontal
+offset fixes this in general.** The bands have to be separate. Labels moved to
+`top: 56px`, below the dots and below the threshold tick (which ends at 52),
+and `.numberline` grew from 86px to 98px to hold them.
+
+**The check had to come before the fix, and it had to be a real browser.**
+`scripts/dev_checks.mjs` gained a third section: render the number line across
+twelve guess-and-answer pairs at 375px and 1280px, read every box with
+`getBoundingClientRect`, and intersect them - each label against both markers,
+the line, the threshold tick, the "needed" label, the other label, and the
+line's own box. Before the fix: **0 clear, 24 with an overlap**. After:
+**24 clear, 0 with an overlap**. The pairs include both marks on one point,
+a hair apart, opposite ends, both hard against each edge, and both exactly on
+the threshold tick.
+
+This is session 2.24's lesson a third time. A stub DOM cannot answer a layout
+question, and a screenshot of ONE pair cannot either - which is exactly how
+this shipped: the pair in the screenshot looked fine, and the README was about
+to ship a picture of the bug.
+
+### 2. The star rules were ungrammatical in two frames, not one
+
+"1 star for make a guess" was the reported one. Reading every `says` through
+every frame js/game.js drops it into found a second: levels 1, 4, 5 and 6 all
+rendered **"2 stars needed named the right bucket"**.
+
+Fixed in levels.json, where the wording belongs: `make a guess` →
+`making a guess` (level 2 and the weekly), `named the right bucket` →
+`naming the right bucket` (four levels). A gerund is a noun phrase, so it
+reads after "for", after "needed", and in front of "is what this level
+needs" - all five frames, with no change to any of them.
+
+**Two tests now hold the rule rather than the strings**, so the next level
+added cannot reintroduce it: every `says` must open with a determiner, a
+preposition, a number word or a gerund; and none may open with a bare
+imperative or a past participle, named as the exact two shapes that shipped.
+Both failed before the fix.
+
+### 3. `--scroll-top`
+
+`scripts/shots.mjs` captures the `--fold` shot wherever the scene's last click
+left the page, which for a scene that picks five tickers is mid-list with a
+half-cut row of chips at the top. Honest for a design review - it is what the
+player is looking at - and wrong for a README, where the picture introduces
+the screen rather than resumes it. `--scroll-top` scrolls to the top and waits
+a frame (js/screen.js restores remembered positions on redraw, so the wait is
+behaviour and not decoration) before the viewport shot. The full-page shot is
+untouched.
+
+Both README screenshots retaken with it: the build screen now opens on
+"LEVEL 3 · BUILD / Three real bets" and its task line, and the reveal shows
+the number line with "2.06" and "your guess 3.2" sitting cleanly in their own
+band below the dots.
+
+### What the review could not tick
+
+**"Levels 1 to 3 can be played in under 10 minutes on a mid-range phone"
+has never been measured.** Nothing in this log claims it was. It needs a
+person, a real mid-range phone and a stopwatch; the automated checks run at
+375px in a desktop browser, which answers a different question. Left unticked
+and named as unmeasured rather than assumed from the design review.
+
+1,189 tests pass.
+
+Educational, not investment advice.

@@ -740,3 +740,60 @@ test('the named level 6 builds still give the answers written down beside them',
     'the same shape with different stocks in it should be several times apart');
   assert.equal(LEVEL6_BUILDS.length, 6);
 });
+
+// ------------------------------------------------- the star rules, as sentences
+//
+// THE STRINGS ARE NOT READ ALONE. js/game.js drops every `says` into five
+// different sentence frames - "1 star for X", "2 for X", "2 stars needed X",
+// "N needs X" and "No stars this time: X is what this level needs" - so a value
+// that reads fine by itself can still be ungrammatical in all five. Level 2's
+// "make a guess" rendered as "1 star for make a guess", and levels 1, 4, 5 and
+// 6 rendered "2 stars needed named the right bucket".
+//
+// THE RULE: a `says` value is a noun phrase, so it fits after "for", after
+// "needed", and in front of "is what this level needs". In practice that means
+// it opens with a determiner, a preposition, a number word - or a gerund, which
+// is how a verb becomes a noun phrase.
+
+/** Words a noun phrase may open with here. Not a grammar, a house style. */
+const PHRASE_OPENERS = new Set([
+  'a', 'an', 'the', 'no', 'any', 'all', 'both', 'each', 'every', 'half',
+  'at', 'within', 'under', 'over', 'above', 'below', 'between',
+  'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'exactly', 'nothing',
+]);
+
+/** Every `says` in levels.json, with a name saying where it came from. */
+function everySays(doc) {
+  const found = [];
+  for (const level of doc.levels) {
+    if (level.pass?.says) found.push({ where: `level ${level.id} pass`, says: level.pass.says });
+    for (const band of ['two', 'three']) {
+      const says = level.stars?.[band]?.says;
+      if (says) found.push({ where: `level ${level.id} stars.${band}`, says });
+    }
+  }
+  if (doc.weekly?.pass?.says) found.push({ where: 'the weekly challenge', says: doc.weekly.pass.says });
+  return found;
+}
+
+test('every star rule reads as a noun phrase, so it fits every frame it is dropped into', () => {
+  const found = everySays(LEVELS);
+  assert.ok(found.length >= 15, `expected every level's rules, found ${found.length}`);
+  for (const { where, says } of found) {
+    const first = says.split(/\s+/)[0].toLowerCase();
+    const ok = PHRASE_OPENERS.has(first) || first.endsWith('ing');
+    assert.ok(ok, `${where}: "${says}" opens with "${first}", which reads wrong as `
+      + `"1 star for ${says}" and as "2 stars needed ${says}"`);
+  }
+});
+
+test('no star rule opens with a bare or past-tense verb, the two that broke before', () => {
+  // The exact two shapes that shipped, named so a regression is recognisable
+  // rather than merely caught: an imperative ("make") and a past participle
+  // ("named"). Both read as instructions rather than as things a star is for.
+  for (const { where, says } of everySays(LEVELS)) {
+    assert.doesNotMatch(says, /^(make|name|guess|pick|build|get|be|keep)\b/i,
+      `${where}: "${says}" is an instruction, not a noun phrase`);
+    assert.doesNotMatch(says, /^\w+ed\b/i, `${where}: "${says}" opens in the past tense`);
+  }
+});

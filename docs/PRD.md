@@ -384,6 +384,16 @@ see milestone 3 step 5.
 
 The project is done when students have played it, at least one instructor has used it in a session, and changes have shipped because of player feedback. Being live is not enough.
 
+### The launch window, as dates
+
+Written down on 27 November 2026, because "60 days after launch" and "day 80" are not dates until somebody works them out, and all three of these decide when something has to happen.
+
+| What | Date | Where it comes from |
+| --- | --- | --- |
+| **Launch** | **26 November 2026** | GitHub Pages first served the site from `main`. The Worker's `/guess` route went live the next day, 27 November, so no guess record can predate it — the window below is therefore one day conservative, in the safe direction |
+| **Collection closes** | **25 January 2027** | Launch plus the 60 days PREREG.md registers for Hypothesis 3. No guess record after this date enters the registered test |
+| **Last safe export** | **14 February 2027** | Launch plus 80 days. Workers Analytics Engine keeps data about three months, so the rows must be out of it and into a file before then — `npm run export`, weekly from launch, not once at the end |
+
 ### Launch is done when
 
 - ☑ The prereg tag exists, and its timestamp comes before the first commit containing real price data.
@@ -638,7 +648,7 @@ enter Hypothesis 3.
 
 Follow the 8-week plan above. Log weekly: players by source code, levels reached, responses, top complaint, change shipped. Ship at least two changes that came from players.
 
-**Run `scripts/export_guesses.mjs` weekly during the 60-day collection window, with day 80 after launch as the last safe date.** Workers Analytics Engine retains data for about three months; the registered 60-day collection window already uses most of that margin. A weekly run means no single missed run can lose more than a week of rows even if day 80 is missed too, and the script is idempotent - re-exporting is always a full, fresh pull of whatever is still there, never an append. Added 26 November 2026, BUILD_LOG.md session 2.29.
+**Run `npm run export` weekly from launch until 25 January 2027, and no later than 14 February 2027.** Workers Analytics Engine retains data for about three months; the registered 60-day collection window already uses most of that margin. A weekly run means no single missed run can lose more than a week of rows even if the last safe date is missed too, and the script is idempotent - re-exporting is always a full, fresh pull of whatever is still there, never an append. See "The launch window, as dates" above. Added 26 November 2026, BUILD_LOG.md session 2.29; dated 27 November 2026.
 
 **Check:** the success targets table is filled in with real numbers, met or not, and Hypothesis 3 has a verdict.
 

@@ -134,7 +134,7 @@
         "pass": 1,
         "two": {
           "test": "bucket",
-          "says": "named the right bucket"
+          "says": "naming the right bucket"
         },
         "three": {
           "test": "within",
@@ -174,7 +174,7 @@
       },
       "pass": {
         "measure": "guess",
-        "says": "make a guess"
+        "says": "making a guess"
       },
       "stars": {
         "pass": 1,
@@ -315,7 +315,7 @@
         "pass": 1,
         "two": {
           "test": "bucket",
-          "says": "named the right bucket"
+          "says": "naming the right bucket"
         },
         "three": {
           "test": "within",
@@ -380,7 +380,7 @@
         "pass": 1,
         "two": {
           "test": "bucket",
-          "says": "named the right bucket"
+          "says": "naming the right bucket"
         },
         "three": {
           "test": "within",
@@ -455,7 +455,7 @@
         "pass": 1,
         "two": {
           "test": "bucket",
-          "says": "named the right bucket"
+          "says": "naming the right bucket"
         },
         "three": {
           "test": "within",
@@ -647,7 +647,7 @@
     },
     "pass": {
       "measure": "guess",
-      "says": "make a guess"
+      "says": "making a guess"
     },
     "stars": {
       "pass": 1,

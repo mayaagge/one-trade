@@ -12,7 +12,7 @@ It teaches one idea: **different tickers can be the same bet.** An S&P 500 fund,
 
 | Build it | Find out |
 | --- | --- |
-| <img src="docs/images/level-3-build.png" alt="Level 3's build screen: ticker chips grouped by sector with NVDA, VOO, BND, GLD and JNJ selected, above sliders splitting $10,000 evenly between them" width="380"> | <img src="docs/images/level-3-reveal.png" alt="Level 3's reveal: the portfolio makes 2.06 separate bets against a guess of 3.2, drawn on a number line, with the sentence 'Out by 1.1' and no stars awarded" width="380"> |
+| <img src="docs/images/level-3-build.png" alt="Level 3's build screen: the heading 'Three real bets', the task 'Build a 5-holding portfolio that makes at least 3 separate bets', and ticker chips grouped by sector with NVDA selected" width="380"> | <img src="docs/images/level-3-reveal.png" alt="Level 3's reveal: the portfolio makes 2.06 separate bets against a guess of 3.2, drawn on a number line with the threshold marked '3.0 needed', below it the sentence 'Out by 1.1' and no stars awarded" width="380"> |
 | Pick holdings and split $10,000 between them. | Guess first, then see the real answer worked out from price history. |
 
 ---
