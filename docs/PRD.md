@@ -406,8 +406,8 @@ The project is done when students have played it, at least one instructor has us
 
 | Metric | Target | How it's measured |
 | --- | --- | --- |
-| Players who start level 1 | 500 | Count-only ping |
-| Players who finish level 3 | 150 | Level ping |
+| Players who start level 1 | 500 | Count-only ping. Counts **visits**, not people - see below |
+| Players who finish level 3 | 150 | Measured by **level 4** pings - see below |
 | Players who reach level 7 | 60 | Level ping; also the minimum for Hypothesis 3 |
 | Classes or club sessions that use it | 3 | Classroom links created, confirmed by the host |
 | Feedback responses | 40 | Three-question form |
@@ -415,6 +415,10 @@ The project is done when students have played it, at least one instructor has us
 | Findings write-up | 1 post with all verdicts | Published link |
 
 These are stretch targets.
+
+**The first column says "players" and the pings count visits.** Added 27 November 2026, when the pings were actually wired up (BUILD_LOG.md session 2.29). A count ping carries the level reached and a source code, and deliberately no per-browser id - so nothing downstream can tell one person's second visit from a second person. The client sends each level at most once per visit, so a player who retries level 4 six times in one sitting is counted once; a player who comes back tomorrow is counted again. Every "players who..." row above is therefore an upper bound on people and an exact count of visits, and the write-up should say so rather than quietly reporting visits as players. The guess records are the one place a returning player can be recognised, because those do carry an id - which is exactly why Hypothesis 3 can pair a level-2 error with a level-7 error across visits and the targets table cannot.
+
+**"Finished level 3" is measured by level 4 pings.** There is no "finished" ping - a ping fires when a level is *reached*. Since session 2.24 made each level unlock only by passing the one before it, reaching level 4 is the same event as passing level 3, so level 4's ping is the measurement. The same reasoning is why "reach level 7" is read straight from level 7's own ping: reaching it means levels 1 to 6 were all passed.
 
 ## Audience, marketing and outreach
 

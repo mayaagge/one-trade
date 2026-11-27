@@ -2,14 +2,6 @@
 //
 // One place to fill in, rather than a string buried in a view.
 //
-// THE WORKER'S PROXY URL IS NOT HERE YET. docs/PRD.md's milestone 3 step 2 pairs
-// it with ABOUT.url, and an earlier version of this note said both were
-// "declared here, unset" - which was never true of the proxy, and sent a reader
-// looking for a constant that did not exist. Nothing fetches through a proxy
-// today: every URL the game reads is a file in this repository, which is why
-// there has been nothing to configure. The constant belongs here when the Worker
-// is built, beside this one.
-//
 // Educational, not investment advice.
 
 /**
@@ -25,3 +17,19 @@
 export const ABOUT = {
   url: 'https://mayaagge.github.io/one-trade/',
 };
+
+/**
+ * The Worker, for the two anonymous analytics routes and nothing else.
+ *
+ * NOT A SECRET, AND NOT A PROXY. It is a public endpoint anyone can see in a
+ * network tab, which is why it sits in a committed file rather than anywhere
+ * near an environment variable. The name "PROXY" is what docs/PRD.md's
+ * milestone 3 step 2 called it back when the Worker was going to stand between
+ * Yahoo and the browser; it never did (see the PRD's Architecture section), so
+ * this is the analytics address, carrying `/ping` and `/guess`.
+ *
+ * Deployed 27 November 2026. Set this to null to turn both routes off: every
+ * send in js/analytics.js is a no-op without it, and the game plays exactly the
+ * same either way.
+ */
+export const PROXY = 'https://one-trade-worker.trade1234.workers.dev';

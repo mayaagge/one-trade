@@ -263,6 +263,30 @@ test('?src=playtest routes the row to GUESSES_PLAYTEST instead, same five fields
   assert.equal(env.GUESSES_PLAYTEST.points.length, 1);
 });
 
+test('src chooses the table and is never written into a guess row', async () => {
+  // The registered record is five fields (PREREG_AMENDMENT_3.md section 3):
+  // src decides WHICH dataset a row lands in and contributes nothing to the
+  // row itself. Checked with two values, because "playtest" leaking would be
+  // caught by the routing test above anyway - an ordinary campaign code
+  // leaking would not.
+  const env = baseEnv();
+  await worker.fetch(postRequest('/guess?src=playtest', goodGuess()), env);
+  await worker.fetch(postRequest('/guess?src=club-ucla', goodGuess({ level: 7 })), env);
+
+  assert.equal(env.GUESSES_PLAYTEST.points.length, 1, 'playtest did not choose the playtest table');
+  assert.equal(env.GUESSES.points.length, 1, 'any other source code belongs in the real table');
+
+  const written = JSON.stringify([...env.GUESSES.points, ...env.GUESSES_PLAYTEST.points]);
+  assert.ok(!written.includes('playtest'), 'a source code reached a guess row');
+  assert.ok(!written.includes('club-ucla'), 'a source code reached a guess row');
+
+  // A PING IS THE EXCEPTION, AND THE CONTRAST IS THE POINT: there the source
+  // code is the measurement, so it is written on purpose.
+  await worker.fetch(postRequest('/ping', { level: 3, src: 'club-ucla' }), env);
+  assert.ok(JSON.stringify(env.PINGS.points).includes('club-ucla'),
+    'a ping must carry its source code - that is what a count ping is for');
+});
+
 test('an invalid body never reaches a limiter or a dataset', async () => {
   const env = baseEnv();
   const response = await worker.fetch(postRequest('/guess', { ...goodGuess(), level: 3 }), env);

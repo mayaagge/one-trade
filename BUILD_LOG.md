@@ -4842,3 +4842,92 @@ level-7 smoke-test records sent with `?src=playtest`, as intended. Nothing
 reached the dataset Hypothesis 3 reads; nothing to log as excluded.
 
 Educational, not investment advice.
+
+## The game sends, 27 November 2026 (session 2.30)
+
+Phase D: `js/config.js` carries `PROXY`, and two new files do the sending -
+`js/analytics.js` (the only file in this game that sends anything anywhere)
+and `js/visitSource.js` (the `?src=` code, remembered for the visit).
+`js/game.js`'s `record()` and `startRound()` are the two call sites, both
+one line.
+
+### The precedence bug that was caught in review, not in a test
+
+The plan had `visitSource()` check its remembered value first and fall back
+to the URL. That is backwards, and the failure is specific rather than
+theoretical: a tab that first opened with **no** source code would cache
+"no source", and `?src=playtest` typed into that same tab later - which is
+exactly how Maya's own testing on the live site works - would be ignored.
+Every guess from that session would then have gone into the real `GUESSES`
+dataset. **The URL wins now**, and the stored value is used only when the
+URL has none; nothing is written for a load with no source at all, so
+"absent" never becomes sticky. `tests/visitSource.test.js` opens with that
+case by name, because it is the one the file exists for.
+
+`sessionStorage`, not `localStorage`: a visit is a tab. It survives a
+reload - a refresh mid-playtest must not quietly untag the rest of the
+session - and dies with the tab, which is the opposite of what
+`js/progress.js`, `js/participant.js` and `js/seenPool.js` all want.
+
+### What the old test asserted, and what replaced it
+
+`tests/guessRecords.test.js` held "Learn sends nothing, by any route,
+however much is played" - correct for as long as there was nowhere to send.
+It flipped to the precise version of the same promise: these exact requests
+go out and nothing else does. Seven pings, one per level reached, each
+exactly once; one `/guess` per locked guess on levels 2 and 7 only, in
+portfolio order; every sent row carrying exactly PREREG.md's five fields and
+one id; and every other exit a browser has - beacon, XHR, image, websocket,
+SSE, clipboard, share - still untouched, with no data file refetched.
+
+**One assertion needed narrowing rather than deleting.** `b.asked` counts
+every fetch, so comparing it to the data-file list started failing the
+moment the Worker was wired in. The fix is to set the Worker sends aside and
+compare what is left, which is the promise that was always meant: no data
+file is refetched during play. A test that breaks because the thing it
+measures changed shape is worth narrowing; a test that breaks because the
+behaviour changed is worth rewriting; this was the first kind.
+
+**Sandbox, My real portfolio, the daily puzzle and the weekly challenge
+needed no change at all, and that is the regression check.** Each has its
+own test file watching every outward route, and all four stayed green
+without being touched. If a send had leaked into a shared code path, those
+are the tests that would have said so.
+
+### Three things the review added on top
+
+**`keepalive: true` on both routes.** A record is sent the instant its
+guess locks, and a player may close the tab or follow a share link a
+heartbeat later; a normal fetch is cancelled when the page goes away. The
+bodies are about a hundred bytes against the 64 KB a browser allows in
+flight this way.
+
+**A test that `src` never reaches a guess row.** It decides which dataset a
+row lands in and contributes nothing to the row - and the existing routing
+test would only ever have caught `playtest` leaking, not an ordinary
+campaign code. The new test sends both, checks neither string appears in
+anything written, and then checks the contrast on purpose: a `/ping` *does*
+carry its source code, because for a ping that is the measurement rather
+than a routing decision.
+
+**The success targets now say what they actually measure.** A ping carries
+no per-browser id, so nothing downstream can tell one person's second visit
+from a second person: every "players who..." row is an exact count of
+visits and an upper bound on people, and docs/PRD.md says so now rather
+than leaving the write-up to report visits as players. "Finished level 3"
+is measured by **level 4** pings - there is no "finished" ping, and since
+pass-to-unlock (session 2.24) reaching level 4 is the same event as passing
+level 3.
+
+### Breaking the Worker on purpose
+
+docs/PRD.md milestone 3 step 5, in its corrected form - there is no price
+fallback to test, because prices never went through the Worker, so what has
+to hold is that breaking it is invisible. A test stubs `fetch` to throw for
+every Worker URL, then plays level 2 and the full capstone: the rounds
+finish, the results are there, all four records are still in memory, and
+level 2's star is still saved. A lost record costs a row and nothing else.
+
+1,187 tests pass.
+
+Educational, not investment advice.

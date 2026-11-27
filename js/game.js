@@ -47,6 +47,7 @@ import {
 // Reset progress does not clear it - see the note at the top of the file.
 import { participantId } from './participant.js';
 import { loadSeenPool, saveSeenPool } from './seenPool.js';
+import { sendGuess, sendPing } from './analytics.js';
 // The share card: its words are decided by js/shareCard.js, which is pure, and
 // carried out of the browser by js/share.js, which the daily puzzle shares.
 import {
@@ -159,8 +160,14 @@ export function starText(count) {
 // ------------------------------------------------------------- the session
 
 /**
- * What this browser tab remembers. In memory only, by design for now: nothing
- * is written to storage and nothing leaves the browser.
+ * What this browser tab remembers for the length of one visit.
+ *
+ * Not the whole picture any more, and this note used to claim it was. The
+ * stars here are a copy of js/progress.js's saved record; `drawnPoolIds` is
+ * seeded from and written back to js/seenPool.js; and a locked guess on level
+ * 2 or 7 now leaves the browser entirely, through js/analytics.js. What stays
+ * true, and matters more: no ticker, dollar amount, weight or name is in any
+ * of it.
  */
 export function newSession(progress = null) {
   return {
@@ -181,6 +188,12 @@ export function newSession(progress = null) {
     // browser with no storage gets an empty set here, the same as before this
     // was persisted at all.
     drawnPoolIds: new Set(loadSeenPool()),
+    // Levels this VISIT has already pinged, so a retry is not a second player.
+    // In memory only, and unlike drawnPoolIds that is the right scope rather
+    // than a compromise: a ping counts a visit reaching a level, so somebody
+    // coming back tomorrow genuinely is a new one to count. See the note on
+    // docs/PRD.md's success targets - pings count visits, not people.
+    pingedLevels: new Set(),
   };
 }
 
@@ -1248,8 +1261,18 @@ export async function mountLearn(root, { session = null, progress = null } = {})
         date: ctx.today(),
       };
       ctx.records.push(row);
+      // AND OUT IT GOES, now that there is somewhere to send it. One send per
+      // locked guess, never batched, because arrival order is the only thing
+      // that tells level 7's three rows apart - PREREG_AMENDMENT_3.md section
+      // 1. Fire and forget: js/analytics.js cannot throw into this, and a
+      // failed send costs a row and nothing else. `ctx.records` keeps every
+      // row in memory either way, which is what the tests read.
+      ctx.sendGuess(row);
       return row;
     },
+    /** Injectable so a test can watch the sends without a network. */
+    sendGuess,
+    sendPing,
     /** Today, as the date a record carries. Injectable so a test can fix it. */
     today: () => new Date().toISOString().slice(0, 10),
     /** This visit's draws and stars, seeded from the saved record. */
@@ -1263,6 +1286,15 @@ export async function mountLearn(root, { session = null, progress = null } = {})
     /** Set by a reveal that draws a chart, and only once the view is attached. */
     redrawChart: null,
     startRound(levelId) {
+      // ONE PING PER LEVEL PER VISIT, and the dedup has to be here rather than
+      // at the Worker: a ping carries no per-browser id (docs/PRD.md's "What
+      // leaves the browser"), so nothing downstream can tell a replay from a
+      // new player. Without this, a level somebody retries four times counts
+      // four times, and "players who reached level 7" becomes "attempts".
+      if (!ctx.session.pingedLevels.has(levelId)) {
+        ctx.session.pingedLevels.add(levelId);
+        ctx.sendPing(levelId);
+      }
       // A LEVEL THAT ASKS THREE QUESTIONS STARTS A SERIES, not a round. One
       // entry point, so a menu button, a "Next level" button and a replay all
       // reach the right one without any of them knowing which levels are which.

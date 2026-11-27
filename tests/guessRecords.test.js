@@ -44,7 +44,7 @@ import { mountMyPortfolio } from '../js/myPortfolio.js';
 import { PARTICIPANT_KEY, newId, participantId } from '../js/participant.js';
 import { SEEN_POOL_KEY } from '../js/seenPool.js';
 import { validateLevels } from '../js/levels.js';
-import { PROGRESS_KEY } from '../js/progress.js';
+import { PROGRESS_KEY, starsOf } from '../js/progress.js';
 
 const root = new URL('..', import.meta.url);
 const readJson = (name) => JSON.parse(readFileSync(fileURLToPath(new URL(name, root)), 'utf8'));
@@ -77,7 +77,7 @@ const RECORD_FIELDS = ['id', 'level', 'guess', 'actual', 'date'].sort();
  * files go through `fetch` and are counted there too, so a test marks how many
  * had gone out by the time play started and asserts nothing is added after.
  */
-function browser({ store = {} } = {}) {
+function browser({ store = {}, search = '' } = {}) {
   const asked = [];
   const sent = [];
   const urlChanges = [];
@@ -86,7 +86,8 @@ function browser({ store = {} } = {}) {
     origin: 'http://localhost:8000',
     pathname: '/',
     hash: '#learn',
-    href: 'http://localhost:8000/#learn',
+    search,
+    href: `http://localhost:8000/${search}#learn`,
     assign: (url) => urlChanges.push(`assign ${url}`),
     replace: (url) => urlChanges.push(`replace ${url}`),
   };
@@ -407,9 +408,25 @@ test('a stored ID that is not usable is replaced, not trusted', () => {
   }
 });
 
-// --- nothing is sent --------------------------------------------------------
+// --- what is sent, and what still is not ------------------------------------
+//
+// This block used to assert that Learn sent NOTHING by any route, which was
+// right for as long as there was nowhere to send to. The Worker exists now
+// (BUILD_LOG.md session 2.29), so the assertion flips to the precise version
+// of the same promise: these exact requests go out, and nothing else does.
+// Every other mode keeps the original assertion, in its own test file.
 
-test('Learn sends nothing, by any route, however much is played', async () => {
+/** Just the Worker sends from `b.sent`, in the order they went. */
+function workerSends(sent) {
+  return sent
+    .filter((line) => line.startsWith('fetch ') && line.includes('/one-trade-worker'))
+    .map((line) => {
+      const [, url, ...rest] = line.split(' ');
+      return { url, body: rest.join(' ') ? JSON.parse(rest.join(' ')) : null };
+    });
+}
+
+test('Learn sends exactly the pings and guess records, and nothing else', async () => {
   const b = browser();
   try {
     const ctx = await mountLearn(b.root);
@@ -430,14 +447,114 @@ test('Learn sends nothing, by any route, however much is played', async () => {
     ctx.toMenu();
 
     const after = b.sent.slice(sentOnTheWayIn);
-    assert.deepEqual(after, [], `something left the browser: ${after.join(' | ')}`);
-    assert.deepEqual([...b.asked].sort(), DATA_FILES, 'a request went out during play');
+    const worker = workerSends(after);
+
+    // NOTHING BUT THE WORKER. Every other exit a browser has - beacon, XHR,
+    // image, websocket, SSE, clipboard, share - is still watched by browser()
+    // and must still be untouched, and no data file may be refetched.
+    assert.equal(worker.length, after.length,
+      `something left the browser that was not a ping or a guess: ${after.join(' | ')}`);
+    // `asked` counts the Worker sends too now, so the data files are what is
+    // left once those are set aside - the same promise, narrowed to its point.
+    const dataAsks = b.asked.filter((url) => !url.includes('/one-trade-worker'));
+    assert.deepEqual([...dataAsks].sort(), DATA_FILES, 'a data file was refetched during play');
     assert.deepEqual(b.urlChanges, [], `the URL was changed: ${b.urlChanges.join(', ')}`);
 
-    // And the records that WOULD be sent are sitting in memory, which is where
-    // the Worker session will pick them up.
-    assert.equal(ctx.records.length, 4, 'the records are not where the Worker will look');
+    // ONE PING PER LEVEL REACHED, each exactly once despite seven startRound()
+    // calls plus a series that re-enters level 7.
+    const pings = worker.filter((r) => r.url.endsWith('/ping'));
+    assert.deepEqual(pings.map((r) => r.body.level), [1, 2, 3, 4, 5, 6, 7],
+      'a level was pinged twice, or not at all');
+
+    // ONE GUESS PER LOCKED GUESS, on levels 2 and 7 only: one from level 2,
+    // three from the series, in that order.
+    const guesses = worker.filter((r) => r.url.includes('/guess'));
+    assert.deepEqual(guesses.map((r) => r.body.level), [2, 7, 7, 7],
+      'the guess records are not one-per-locked-guess in portfolio order');
+    assert.equal(guesses.length, ctx.records.length,
+      'the rows kept in memory and the rows sent disagree');
+
+    // AND STILL ONLY THE FIVE REGISTERED FIELDS, on every row that went out.
+    for (const { body } of guesses) {
+      assert.deepEqual(Object.keys(body).sort(), RECORD_FIELDS,
+        `a sent record carried the wrong fields: ${JSON.stringify(body)}`);
+    }
+    const ids = new Set(guesses.map((r) => r.body.id));
+    assert.equal(ids.size, 1, 'one browser sent records under more than one ID');
   } finally { b.restore(); }
+});
+
+test('a level played twice is pinged once, so a retry is not a second player', async () => {
+  const b = browser();
+  try {
+    const ctx = await mountLearn(b.root);
+    const before = b.sent.length;
+    play(ctx, 1, 0.9);
+    play(ctx, 1, 0.9);
+    play(ctx, 1, 0.9);
+    const pings = workerSends(b.sent.slice(before)).filter((r) => r.url.endsWith('/ping'));
+    assert.deepEqual(pings.map((r) => r.body.level), [1], 'three attempts produced more than one ping');
+  } finally { b.restore(); }
+});
+
+test('a ?src=playtest visit tags its guesses and its pings, all the way out', async () => {
+  // Maya's own testing on the live site depends on exactly this: every guess
+  // from a playtest session must carry the query parameter that sends it to
+  // GUESSES_PLAYTEST instead of the dataset Hypothesis 3 reads.
+  const b = browser({ search: '?src=playtest' });
+  try {
+    const ctx = await mountLearn(b.root);
+    const before = b.sent.length;
+    play(ctx, 2, 2.5);
+    playSeries(ctx);
+    const worker = workerSends(b.sent.slice(before));
+
+    const guesses = worker.filter((r) => r.url.includes('/guess'));
+    assert.equal(guesses.length, 4, 'expected one level-2 record and three level-7 ones');
+    for (const { url, body } of guesses) {
+      assert.ok(url.endsWith('/guess?src=playtest'), `a playtest guess went untagged: ${url}`);
+      // AND THE TAG STAYS OUT OF THE RECORD. It is a query parameter, not a
+      // sixth field - PREREG_AMENDMENT_3.md section 3.
+      assert.deepEqual(Object.keys(body).sort(), RECORD_FIELDS);
+    }
+
+    // A ping carries it as a field instead, because for a ping it is the
+    // measurement rather than a routing decision.
+    const pings = worker.filter((r) => r.url.endsWith('/ping'));
+    assert.ok(pings.length > 0, 'no pings were sent at all');
+    for (const { body } of pings) assert.equal(body.src, 'playtest');
+  } finally { b.restore(); }
+});
+
+test('a broken Worker changes nothing a player can see', async () => {
+  // docs/PRD.md milestone 3 step 5, in its post-correction form: there is no
+  // price fallback to test, because prices never went through the Worker. What
+  // has to hold is that breaking it is invisible.
+  const b = browser();
+  const workingFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options) => {
+    if (String(url).includes('/one-trade-worker')) throw new Error('Worker is down');
+    return workingFetch(url, options);
+  };
+  try {
+    const ctx = await mountLearn(b.root);
+    const round = play(ctx, 2, 2.5);
+    assert.equal(round.state, 'reveal', 'the round did not finish');
+    assert.ok(round.result, 'there is no result to show');
+    assert.equal(ctx.records.length, 1, 'the record was lost from memory, not just from the Worker');
+
+    const series = playSeries(ctx);
+    ctx.finishSeries();
+    assert.equal(series.answers.length, 3, 'the capstone did not take all three guesses');
+    assert.equal(ctx.records.length, 4, 'the series records were lost');
+
+    // And the stars are saved exactly as they would have been.
+    ctx.toMenu();
+    assert.ok(starsOf(JSON.parse(b.store[PROGRESS_KEY]), 2) >= 1, 'level 2 did not pass');
+  } finally {
+    globalThis.fetch = workingFetch;
+    b.restore();
+  }
 });
 
 test('the records never reach the browser\'s storage either', async () => {
