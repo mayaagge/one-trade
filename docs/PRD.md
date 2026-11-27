@@ -144,6 +144,8 @@ The second amendment below then moved level 1's **pass bar** to 0.70, which *is*
 
 Level 6 is why this is written down. A portfolio that fell 20% while the index fell 40% and one that fell 25% while the index fell 50% both fell half as much, but the first works out to 0.4999999999999999 rather than 0.5, because 8000/10000 − 1 is not exactly −0.2 in binary. Both are shown as "0.5000" under the rule above, and without this one they would have been given different verdicts off the same number on screen. No measure in this game sits within a billionth of a threshold for any reason but arithmetic: across every design the level checks sample, the closest any portfolio comes to its own threshold is 6.2e-5.
 
+**Level 1's reveal draws the pair.** Added 27 November 2026 on playtest feedback (BUILD_LOG.md, player feedback 6). A correlation is the one answer in this game that does not look like anything — 0.996 and 0.228 are both just numbers — so the reveal shows the two holdings as two lines, each starting at 100 on the window's first day. A same-bet pair leaves that point together and stays there; an unrelated pair wanders apart, and that picture is the lesson the number is standing in for. **Indexed, never priced:** both lines start at the same place, so the chart reads as "up 40%" rather than inviting a player to compare two share prices, which is not what a correlation is about. The same chart component Crash replay and Research use, and the same compounding a replay does.
+
 **The guess comes first.** Every level asks the player to predict the answer before the reveal. Predicting and then being corrected is the main learning moment.
 
 ## Game modes

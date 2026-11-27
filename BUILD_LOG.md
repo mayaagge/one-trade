@@ -6394,3 +6394,69 @@ finish, and it is the one number here that nothing was ever measured against.
 `scripts/dev_phone.mjs` stays, by decision.
 
 Educational, not investment advice.
+
+## Player feedback 6: level 1's reveal draws the pair, 27 November 2026 (session 2.46)
+
+**From the playtest.** A correlation is the one answer in this game that does
+not look like anything. 0.996 and 0.228 are both just numbers on a screen, and
+the thing they stand for - two holdings moving together, or not - is a shape.
+Level 1's reveal now draws it: both holdings as lines starting at 100 on the
+window's first day.
+
+The two screenshots are the whole argument. VOO and VTI at **0.996** are two
+lines so close they read as one. VOO and GLD at **0.228** part company in the
+second year and never come back. Same chart, same axes, opposite lessons.
+
+### The math was written first, and it is one function rather than two
+
+CLAUDE.md rule 3. `tests/make_fixtures.py` gains `build_indexed_cases()`:
+three cases at the registered seed - a hand-derivable one anyone can check
+(+10%, -50%, flat from 100 gives 100, 110, 55, 55), a correlated pair, and an
+unrelated pair - and `tests/math.test.js` checks the browser reproduces every
+point to 1e-9. **2,076 lines added to the fixture file and none removed**,
+which is the fresh-generator-at-the-same-seed pattern working: no existing
+known answer moved.
+
+**No new compounding loop.** A line indexed to 100 and a holding's dollar
+value through a crash are the same arithmetic with a different starting
+number, so this reuses `valuePath()` from js/crash.js - already checked
+against numpy - rather than growing a second implementation. The new fixtures
+pin its base-100 case specifically.
+
+The lines are kept on the result, which the other levels' matrix is
+deliberately not: two lines of 757 points against a 756-by-5 array. The dates
+come with them, because a line without an x-axis is a picture rather than a
+chart.
+
+### What the chart is, and what it is not
+
+`INDEX_BASE` is 100 and has its reason beside it: a line at 140 is up 40%
+whatever the holding costs per share, where dollars would invite a player to
+compare two prices - which is not what a correlation is about. A note under
+the chart says so in the player's words.
+
+It is the same two-series shape Crash replay and Research already draw, so
+nothing here is a new kind of drawing, and the accessible readout that comes
+with that component covers it for free: `node scripts/dev_a11y.mjs` lists a
+`chart-readout` status region on both new scenes.
+
+### What is NOT in this session
+
+Item 6 asks for the chart "on level 1's reveal **and the pair Why? cards**".
+The pair card is being rewritten wholesale in session 10 - item 14 says so in
+as many words, "include the indexed-to-100 chart in the pair card" - and
+putting a chart into a card whose text is about to change twice would be work
+done to be undone. It lands there with the rewrite, and the side-by-side
+review of all 18 templates will show it.
+
+### Checked, not assumed
+
+1,257 to **1,268 passing**. Two new scenes, `learn-09b-l1-reveal-apart` beside
+the existing reveal, so both halves of the lesson are in the screenshot and
+accessibility sweeps rather than only the flattering one. Contrast table
+empty, no heading out of order, `dev_checks` 24 clear and 0 overlaps.
+
+docs/PRD.md's levels section gains a paragraph on what the reveal draws and
+why it is indexed rather than priced.
+
+Educational, not investment advice.

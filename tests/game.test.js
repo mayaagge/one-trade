@@ -26,6 +26,7 @@ import { createRound } from '../js/round.js';
 import {
   allPassedBefore,
   offersRetry,
+  pairChartSpec,
   basketFrom,
   seenPoolIds,
   buildHint,
@@ -421,6 +422,64 @@ test('only level 1 asks for a flat picker, and it says why in the file', () => {
     if (level.id === 1) continue;
     assert.equal(level.picker, undefined, `level ${level.id} now has a picker rule`);
   }
+});
+
+// ------------------------------------------------- the pair chart, level 1
+
+test("level 1's reveal carries two lines, both starting at 100", () => {
+  // The chart is the lesson: a correlation of 0.996 does not look like
+  // anything and two lines on top of each other do. Built from the round, so
+  // this is the real thing a player sees rather than a hand-made spec.
+  const r = createRound({ levels: LEVELS, levelId: 1, game: GAME, universe: UNIVERSE });
+  r.togglePick('VOO');
+  r.togglePick('VTI');
+  r.toGuess();
+  r.setGuess(0.9);
+  const result = r.reveal(GAME);
+
+  assert.ok(result.indexed, 'level 1 produced no lines to draw');
+  assert.equal(result.indexed.base, 100);
+  assert.deepEqual(result.indexed.lines.map((l) => l.ticker), ['VOO', 'VTI']);
+  for (const line of result.indexed.lines) {
+    assert.equal(line.values[0], 100, `${line.ticker} does not start at the base`);
+    assert.equal(line.values.length, result.indexed.dates.length,
+      'a line and its dates are different lengths');
+  }
+  // VOO and VTI hold almost the same companies, so after three years the two
+  // lines should be within a few points of each other. This is the property
+  // the chart exists to show, asserted rather than left to the eye.
+  const [a, b] = result.indexed.lines.map((l) => l.values[l.values.length - 1]);
+  assert.ok(Math.abs(a - b) < 5, `VOO ended at ${a} and VTI at ${b}`);
+});
+
+test('a level that is not about a pair draws no pair chart', () => {
+  const r = createRound({ levels: LEVELS, levelId: 3, game: GAME, universe: UNIVERSE });
+  for (const t of ['JNJ', 'TLT', 'GOOGL', 'LQD', 'COP']) r.togglePick(t);
+  r.toGuess();
+  r.setGuess(3.2);
+  assert.equal(r.reveal(GAME).indexed, null);
+});
+
+test('the pair chart spec is the two-series shape the chart component takes', () => {
+  const indexed = {
+    base: 100,
+    dates: ['2026-01-02', '2026-01-05', '2026-01-06'],
+    lines: [
+      { ticker: 'AAA', values: [100, 110, 121] },
+      { ticker: 'BBB', values: [100, 90, 81] },
+    ],
+  };
+  const spec = pairChartSpec(indexed);
+  assert.deepEqual(spec.values, [100, 110, 121]);
+  assert.deepEqual(spec.compare.values, [100, 90, 81]);
+  assert.equal(spec.compare.label, 'BBB');
+  assert.equal(spec.seriesLabel, 'AAA');
+  assert.deepEqual(spec.dates, indexed.dates);
+  // The y-axis has to cover both lines, not just the first - the second is
+  // the one that fell here.
+  assert.ok(spec.yStep > 0);
+  assert.equal(spec.formatYTick(121), '121');
+  assert.equal(spec.formatValue(121.456), '121.5');
 });
 
 // ------------------------------------------------------------- trying again

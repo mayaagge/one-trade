@@ -142,6 +142,22 @@ export const scenes = [
     },
   },
   {
+    id: 'learn-09b-l1-reveal-apart',
+    note: 'Level 1 missed - two lines that part, which is what the low number means',
+    async run(page) {
+      await open(page, '#learn');
+      await startLevel(page, 1);
+      // Gold and the S&P 500 move on different things, so this misses the bar
+      // and the two lines wander apart. The same-bet pair above is the other
+      // half of the lesson and the chart has to show both convincingly.
+      await pick(page, ['VOO', 'GLD']);
+      await btn(page, 'Next: your guess').click();
+      await slide(page, 0.6);
+      await btn(page, 'Reveal the answer').click();
+      await page.waitForTimeout(150);
+    },
+  },
+  {
     id: 'learn-10-l2-build-dealt',
     note: 'Level 2, the dealt starter portfolio',
     seed: ALL_PLAYED,

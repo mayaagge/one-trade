@@ -42,7 +42,7 @@ import { crashFacts, pickWhy, whyFacts } from './why.js';
 // the other's bindings while the modules are still evaluating, only inside
 // functions. tests/round.test.js imports them in both orders to keep it that way.
 import {
-  elsewhereFor, fallAgainstIndex, replay, unavailableIn, windowByKey,
+  elsewhereFor, fallAgainstIndex, replay, unavailableIn, valuePath, windowByKey,
 } from './crash.js';
 import {
   bucketOf,
@@ -85,6 +85,15 @@ export function usesCrashWindow(level) {
 
 /** The money a player allocates, and the step the buttons move it in. */
 export const DOLLAR_STEP = 100;
+
+/**
+ * Where both of level 1's indexed lines start.
+ *
+ * A HUNDRED, so the chart reads as a percentage without saying so: a line at
+ * 140 is up 40%, whatever the holding costs per share. Dollars would invite a
+ * player to compare two prices, which is not what a correlation is about.
+ */
+export const INDEX_BASE = 100;
 
 /** Does this level ask the player to split the money? */
 export function usesMoney(level) {
@@ -465,11 +474,31 @@ export function measureFor(level, game, { tickers, weights }, window, {
   // one holding's share of the risk; a correlation is about a pair and a beta is
   // about the whole portfolio, so both leave this null.
   let aboutTicker = null;
+  // The two lines level 1's reveal draws, each starting at 100 on the first day
+  // of the window. Null on every other level.
+  let indexed = null;
   if (measure === 'correlation') {
     if (tickers.length !== 2) {
       throw new Error(`measureFor: a correlation needs exactly 2 holdings, not ${tickers.length}`);
     }
     value = correlation(matrix)[0][1];
+    // A CORRELATION IS A NUMBER ABOUT A SHAPE, and the shape is the lesson.
+    // 0.95 does not look like anything; two lines that leave the same point
+    // and stay together do. Compounded by valuePath(), the same function a
+    // replay draws a holding's value with - the arithmetic is identical and
+    // only the starting number differs, so there is one of it in this game.
+    //
+    // SMALL ENOUGH TO KEEP, unlike the matrix below: two lines of about 757
+    // points each, against a 756-by-5 array. The dates come with them because
+    // a line without an x-axis is a picture.
+    indexed = {
+      base: INDEX_BASE,
+      dates: [slice.startDate, ...slice.dates],
+      lines: tickers.map((ticker, i) => ({
+        ticker,
+        values: valuePath(INDEX_BASE, matrix.map((day) => day[i])),
+      })),
+    };
   } else if (measure === 'effectiveBets') {
     value = effectiveBets(weights, covariance(matrix));
   } else if (measure === 'maxRiskShare') {
@@ -501,6 +530,7 @@ export function measureFor(level, game, { tickers, weights }, window, {
     endDate: slice.endDate,
     basketReturns,
     aboutTicker,
+    indexed,
     // The "Why?" card reads the same window the measure was taken over, so the
     // matrix is handed back rather than built a second time. reveal() takes it
     // off before storing the result: a 756-by-5 array does not belong on

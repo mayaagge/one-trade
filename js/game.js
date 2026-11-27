@@ -34,7 +34,7 @@ import { CRASHES_URL, loadCrashes } from './crash.js';
 // replay draws, from the same spec and with the same refusal wording for a
 // holding the window cannot replay. See the notes beside both exports.
 import { chartSpecFor, fallSentence, pickReason } from './crashReplay.js';
-import { renderLineChart, chartBox } from './chart.js';
+import { renderLineChart, chartBox, niceStep } from './chart.js';
 // The build screen, shared with Crash replay - and with Sandbox and My real
 // portfolio when they arrive. See the note at the top of js/build.js.
 import {
@@ -899,6 +899,42 @@ function whyMoreLink(more) {
  * share card is offered where there is a verdict and nowhere else. A series
  * part has no verdict yet and must not offer one.
  */
+/**
+ * The chart level 1's reveal draws: two holdings from the same starting point.
+ *
+ * WHY A CHART AT ALL ON THE ONE LEVEL WITH THE SMALLEST NUMBER. A correlation
+ * of 0.9962 is the whole lesson of level 1 and it does not look like
+ * anything. Two lines leaving 100 together and staying on top of each other
+ * do - and when the pair is a near miss, two lines that drift apart show what
+ * the number was measuring. Playtest feedback, item 6.
+ *
+ * INDEXED, NOT PRICED. Both start at 100, so the chart is read as "up 40%"
+ * rather than as two share prices a player might compare. js/round.js's
+ * INDEX_BASE and the note beside it.
+ *
+ * THE SAME CHART COMPONENT Crash replay and Research use, with the same
+ * two-series shape - one `values`, one `compare`. Nothing here is a new kind
+ * of drawing.
+ */
+export function pairChartSpec(indexed) {
+  const [first, second] = indexed.lines;
+  const all = [...first.values, ...second.values];
+  const low = Math.min(...all);
+  const high = Math.max(...all);
+  return {
+    dates: indexed.dates,
+    values: first.values,
+    compare: { values: second.values, label: second.ticker },
+    seriesLabel: first.ticker,
+    valueLabel: `value of ${indexed.base} invested`,
+    formatValue: (v) => v.toFixed(1),
+    formatDate: longDate,
+    formatWhen: (date) => longDate(date),
+    formatYTick: (v) => String(Math.round(v)),
+    yStep: niceStep(low, high),
+  };
+}
+
 export function renderReveal(ctx, round) {
   const level = round.level;
   const result = round.result;
@@ -921,6 +957,21 @@ export function renderReveal(ctx, round) {
     ctx.redrawChart = () => renderLineChart(plot, {
       ...chartSpecFor(result.crash), ...chartBox(plot.clientWidth),
     });
+  }
+
+  // THE PAIR, FROM THE SAME STARTING POINT, on the level whose answer is a
+  // correlation. Attached the same way the replay above is - built here,
+  // drawn by ctx.redrawChart() once the view is on the page, because
+  // clientWidth is 0 until then.
+  if (result.indexed) {
+    const plot = h('div', 'chart-plot');
+    view.append(plot);
+    ctx.redrawChart = () => renderLineChart(plot, {
+      ...pairChartSpec(result.indexed), ...chartBox(plot.clientWidth),
+    });
+    view.append(h('p', 'note', `Both start at ${result.indexed.base} on `
+      + `${longDate(result.indexed.dates[0])}, so the lines show what each one did, `
+      + 'not what either costs.'));
   }
 
   const panel = h('div', 'reveal-panel');

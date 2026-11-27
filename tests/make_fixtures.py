@@ -405,6 +405,81 @@ def fall_share(portfolio_path, index_path):
     return portfolio / index
 
 
+def build_indexed_cases():
+    """Known answers for two holdings indexed to 100 on day one.
+
+    WHAT LEVEL 1'S REVEAL DRAWS. A correlation says how closely two holdings
+    move together; the number alone does not show it. Two lines from the same
+    starting point do, and the arithmetic is the same compounding a replay
+    does - so the browser reuses valuePath() rather than growing a second loop,
+    and these cases pin the base-100 case of it against numpy.
+
+    A fresh generator at the same registered seed, so nothing here moves a
+    number in any case above.
+    """
+    rng = np.random.default_rng(SEED)
+    cases = []
+
+    # 1. Three days anyone can check in their head.
+    cases.append({
+        "name": "indexed_hand_derivable",
+        "description": "Two holdings, three days. A: +10%, -50%, flat. B: flat, +100%, -25%.",
+        "hand_derivable": True,
+        "base": 100.0,
+        "returns": {
+            "A": [0.10, -0.50, 0.0],
+            "B": [0.0, 1.0, -0.25],
+        },
+        "expected_exact": {
+            "A": [100.0, 110.0, 55.0, 55.0],
+            "B": [100.0, 100.0, 200.0, 150.0],
+        },
+    })
+
+    # 2. A pair that really does move together, which is what the level is
+    #    about: B is A plus a little noise, so the two lines should track.
+    days = 250
+    a = rng.normal(0.0005, 0.011, days)
+    b = 0.9 * a + rng.normal(0.0, 0.004, days)
+    cases.append({
+        "name": "indexed_correlated_pair",
+        "description": "250 days; B is mostly A, so the two lines stay close together.",
+        "hand_derivable": False,
+        "base": 100.0,
+        "returns": {"A": a.tolist(), "B": b.tolist()},
+        "expected": {
+            "A": index_to(100.0, a).tolist(),
+            "B": index_to(100.0, b).tolist(),
+        },
+        # Reported so the test can assert the pair really is a same-bet pair,
+        # rather than two lines that merely start together.
+        "correlation": float(np.corrcoef(np.column_stack([a, b]), rowvar=False)[0][1]),
+    })
+
+    # 3. A pair that does not, so the test has a case where the lines part.
+    c = rng.normal(0.0005, 0.011, days)
+    d = rng.normal(0.0003, 0.009, days)
+    cases.append({
+        "name": "indexed_unrelated_pair",
+        "description": "250 days, drawn independently: the two lines wander apart.",
+        "hand_derivable": False,
+        "base": 100.0,
+        "returns": {"A": c.tolist(), "B": d.tolist()},
+        "expected": {
+            "A": index_to(100.0, c).tolist(),
+            "B": index_to(100.0, d).tolist(),
+        },
+        "correlation": float(np.corrcoef(np.column_stack([c, d]), rowvar=False)[0][1]),
+    })
+
+    return cases
+
+
+def index_to(base, returns):
+    """base, then base compounded by each return. One point longer than returns."""
+    return base * np.concatenate([[1.0], np.cumprod(1.0 + np.asarray(returns, dtype=float))])
+
+
 def build_fall_share_cases():
     """Known answers for level 6's measure, portfolio against index.
 
@@ -1129,6 +1204,7 @@ def main():
     series_cases = build_series_cases()
     beta_cases = build_beta_cases()
     replay_cases = build_replay_cases()
+    indexed_cases = build_indexed_cases()
     fall_share_cases = build_fall_share_cases()
     puzzle_window = build_puzzle_cases()
     stress_window = build_stress_cases()
@@ -1184,6 +1260,7 @@ def main():
         "series_cases": series_cases,
         "beta_cases": beta_cases,
         "replay_cases": replay_cases,
+        "indexed_cases": indexed_cases,
         "fall_share_cases": fall_share_cases,
         "puzzle_window": puzzle_window,
         "stress_window": stress_window,

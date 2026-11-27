@@ -252,6 +252,60 @@ for (const c of fixtures.replay_cases) {
   }
 }
 
+// --- two holdings indexed to 100, which is what level 1's reveal draws -----
+
+for (const c of fixtures.indexed_cases) {
+  const label = `${c.name} (${c.returns.A.length} days)`;
+
+  test(`${label}: both lines match numpy`, () => {
+    // THE SAME COMPOUNDING A REPLAY DOES, which is why this reuses
+    // valuePath() rather than growing a second loop in the drawing code. A
+    // line indexed to 100 and a holding's dollar value through a crash are
+    // the same arithmetic on a different starting number.
+    const expected = c.expected_exact ?? c.expected;
+    for (const ticker of ['A', 'B']) {
+      assertVectorClose(valuePath(c.base, c.returns[ticker]), expected[ticker],
+        `valuePath(${c.base}, ${ticker})`);
+    }
+  });
+
+  test(`${label}: both lines start at the base, and are one point longer`, () => {
+    for (const ticker of ['A', 'B']) {
+      const path = valuePath(c.base, c.returns[ticker]);
+      assert.equal(path[0], c.base, 'a line does not start where the other does');
+      assert.equal(path.length, c.returns[ticker].length + 1,
+        'the path should carry the opening point as well as one per return');
+    }
+  });
+}
+
+test('the hand case is one a reader can check without numpy', () => {
+  const c = fixtures.indexed_cases.find((x) => x.name === 'indexed_hand_derivable');
+  assert.equal(c.hand_derivable, true);
+  // +10% then -50% then flat, from 100.
+  assert.deepEqual(c.expected_exact.A, [100, 110, 55, 55]);
+  // flat, then double, then down a quarter.
+  assert.deepEqual(c.expected_exact.B, [100, 100, 200, 150]);
+});
+
+test('a same-bet pair tracks and an unrelated pair does not, on the drawn lines', () => {
+  // What the chart is FOR, asserted on the lines themselves rather than on
+  // the correlation that produced them: a player looking at level 1's reveal
+  // should see two lines together or two lines apart.
+  const close = fixtures.indexed_cases.find((x) => x.name === 'indexed_correlated_pair');
+  const apart = fixtures.indexed_cases.find((x) => x.name === 'indexed_unrelated_pair');
+  assert.ok(close.correlation > 0.9, `the close pair correlates at ${close.correlation}`);
+  assert.ok(Math.abs(apart.correlation) < 0.2, `the unrelated pair correlates at ${apart.correlation}`);
+
+  const spread = (c) => {
+    const a = valuePath(c.base, c.returns.A);
+    const b = valuePath(c.base, c.returns.B);
+    return Math.max(...a.map((v, i) => Math.abs(v - b[i])));
+  };
+  assert.ok(spread(close) < spread(apart),
+    'the same-bet pair wanders further apart than the unrelated one');
+});
+
 test('holding a portfolio is not rebalancing it, and the fixtures carry both', () => {
   // The case that shows the two apart: one holding doubles twice while the other
   // halves twice. Held ends at $21,250; rebalanced daily, at $15,625.
