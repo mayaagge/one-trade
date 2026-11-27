@@ -6867,3 +6867,19 @@ somebody else play.
 No code changed; 1,280 tests pass.
 
 Educational, not investment advice.
+
+### The About tab loses its lede (same day, session 2.51)
+
+"What this game is, and the handful of ideas it is built on. Nothing here is
+needed to play. It is here for when you want to know what a word means." Gone,
+on Maya's call. It was a paragraph about the page sitting on top of the page,
+and the first real heading, "What One Trade is", says the same thing by being
+there. The title and every section are untouched.
+
+**The renderer's branch went with it.** `if (doc.lede)` was an optional field
+nothing fills, which is a path nobody can see working and the next person has
+to read anyway.
+
+1,280 tests pass, unchanged.
+
+Educational, not investment advice.

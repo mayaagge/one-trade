@@ -103,7 +103,6 @@ export function renderSection(section) {
 export function renderAbout(doc) {
   const view = h('div', 'view view-about');
   view.append(h('h1', null, doc.title));
-  if (doc.lede) view.append(h('p', 'lede', doc.lede));
 
   // NO CONTENTS LIST, AND NO LINKS AT ALL on this page. It had one: eight
   // headings, each an anchor to the section below it. The whole page is text
