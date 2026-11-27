@@ -121,19 +121,36 @@ async function readJsonBody(request, maxBytes) {
   }
 }
 
+/** True if the limiter says this key is over budget. No limiter or no key
+ * means nothing to check, not a free pass that throws. */
+export async function rateLimited(limiter, key) {
+  if (!limiter || !key) return false;
+  const { success } = await limiter.limit({ key });
+  return !success;
+}
+
 async function handleGuess(request, env, url, headers) {
   const { body, error } = await readJsonBody(request, MAX_BODY_BYTES);
   if (error || !validateGuessBody(body)) {
     return new Response('invalid guess record', { status: 400, headers });
   }
 
-  // Keyed on the participant id, never the IP: Cloudflare's own rate-limit
-  // docs advise against IP (shared by many visitors on one connection) and
-  // this route already carries a better key.
-  const limiter = env.GUESS_LIMITER;
-  if (limiter) {
-    const { success } = await limiter.limit({ key: body.id });
-    if (!success) return new Response('rate limited', { status: 429, headers });
+  // TWO LIMITERS, BECAUSE THE ID ALONE CAN BE DODGED. Nothing about the id
+  // is issued or checked by this server - a script can mint a fresh random
+  // one on every request and the id-keyed limiter would never see a
+  // repeat. The IP-keyed check closes that gap. It shares PING_LIMITER with
+  // handlePing rather than a limiter of its own: one IP-keyed budget, used
+  // by both routes. The IP itself is passed straight to the binding's own
+  // ephemeral counter and never written to a blob, an index, or a log
+  // anywhere in this file.
+  const ip = request.headers.get('CF-Connecting-IP');
+  if (await rateLimited(env.PING_LIMITER, ip)) {
+    return new Response('rate limited', { status: 429, headers });
+  }
+  // Kept alongside the IP check, not replaced by it: this one still catches
+  // a flood that reuses a single id from many different IPs.
+  if (await rateLimited(env.GUESS_LIMITER, body.id)) {
+    return new Response('rate limited', { status: 429, headers });
   }
 
   // ?src=playtest never touches the registered five-field record - it only
@@ -158,14 +175,13 @@ async function handlePing(request, env, url, headers) {
   }
 
   // No participant id ever rides along on a ping (by design - PRD's "What
-  // leaves the browser"), so there is no better key than the IP here. It is
-  // passed to the binding's own ephemeral counter and never written to a
-  // blob, an index, or a log anywhere in this file.
+  // leaves the browser"), so there is no better key than the IP here. Same
+  // PING_LIMITER handleGuess shares for its own IP check - one budget, two
+  // routes. The IP itself is never written to a blob, an index, or a log
+  // anywhere in this file.
   const ip = request.headers.get('CF-Connecting-IP');
-  const limiter = env.PING_LIMITER;
-  if (limiter && ip) {
-    const { success } = await limiter.limit({ key: ip });
-    if (!success) return new Response('rate limited', { status: 429, headers });
+  if (await rateLimited(env.PING_LIMITER, ip)) {
+    return new Response('rate limited', { status: 429, headers });
   }
 
   const src = body.src ?? 'direct';

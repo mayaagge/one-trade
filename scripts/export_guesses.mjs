@@ -3,15 +3,16 @@
 // GUESSES_PLAYTEST Analytics Engine datasets and writes them to local JSON
 // files, before Cloudflare's retention window deletes them.
 //
-// MUST RUN BY DAY 80 AFTER LAUNCH, AT THE LATEST. Cloudflare's own docs put
-// Workers Analytics Engine retention at about three months (90-92 days);
-// Hypothesis 3's registered collection window alone is 60 days. Day 80
-// leaves about ten days of margin on top of that for the export itself to
-// happen, without leaning on the exact upper edge of a figure Cloudflare
-// does not guarantee precisely. See BUILD_LOG.md session 2.27 for the
-// sources and the reasoning. Running it earlier costs nothing - a row
-// exported once just gets exported again next run - but a row exported too
-// late is gone for good.
+// RUN WEEKLY DURING THE 60-DAY COLLECTION WINDOW. DAY 80 AFTER LAUNCH IS THE
+// LAST SAFE DATE. Cloudflare's own docs put Workers Analytics Engine
+// retention at about three months (90-92 days); Hypothesis 3's registered
+// collection window alone is 60 days, so day 80 leaves about ten days of
+// margin on top of that without leaning on the exact upper edge of a figure
+// Cloudflare does not guarantee precisely. A weekly cadence means missing
+// one run costs at most a week, not the whole 60. See BUILD_LOG.md session
+// 2.29 for the sources and the reasoning. Every run is a full, fresh pull
+// of whatever is still in each dataset - never an append - so running it
+// again never duplicates anything and running it early costs nothing.
 //
 // Needs two environment variables, never hardcoded (CLAUDE.md rule 7):
 //   CLOUDFLARE_ACCOUNT_ID   - from `npx wrangler whoami` in worker/

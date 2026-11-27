@@ -32,14 +32,20 @@ dataset = "one_trade_guesses"
 binding = "GUESSES_PLAYTEST"
 dataset = "one_trade_guesses_playtest"
 
-# Per-participant-id limit on /guess (no IP involved at all for this route).
+# Per-participant-id limit on /guess. Kept alongside PING_LIMITER's IP check
+# below, not instead of it: an id alone is client-chosen and can be minted
+# fresh on every request, so this one only catches a flood that reuses a
+# single id from many different IPs.
 [[ratelimits]]
 name = "GUESS_LIMITER"
 namespace_id = "1001"
 simple = { limit = 20, period = 60 }
 
-# Per-IP limit on /ping, the one route with no better key. The IP is only
-# ever passed to this binding's own ephemeral counter - see worker/src/index.js.
+# Per-IP limit, shared by /ping (the one route with no better key) AND
+# /guess (closing the gap a fresh-random-id-per-request script would
+# otherwise dodge in GUESS_LIMITER above). One budget, two routes. The IP
+# itself is only ever passed to this binding's own ephemeral counter - see
+# worker/src/index.js.
 [[ratelimits]]
 name = "PING_LIMITER"
 namespace_id = "1002"

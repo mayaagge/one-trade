@@ -4700,6 +4700,53 @@ no Miniflare, same as the rest of this project. What it cannot reach from
 Node - the Analytics Engine writes and the rate-limit bindings themselves -
 waits for `wrangler dev` against the real runtime.
 
-1,159 tests pass.
+### The id-keyed limit on its own was not a limit at all
+
+Caught before pushing, not after: nothing about the participant id is
+issued or checked by this server, so a script flooding `/guess` can simply
+mint a fresh random id on every request. `GUESS_LIMITER` keyed on that id
+would never see a repeat, and would never trip.
+
+Fixed by adding a second check rather than replacing the first:
+`handleGuess` now also calls `PING_LIMITER` - the exact same binding
+`handlePing` already used - keyed on the visitor's IP, and both checks must
+pass. The IP-keyed one closes the fresh-id dodge; the id-keyed one is kept
+anyway, because it still catches the opposite case, one id hammered from
+many different IPs. Neither check writes, logs, or stores the IP anywhere -
+it is passed straight to the binding's own `.limit()` call and nowhere
+else, exactly as before.
+
+**This also turned out to need Node's native `fetch`/`Request`/`Response`
+rather than only the pure validators.** To prove the two-limiter logic
+actually works - not just that `rateLimited()` reads a boolean correctly,
+but that `handleGuess` calls the right binding with the right key in the
+right order - `tests/worker.test.js` now calls the real
+`export default { fetch }` directly, against plain-object stand-ins for
+`env`'s bindings and datasets. That is not Miniflare and proves nothing
+about Cloudflare's own runtime behavior; it does prove this file's own
+code: one test has the id-keyed limiter allow every request while the
+IP-keyed one refuses, simulating a script minting a fresh id each time,
+and confirms the request is still rejected and nothing gets written;
+another has it the other way around, one id arriving under a limiter that
+would allow its IP, still rejected by the id-keyed check. A third confirms
+`/guess` and `/ping` call the exact same `PING_LIMITER` instance with the
+exact same IP key. A dedicated test also re-greps every dataset write for
+the literal IP string used in the request, confirming none of the three
+datasets ever receives it.
+
+### The export script moves to a weekly cadence
+
+Maya's call, after reading the retention numbers: running
+`scripts/export_guesses.mjs` once, right at day 80, means a single missed
+run loses the entire 60-day collection window. Weekly during collection,
+with day 80 kept as the hard last-safe date rather than the only date,
+means a missed week costs a week. The script itself needed no change to
+support this - every run already pulls a full, fresh copy of both
+datasets rather than appending, so running it early, running it twice, or
+running it on a week nothing new arrived are all free. docs/PRD.md's
+Milestone 4 note and this script's own header comment both say "weekly"
+now, not "once."
+
+1,171 tests pass.
 
 Educational, not investment advice.
