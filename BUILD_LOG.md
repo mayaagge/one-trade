@@ -5117,3 +5117,70 @@ and named as unmeasured rather than assumed from the design review.
 1,189 tests pass.
 
 Educational, not investment advice.
+
+## Saying which Hypothesis 1 verdict counts, 27 November 2026 (session 2.32)
+
+Hypothesis 1 prints "not supported" on the headline test and "supported" on the
+registered one, and a reader has to be told which of those is the answer.
+PREREG_AMENDMENT_2.md section 5 already settled it - the correlation-only test
+is "The headline verdict for Hypothesis 1", the registered one is "Reported
+beside it, as registered, **with the 0.523 independence benchmark**" - but
+neither surface said so plainly enough.
+
+### What was actually wrong, per surface
+
+**The README was wrong in a way that mattered.** It said the two tests were
+"both reported rather than one being chosen", which reads as "it is a tie, take
+your pick" - the opposite of what was registered. It also omitted the
+independence benchmark completely, which is not a style choice: amendment 5
+requires the registered test to be reported WITH that benchmark. A first-time
+reader saw "0.327, threshold below 0.60, supported" and had every reason to
+conclude the claim was strongly confirmed.
+
+**The Research page was nearly right.** It already rendered both cards, the
+`limit` string naming the 0.523 benchmark, a definitions row for it, and a
+disagreement section. What it never did was say which verdict is the answer -
+it left that to be inferred from the word "headline" in a card title.
+
+### The number that settles it
+
+**0.523 is what the registered sampler gives on holdings with no correlation at
+all - already below its own 0.60 threshold.** The registered test is therefore
+passed before correlation enters the room, and "supported" there is not on its
+own evidence for the claim. The beginner median of 0.327 does sit below 0.523,
+so something beyond the sampler is present - but the verdict word is not the
+thing carrying that information.
+
+The two tests differ because they divide by different things. The registered
+one divides effective bets by the NUMBER OF HOLDINGS, which falls both when
+holdings move together and when money is spread unevenly, and the flat
+Dirichlet draw spreads it very unevenly. The headline one divides each
+portfolio by ITSELF with correlations switched off, same weights and same
+volatilities, so the weights cancel and only correlation is left.
+
+### Fixed in both, and regenerated honestly
+
+`verdictStatement()` in js/hypothesis1.js now names the role ("The verdict for
+Hypothesis 1 is the headline one") and carries the 0.523 point into the
+sentence. The README's section was rewritten to lead with the verdict, to give
+the two tests a Role column, and to state the benchmark in bold.
+
+**Caught while writing it: markdown in a string rendered as text.** The first
+draft wrapped the verdict in `**` - js/research.js renders the statement with
+`h('p', null, text)`, so a reader would have seen literal asterisks. Removed,
+and the emphasis carried by sentence structure instead.
+
+**And the regeneration had to be sequenced.** `data/results.json` records
+`code.commit` and `code.clean` from `git status --porcelain`, so regenerating
+on a dirty tree stamps `clean: false` - a published result that traces to no
+commit. The first regeneration did exactly that. So: commit the code, let the
+tree go clean, regenerate, then commit the result - which is the same order the
+previous `results.json` was made in. Diffed the two regenerations leaf by leaf
+first: **5 leaves changed - `generated_at`, `code.commit`, `code.clean`,
+`headline` and `hypothesis1.statement` - and every verdict, every median and the
+snapshot SHA-256 byte-identical.** A wording change has to be provably only a
+wording change.
+
+1,189 tests pass.
+
+Educational, not investment advice.

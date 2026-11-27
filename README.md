@@ -29,14 +29,18 @@ Three hypotheses were written down and **tagged in git before a single price was
 
 **Hypothesis 1 — hidden concentration.** *Claim: a beginner combining a broad index fund, a tech fund and individual AI stocks has far fewer independent sources of risk than holdings.*
 
-The two tests disagree, and both are reported rather than one being chosen:
+**The verdict is "not supported".** Two tests were run and both are published, but they are not equals: the headline test carries the verdict, and the registered one is printed beside it because it is what was registered, not because it decides anything ([PREREG_AMENDMENT_2.md](PREREG_AMENDMENT_2.md) §5, written before any price was downloaded).
 
-| Test | Beginner median | Threshold | Verdict |
-| --- | --- | --- | --- |
-| Headline: correlation-only ratio R | 0.773 | below 0.60 | **not supported** |
-| Registered: effective risk sources ÷ holdings | 0.327 | below 0.60 | **supported** |
+| Test | Beginner median | Threshold | Verdict | Role |
+| --- | --- | --- | --- | --- |
+| Headline: correlation-only ratio R | 0.773 | below 0.60 | **not supported** | **the verdict** |
+| Registered: effective risk sources ÷ holdings | 0.327 | below 0.60 | supported | reported as registered |
 
-The headline test holds each portfolio's weights and volatilities fixed and switches correlations off, so it measures correlation's effect *alone* — and by that measure, correlation is not doing most of the work. The registered test also moves with how unevenly a flat Dirichlet draw spreads the money, which is why it reads differently. A disagreement is itself a result: the two measures answer different questions. (Note also that the headline test did **not** separate the beginner set from the diversified control set — 0.773 against 0.844, a gap of 0.072, short of the 0.100 the page asks for before claiming separation.)
+**Why they disagree.** Both ask "how much less diversified is this than it looks?", but they divide by different things. The registered test divides effective bets by the *number of holdings* — and that falls for two unrelated reasons at once: holdings moving together, and money spread unevenly. The sampler spreads money very unevenly on purpose, and a portfolio with most of its money in one name has few effective bets however its holdings move. **The giveaway is the independence benchmark: run the same sampler on holdings with no correlation whatsoever and the median still lands at 0.523 — already under the 0.60 bar.** That test is passed before correlation enters the room, so "supported" there is not on its own evidence for the claim.
+
+The headline test removes exactly that confusion: it compares each portfolio against *itself* with correlations switched off, holding the same weights and the same volatilities, so the weights cancel out and only correlation is left. Measured that way, correlation costs about a quarter — 0.773, against a bar of 0.60 — and the claim does not hold.
+
+Two further honest marks against it: the headline test did **not** separate the beginner set from the diversified control set (0.773 against 0.844, a gap of 0.072, short of the 0.100 required before claiming separation), and a disagreement between two measures is itself a result — it says they answer different questions, and it is not resolved by picking the more flattering one.
 
 **Hypothesis 2 — a tightening market.** *Claim: AI stocks move more closely with the broad market now than they did before the AI trade.*
 

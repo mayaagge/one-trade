@@ -444,11 +444,14 @@ function verdictStatement(headlineVerdict, registeredVerdict) {
     return `Both tests agree: Hypothesis 1 is ${headlineVerdict}. The headline test is `
       + `${headline}; beside it, ${registered}, is reported as registered.`;
   }
-  return `The two tests disagree, and both are reported. The headline verdict is `
-    + `"${headlineVerdict}", from ${headline}. The registered test says `
-    + `"${registeredVerdict}", from ${registered}. A disagreement is itself a result: it `
-    + 'says the two measures are answering different questions, and it is not resolved by '
-    + 'choosing the more favourable one.';
+  return `The two tests disagree, and both are reported. The verdict for Hypothesis 1 `
+    + `is the headline one, "${headlineVerdict}", from ${headline}. Beside it, and reported `
+    + `because it is what was registered rather than because it decides anything, the `
+    + `registered test says "${registeredVerdict}", from ${registered} - and that test `
+    + `clears its own 0.60 threshold at 0.523 even on holdings with no correlation at `
+    + `all, so "${registeredVerdict}" there is not on its own evidence for the claim. A `
+    + 'disagreement is itself a result: it says the two measures are answering different '
+    + 'questions, and it is not resolved by choosing the more favourable one.';
 }
 
 /**
