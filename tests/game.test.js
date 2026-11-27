@@ -19,7 +19,9 @@ import { fileURLToPath } from 'node:url';
 
 import { buildReturns } from '../js/returns.js';
 import { GAME_DAYS } from '../scripts/build_game_data.mjs';
-import { validateLevels, levelById } from '../js/levels.js';
+import {
+  validateLevels, bandsMet, levelById, passes, starsFor,
+} from '../js/levels.js';
 import { createRound } from '../js/round.js';
 import {
   allPassedBefore,
@@ -238,16 +240,71 @@ test('a 1-star reveal says what 2 stars would have needed', () => {
 });
 
 test('a 3-star reveal names all three bands and asks for nothing more', () => {
+  // Level 3's bands nest - within half a bet IS within 1 bet - so both are met
+  // and both are named.
   const level = levelById(LEVELS, 3);
-  const text = starsExplanation(level, { passed: true, stars: 3 });
+  const text = starsExplanation(level, { passed: true, stars: 3, guess: 3.2, value: 3.0 });
+  assert.match(text, /2 for within 1 bet/);
   assert.match(text, /3 for within half a bet/);
   assert.doesNotMatch(text, /needed/);
+  assert.doesNotMatch(text, /missed it/, 'a nested band cannot be skipped');
 });
 
 test('the explanation for level 1 uses its bucket band, not a bets band', () => {
-  const text = starsExplanation(levelById(LEVELS, 1), { passed: true, stars: 2 });
+  // Bucket right (both 0.85 and 0.98 are "the same bet"), distance missed:
+  // 0.13 is outside the 0.10 band.
+  const text = starsExplanation(levelById(LEVELS, 1), {
+    passed: true, stars: 2, guess: 0.85, value: 0.98,
+  });
   assert.match(text, /naming the right bucket/);
   assert.match(text, /within 0\.10 of the real correlation/);
+});
+
+test('the tight band earns three stars in the wrong bucket, and the screen says so', () => {
+  // PLAYER FEEDBACK 3 OF 16. Level 5's pass threshold and its middle bucket
+  // edge are the same number, 35%, so a portfolio that passes sits just under
+  // an edge and a guess a couple of points out lands just over it. Within 5
+  // points of the answer, wrong side of the bucket: starsFor() awards the full
+  // three, and the sentence used to credit "2 for naming the right bucket".
+  const level = levelById(LEVELS, 5);
+  const result = { passed: true, guess: 0.35, value: 0.32 };
+  const stars = starsFor(level, { guess: result.guess, actual: result.value, passed: true });
+  assert.equal(stars, 3, 'the tight band no longer earns three on its own');
+  assert.deepEqual(bandsMet(level, { guess: result.guess, actual: result.value }),
+    { two: false, three: true }, 'the bands this case is built on have moved');
+
+  const text = starsExplanation(level, { ...result, stars });
+  assert.match(text, /3 for within 5 points of the real share/);
+  assert.ok(!/2 for naming the right bucket/.test(text),
+    `the screen still credits a bucket this guess missed: ${text}`);
+  assert.match(text, /the tight band earns all three on its own/);
+  // And it does not ask for anything more: three stars is the top score.
+  assert.doesNotMatch(text, /needed/);
+});
+
+test('every level whose bands can come apart is named, and level 1 is not one', () => {
+  // WHICH LEVELS THIS REACHES, worked out from the rules rather than asserted
+  // from memory. A level can only strand the two-star band when its pass
+  // threshold sits ON a bucket edge: then a passing answer is just inside the
+  // edge and a close guess is just outside it. Levels 4, 5 and 6 are built
+  // that way - 0.50, 35% and 0.50 are each both the pass rule and a bucket
+  // edge. Level 1's threshold, 0.80, sits ABOVE its top edge of 0.70, so any
+  // guess within 0.10 of a passing answer is in the same bucket as it.
+  const reachable = [];
+  for (const level of LEVELS.levels) {
+    if (!Array.isArray(level.buckets)) continue;
+    const { min, max, step } = level.guess;
+    let found = false;
+    for (let actual = min; actual <= max + 1e-9 && !found; actual += step / 2) {
+      if (!passes(level, actual)) continue;
+      for (let guess = min; guess <= max + 1e-9 && !found; guess += step) {
+        const met = bandsMet(level, { guess, actual });
+        if (met.three && !met.two) found = true;
+      }
+    }
+    if (found) reachable.push(level.id);
+  }
+  assert.deepEqual(reachable, [4, 5, 6]);
 });
 
 // ------------------------------------------------- what a count ping carries

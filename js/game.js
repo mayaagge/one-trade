@@ -23,7 +23,9 @@
 // Educational, not investment advice.
 
 import { loadGameData, DISCLAIMER } from './gameView.js';
-import { validateLevels, displayFor, formatGuess, levelById, LEVELS_URL } from './levels.js';
+import {
+  validateLevels, bandsMet, displayFor, formatGuess, levelById, LEVELS_URL,
+} from './levels.js';
 import { longDate } from './format.js';
 import { BUILD, GUESS, REVEAL, createRound, createSeries, isSeries } from './round.js';
 import { WHY_URL, groupIndex, pickSeriesWhy, seriesFacts, validateWhy } from './why.js';
@@ -1137,17 +1139,42 @@ function wantsShareNote(session, levelId) {
 /**
  * Why those stars, in the level's own words from levels.json. A player who got
  * 1 star should be able to read what the other two needed.
+ *
+ * IT ASKS WHICH BANDS WERE MET, NOT HOW MANY STARS THERE WERE, and that is the
+ * bug this was written to fix (player feedback 3 of 16). The lines used to be
+ * gated on `result.stars >= 2` and `>= 3`, which reads the bands off the count
+ * - and the count does not carry them. js/levels.js's starsFor() awards the
+ * BEST band met, so on levels 1, 4, 5 and 6 a guess can take the three-star
+ * band while missing the two-star one: level 1's 0.69 against an actual 0.71
+ * is within 0.10 and in the wrong bucket. That scored three stars and was told
+ * "2 for naming the right bucket" - about a guess that named the wrong one.
+ *
+ * SO IT NEEDS THE GUESS AND THE ANSWER, which is why `result` must carry
+ * `guess` and `value`. Every real result does; a caller that hands over
+ * neither gets a sentence about no bands rather than a confident wrong one.
+ *
+ * AND IT SAYS THE RULE OUT LOUD in the case that exposed this. A player who
+ * earns all three on the tight band alone is told that is what happened, since
+ * "the tight band earns all three on its own" is exactly what the screen had
+ * been denying. The bucket they actually named is on the line below this one,
+ * from renderReveal's bucket line, so it is not repeated here.
  */
 export function starsExplanation(level, result) {
   if (!result.passed) {
     return `No stars this time: ${level.pass.says} is what this level needs. The guess still counts - look at the number above.`;
   }
+  const met = bandsMet(level, { guess: result.guess, actual: result.value });
   const parts = [`1 star for ${level.pass.says ?? 'passing'}`];
-  if (result.stars >= 2) parts.push(`2 for ${level.stars.two.says}`);
-  if (result.stars >= 3) parts.push(`3 for ${level.stars.three.says}`);
-  if (result.stars === 1) parts.push(`2 stars needed ${level.stars.two.says}`);
-  if (result.stars === 2) parts.push(`3 stars needed ${level.stars.three.says}`);
-  return `${parts.join(', ')}.`;
+  if (met.two) parts.push(`2 for ${level.stars.two.says}`);
+  if (met.three) parts.push(`3 for ${level.stars.three.says}`);
+  if (!met.two && !met.three) parts.push(`2 stars needed ${level.stars.two.says}`);
+  else if (met.two && !met.three) parts.push(`3 stars needed ${level.stars.three.says}`);
+  const sentence = `${parts.join(', ')}.`;
+  if (met.three && !met.two) {
+    return `${sentence} The second star is for ${level.stars.two.says}, and this guess `
+      + 'missed it - the tight band earns all three on its own.';
+  }
+  return sentence;
 }
 
 // --------------------------------------------------------------- the frame

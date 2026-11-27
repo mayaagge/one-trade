@@ -1057,6 +1057,32 @@ export function starsFor(level, { guess, actual, passed }) {
   return stars;
 }
 
+/**
+ * WHICH of the two bands a guess met, rather than how many stars it was worth.
+ *
+ * THE TWO QUESTIONS COME APART, and only on the levels whose bands are of
+ * different kinds. starsFor() above takes the BEST band met, so a guess can
+ * reach the three-star band without having met the two-star one - level 1's
+ * 0.69 against an actual 0.71 is within 0.10 and in the wrong bucket, and
+ * scores the full three. Levels 2, 3 and 7 cannot do this: "within half a bet"
+ * implies "within 1 bet" and three guesses inside a band are also two, so on
+ * those the count tells you the bands and nothing is lost by reading it off.
+ * On levels 1, 4, 5 and 6 it is not, and a screen that infers the bands from
+ * the count tells a player they named the right bucket when they did not.
+ *
+ * ONE GUESS, so not for level 7: a countWithin band is about three answers
+ * together and cannot be settled from a single guess and a single actual.
+ * meetsBand() throws on it rather than guessing, which is what a caller that
+ * reached here with a series would deserve. js/game.js's seriesStarsExplanation
+ * is the one for that level.
+ */
+export function bandsMet(level, { guess, actual }) {
+  return {
+    two: meetsBand(level, level.stars.two, guess, actual),
+    three: meetsBand(level, level.stars.three, guess, actual),
+  };
+}
+
 function meetsBand(level, band, guess, actual) {
   if (!Number.isFinite(guess) || !Number.isFinite(actual)) return false;
   if (band.test === 'within') return Math.abs(guess - actual) <= band.of + BAND_TOLERANCE;

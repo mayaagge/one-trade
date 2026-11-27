@@ -5721,3 +5721,78 @@ session 7 comes before session 9. That resolves itself when the hints go; it is
 noted so it is not reported as a bug in between.
 
 Educational, not investment advice.
+
+## Player feedback 3: the stars sentence credited a bucket the guess missed, 27 November 2026 (session 2.39)
+
+**From the playtest.** Item 4 of the round has two halves. This is the first:
+"being within the tight band earns stars even in the wrong bucket" is already
+what the code does - `starsFor()` awards the BEST band met, not a ladder - and
+what was wrong was the sentence underneath, which inferred the bands from the
+star count. `result.stars >= 2` gated the two-star line, so a player who earned
+three stars on the distance band alone was told "2 for naming the right bucket"
+about a guess that named the wrong one. The rule was right and the screen was
+lying about it.
+
+js/levels.js now exports `bandsMet()`, which answers WHICH bands a guess met
+rather than how many stars it was worth, and `starsExplanation()` asks that
+instead of reading the count. Both the scoring and the sentence now come from
+one place.
+
+### Where it can actually happen, which is not where this log first said
+
+Worth writing down, because the first example given for this bug was level 1
+and **level 1 cannot produce it.** Checked by enumeration over every level's own
+guess grid rather than argued (the check is now a test):
+
+| Level | Pass threshold | Bucket edges | Can the tight band strand the bucket? |
+| --- | --- | --- | --- |
+| 1. Two of a kind | 0.80 | 0.70, 0.30 | **No** |
+| 4. Hidden AI | 0.50 | 1.00, 0.50 | Yes - 2 of the grid's pairs |
+| 5. Where's the risk? | 35% | 50%, 35% | Yes - 35 pairs |
+| 6. Crash test | 0.50 | 1.00, 0.50 | Yes - 2 pairs |
+
+The pattern is exact: **a level can strand its two-star band only when its pass
+threshold sits ON a bucket edge.** Then a passing answer is just inside the
+edge and a close guess is just outside it. Levels 4, 5 and 6 are built that way
+- 0.50, 35% and 0.50 are each both the pass rule and a bucket edge, which
+docs/PRD.md states as a feature: every bucket edge is "either a number the game
+already uses elsewhere or the level's own pass threshold". Level 1's threshold
+of 0.80 sits ABOVE its top edge of 0.70, so a guess within 0.10 of a passing
+answer is always in the same bucket as it.
+
+So this is not a rarity on level 5. Its band is 5 points on a 1-point slider
+and its edge is its own threshold, so any player who passes and guesses a
+couple of points high meets it. 35 of the pairs on its grid do.
+
+The first draft of this fix was tested on level 1 with a hand-built result -
+`starsFor(level1, { guess: 0.69, actual: 0.71, passed: true })` - which returns
+3 and looks like a reproduction. It is not: an actual of 0.71 fails level 1's
+own threshold of 0.80, so `passed: true` was a state the game cannot be in. A
+test that invents its inputs can confirm a bug that does not exist.
+
+### What the sentence says now
+
+Only the bands actually met, and in the stranded case it states the rule the
+screen had been denying:
+
+> 1 star for no holding over 35% of the risk, 3 for within 5 points of the real
+> share. The second star is for naming the right bucket, and this guess missed
+> it - the tight band earns all three on its own.
+
+The bucket the player actually named is on the next line down, from
+renderReveal's own bucket line, so it is not repeated here. All six wordings -
+stranded band, both bands, neither band, bucket-only, nested bands, and the
+replay level - were printed and read rather than inferred from the template:
+session 2.31 found the star rules ungrammatical in two frames, and `says`
+fragments stitched into a sentence is exactly where that happens.
+
+**`starsExplanation` now needs the guess and the answer**, so two tests that
+handed it `{ passed: true, stars: 3 }` and nothing else were given real numbers.
+They are better tests for it: a star count was never enough to say what earned
+it.
+
+1,213 to **1,215 passing**. This changes no threshold, no band and no star
+count - only what the screen says about them - so docs/PRD.md is untouched.
+Session 3b is the half that does move numbers.
+
+Educational, not investment advice.
