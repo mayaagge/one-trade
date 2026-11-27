@@ -30,8 +30,12 @@ Rankings: **must fix before playtest**, **should fix**, **later**.
 
 ## 1. Every screen and state
 
-63 states, all captured. `screenshots/INDEX.md` lists them; `--fold` files are
-the first screenful, which is what the five-second question is judged on.
+63 states, all captured. **The pictures are not committed:** `screenshots/` is
+build output, gitignored, and regenerated locally with `npm run shots`, which
+writes the folder, the images and the `screenshots/INDEX.md` that lists them.
+`--fold` files are the first screenful, which is what the five-second question
+is judged on. Two of them are kept as committed copies, in `docs/images/`,
+because the README shows them.
 
 | Mode | States captured |
 | --- | --- |
@@ -307,7 +311,12 @@ level 3 reveal** at 375px, following your system light/dark setting:
 - `design/mockup-b.html` — **Number line**
 - `design/mockup-c.html` — **Editorial**
 
-PNGs of each are in `screenshots/mockups/`, light and dark.
+Those three files in `design/` are the mockups themselves — open them in a
+browser, and each follows your system light/dark setting, so there is nothing
+separate to look at for the two schemes. They are committed, and
+`npm run mockups` rewrites them. There are no PNG versions: an earlier draft of
+this line pointed at `screenshots/mockups/`, which `scripts/make_mockups.mjs`
+has never written to.
 
 Every word and number in all three is the one on the screen today; only the
 design differs, so the comparison is about the design and not about my typing.
