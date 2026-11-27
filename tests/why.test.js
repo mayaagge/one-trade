@@ -455,98 +455,156 @@ test('the card and the reveal panel show a near-miss correlation the same way', 
   assert.equal(result.whyCard.text.includes(result.shown), true);
 });
 
-// --- 5. the lead-in -------------------------------------------------------
+// --- 4b. what to try next -------------------------------------------------
 
-test('a level 3 build that passes gets the passed lead-in', () => {
-  // JNJ, TLT, GOOGL, LQD and COP make 3.55 bets on the frozen snapshot, which
-  // clears the 3 the level asks for.
-  const { result } = play(3, ['JNJ', 'TLT', 'GOOGL', 'LQD', 'COP'], 3.5);
-  assert.equal(result.passed, true);
-  assert.equal(result.whyCard.leadIn, WHY.leadIn.passed);
-  assert.equal(result.whyCard.leadIn, 'You passed. One thing to notice:');
+test('no card tells a player to buy something they do not hold', () => {
+  // THE GUARD THE RETIRED HINTS USED TO CARRY, moved here with the advice.
+  // A hint could not name a ticker, because a list of tickers is what a
+  // winning design IS. The "one thing to try" line runs the same risk with
+  // less excuse: the card knows the player's actual holdings. It may name
+  // THEIRS through a placeholder - {ticker}, {a}, {b} - and may name a group
+  // in words, but a literal symbol would be an answer key.
+  const universe = readJson('tickers.json').groups
+    .flatMap((group) => group.tickers.map((t) => (typeof t === 'string' ? t : t.ticker)));
+  const lines = [
+    ...WHY.rules.map((rule) => [rule.key, rule.tryNext]),
+    ...Object.entries(WHY.bucketCards).map(([key, card]) => [key, card.tryNext]),
+    ['fallback', WHY.fallback.tryNext],
+  ];
+  for (const [key, line] of lines) {
+    assert.equal(typeof line, 'string', `${key} has no "one thing to try" line`);
+    const named = universe.filter((ticker) => new RegExp(`\\b${ticker}\\b`).test(line));
+    assert.deepEqual(named, [],
+      `${key}'s tryNext names ${named.join(', ')}, which hands the player a pick`);
+  }
 });
 
-test('a level 3 build that misses gets the missed lead-in', () => {
-  // Five AI stocks are nearly one bet, which is the lesson the game is named
-  // after and nowhere near the 3 the level asks for.
-  const { result } = play(3, ['NVDA', 'AMD', 'AVGO', 'MU', 'ANET'], 2);
-  assert.equal(result.passed, false);
-  assert.equal(result.whyCard.leadIn, WHY.leadIn.missed);
-  assert.equal(result.whyCard.leadIn, "Here's what held you back:");
+test('every card carries all three lines', () => {
+  for (const rule of WHY.rules) {
+    assert.ok(rule.template, `${rule.key} says nothing about what happened`);
+    assert.ok(rule.tryNext, `${rule.key} suggests nothing to try`);
+  }
+  for (const [key, card] of Object.entries(WHY.bucketCards)) {
+    assert.ok(card.template, `bucket ${key} says nothing about what happened`);
+    assert.ok(card.tryNext, `bucket ${key} suggests nothing to try`);
+  }
+  assert.ok(WHY.fallback.tryNext);
 });
 
-test('level 2 speaks to the guess, not to passing: a close guess', () => {
-  // levels.json gives level 2 pass.measure "guess", so every round passes and a
-  // verdict on the portfolio would say nothing. p01 makes 1.10 bets; a guess of
-  // 1.5 is within the level's two-star band of 1 bet.
-  assert.equal(levelById(LEVELS, 2).pass.measure, 'guess');
-  const { result } = play(2, [], 1.5, { random: () => 0 });
-  assert.equal(result.drawnId, 'p01');
-  assert.equal(result.passed, true);
-  assert.equal(result.stars >= 2, true);
-  assert.equal(result.whyCard.leadIn, WHY.leadIn.closeGuess);
-  assert.equal(result.whyCard.leadIn, 'Close guess. One thing to notice:');
-});
+// --- 4c. the chart inside the card ----------------------------------------
 
-test('level 2 speaks to the guess, not to passing: a guess wide of it', () => {
-  // The same portfolio at 1.10 bets, guessed at 4: more than a bet out, so the
-  // line reports on the guess rather than congratulating a round nobody can fail.
-  const { result } = play(2, [], 4, { random: () => 0 });
-  assert.equal(result.passed, true);
-  assert.equal(result.stars, 1);
-  assert.equal(result.whyCard.leadIn, WHY.leadIn.wideGuess);
-  assert.equal(result.whyCard.leadIn, "Here's what made this one tricky:");
-  // The passed line never reaches a level whose pass rule is the guess.
-  assert.notEqual(result.whyCard.leadIn, WHY.leadIn.passed);
-});
-
-test('level 2 lead-in and the stars above it can never disagree', () => {
-  // "Close" is read as the level's own two-star band - stars >= 2 - and not
-  // recomputed from a threshold of its own, so the line and the stars it sits
-  // under always tell the same story. This walks the whole slider range over
-  // every pool portfolio, including the exact boundary, where the band's
-  // floating-point tolerance is what decides it.
-  const portfolios = LEVELS.guessPool.portfolios;
+test('all three of level 1\'s cards carry the pair chart, not just the same-bet one', () => {
+  // LEVEL 1 NEVER GETS THE `pair` CARD. It takes the bucket path - same,
+  // partly or different - so a chart wired only to `pair` would leave the one
+  // level that is entirely about a pair with no picture of it. Each bucket is
+  // reached with a real pair rather than asserted about in the abstract.
+  // Real pairs on the frozen snapshot: 0.996, 0.680 and 0.228, which land one
+  // in each bucket. Checked rather than assumed - QQQ with NVDA reads 0.744
+  // and is "the same bet", not "partly".
+  const byBucket = {
+    same: ['VOO', 'VTI'],
+    partly: ['VOO', 'NVDA'],
+    different: ['VOO', 'GLD'],
+  };
   const seen = new Set();
-  for (let i = 0; i < portfolios.length; i += 1) {
-    const random = () => i / portfolios.length;
-    const { result: first } = play(2, [], 1, { random });
-    const guesses = [1, 1.5, 2, 2.5, 3, 4, 5];
-    // The boundary itself: exactly one bet above the real answer, where a bare
-    // <= would reject 1.0000000000000002 and cost a star the player earned.
-    const edge = first.value + 1;
-    if (edge >= 1 && edge <= 5) guesses.push(edge);
-    for (const guess of guesses) {
-      const { result } = play(2, [], guess, { random });
-      const close = result.whyCard.leadIn === WHY.leadIn.closeGuess;
-      assert.equal(close, result.stars >= 2,
-        `${result.drawnId} at ${result.value.toFixed(3)} bets, guessed ${guess}: `
-        + `${result.stars} stars but the lead-in says ${close ? 'close' : 'wide'}`);
-      seen.add(close ? 'close' : 'wide');
+  for (const [bucket, pair] of Object.entries(byBucket)) {
+    const { result } = play(1, pair, 0.5);
+    assert.equal(result.whyCard.key, bucket,
+      `${pair.join('/')} lands in ${result.whyCard.key}, not ${bucket}`);
+    seen.add(result.whyCard.key);
+
+    const chart = result.whyIndexed;
+    assert.ok(chart, `the ${bucket} card carries no chart`);
+    assert.deepEqual(chart.lines.map((line) => line.ticker), pair,
+      'the chart draws holdings the card is not about');
+    for (const line of chart.lines) {
+      assert.equal(line.values[0], chart.base, `${line.ticker} does not start at the base`);
+      assert.equal(line.values.length, chart.dates.length);
     }
   }
-  // Both lines really do occur over that sweep, so this is not vacuous.
-  assert.deepEqual([...seen].sort(), ['close', 'wide']);
+  assert.equal(seen.size, 3, 'the three pairs did not reach three different buckets');
 });
 
-test('level 3 reports on the portfolio, because that is what it checks', () => {
-  // The two pairs of lines are not interchangeable: a level with a real pass
-  // check never shows the guess lines, whatever the guess was.
-  const passing = play(3, ['JNJ', 'TLT', 'GOOGL', 'LQD', 'COP'], 1).result;
-  assert.equal(passing.passed, true);
-  assert.equal(passing.stars, 1, 'a wild guess on a passing build scores 1 star');
-  assert.equal(passing.whyCard.leadIn, WHY.leadIn.passed);
-  const missing = play(3, ['NVDA', 'AMD', 'AVGO', 'MU', 'ANET'], 1).result;
-  assert.equal(missing.whyCard.leadIn, WHY.leadIn.missed);
+test('a card that is not about a pair gets no chart', () => {
+  // The chart is evidence for one claim - "these two move as one" - and under
+  // any other card it would illustrate something the card did not say.
+  const { result } = play(3, ['NVDA', 'AMD', 'AVGO', 'MU', 'ANET'], 2);
+  assert.equal(result.whyCard.key, 'groupRisk');
+  assert.equal(result.whyIndexed, null);
 });
 
-test('level 1 takes no lead-in at all', () => {
-  // Its reveal panel says whether the pair cleared 0.80 and the bucket line says
-  // which bucket the guess named, so a third verdict line is the same news again.
-  for (const picks of [['VOO', 'VTI'], ['VTI', 'JPM'], ['TLT', 'XOM'], ['VTI', 'VXUS']]) {
-    assert.equal(play(1, picks, 0.5).result.whyCard.leadIn, null, picks.join('+'));
+test('a pair card on a level that is not level 1 gets the chart too', () => {
+  // The same claim, made about two of five holdings, needs the same evidence.
+  const { result } = play(3, ['VOO', 'QQQ', 'BND', 'GLD', 'JNJ'], 4);
+  assert.equal(result.whyCard.key, 'pair');
+  assert.deepEqual(result.whyIndexed.lines.map((line) => line.ticker),
+    [result.whyCard.values.a, result.whyCard.values.b]);
+});
+
+// --- 5. the guess line ----------------------------------------------------
+
+test('a card says which way the guess fell, and why that means something', () => {
+  // THE CARD'S SECOND LINE, and the one the retired lead-in used to occupy
+  // with "You passed." - a verdict the panel and the stars above it had each
+  // already given. This one carries the two numbers instead.
+  const { result } = play(3, ['NVDA', 'AMD', 'AVGO', 'MU', 'ANET'], 4);
+  assert.equal(result.passed, false);
+  assert.ok(result.value < 2, `five AI stocks should be about one bet, not ${result.value}`);
+  // Guessed 4 against about 1: high, and the line says what high means here.
+  assert.equal(result.whyCard.guess, WHY.guessLines.effectiveBets.high
+    .replace('{guess}', '4.0').replace('{actual}', result.shown));
+  assert.match(result.whyCard.guess, /Most people guess high: they count holdings instead of what moves them\./);
+});
+
+test('a guess the other way says the other thing', () => {
+  const { result } = play(3, ['JNJ', 'TLT', 'GOOGL', 'LQD', 'COP'], 1);
+  assert.ok(result.value > 3, `this build should make more than 3 bets, not ${result.value}`);
+  assert.match(result.whyCard.guess, /more separate bets here than you expected/);
+});
+
+test('a guess inside the three-star band is called close, and the direction dropped', () => {
+  // "Close" is the level's own three-star band, read from levels.json rather
+  // than invented, so the card and the stars agree about what close means.
+  const level = levelById(LEVELS, 3);
+  const { result } = play(3, ['NVDA', 'AMD', 'AVGO', 'MU', 'ANET'], 2);
+  const band = level.stars.three.of;
+  const near = Number(result.value.toFixed(1));
+  const { result: close } = play(3, ['NVDA', 'AMD', 'AVGO', 'MU', 'ANET'], near);
+  assert.ok(Math.abs(near - result.value) <= band);
+  // On the bets levels the close line still carries the lesson: a player who
+  // got it right should be told WHAT they got right. What it drops is the
+  // direction, which is the thing that stops meaning anything inside the band.
+  assert.match(close.whyCard.guess,
+    /Close: you counted what moves the portfolio, not how many holdings it has\.$/);
+  assert.ok(!/than you/.test(close.whyCard.guess), close.whyCard.guess);
+});
+
+test('every measure has all three directions, and they differ', () => {
+  for (const [measure, block] of Object.entries(WHY.guessLines)) {
+    // The block carries two prose notes beside the five measures.
+    if (typeof block !== 'object') continue;
+    assert.deepEqual(Object.keys(block).sort(), ['close', 'high', 'low'],
+      `guessLines.${measure} does not carry all three directions`);
+    assert.equal(new Set(Object.values(block)).size, 3,
+      `guessLines.${measure} repeats a line across directions`);
+    for (const line of Object.values(block)) {
+      assert.ok(line.includes('{guess}') && line.includes('{actual}'),
+        `guessLines.${measure} drops one of the two numbers: ${line}`);
+    }
   }
 });
+
+test('level 1 gets a guess line too, where it used to get nothing', () => {
+  // It took no lead-in, because its panel already said whether the pair
+  // cleared the bar. The guess line is not a verdict - it is the two numbers
+  // and what the gap between them means - so it belongs here as much as
+  // anywhere.
+  const { result } = play(1, ['VOO', 'VTI'], 0.4);
+  assert.ok(result.whyCard.guess, 'level 1 shows no guess line');
+  assert.match(result.whyCard.guess, /move together more than you thought/);
+});
+
+
 
 test('the lead-in is a line beside the card, never joined into it', () => {
   // The card here is the group card; what is being checked is the two strings.
@@ -559,13 +617,26 @@ test('the lead-in is a line beside the card, never joined into it', () => {
   assert.equal(card.template.includes(card.leadIn), false);
 });
 
-test('validateWhy rejects a lead-in that tries to carry a placeholder', () => {
+test('validateWhy rejects a guess line that names something it cannot fill', () => {
+  // A guess line carries the two numbers and nothing else. Letting it name a
+  // holding would mean deciding which one, on a line that is about the guess.
   const broken = structuredClone(WHY);
-  broken.leadIn.missed = 'Here is what held you back, {ticker}:';
-  assert.throws(() => validateWhy(broken), /leadIn\.missed/);
+  broken.guessLines.effectiveBets.high = 'You guessed {guess}, and {ticker} is why.';
+  assert.throws(() => validateWhy(broken), /guessLines\.effectiveBets\.high/);
+
   const gone = structuredClone(WHY);
-  delete gone.leadIn.passed;
-  assert.throws(() => validateWhy(gone), /leadIn\.passed/);
+  delete gone.guessLines.effectiveBets.low;
+  assert.throws(() => validateWhy(gone), /guessLines\.effectiveBets\.low/);
+
+  const missing = structuredClone(WHY);
+  delete missing.guessLines.fallShare;
+  assert.throws(() => validateWhy(missing), /guessLines\.fallShare/);
+});
+
+test('validateWhy rejects a tryNext that names something it cannot fill', () => {
+  const broken = structuredClone(WHY);
+  broken.rules.find((r) => r.key === 'pair').tryNext = 'Swap {ticker} for something else.';
+  assert.throws(() => validateWhy(broken), /tryNext uses \{ticker\}/);
 });
 
 // --- 6. the lesson portfolios ---------------------------------------------
@@ -845,7 +916,7 @@ test('the missed-level-5 card names the holding that failed, and the limit it pa
   assert.equal(card.values.riskPct, '38%');
   assert.equal(card.values.dollarPct, '25%');
   assert.equal(card.values.limitPct, '35%');
-  assert.match(card.text, /GLD carries 38% of your risk on 25% of your money/);
+  assert.match(card.text, /GLD is 38% of your risk on 25% of your money/);
 });
 
 test('the limit on the card is the level’s own, not a number why.json keeps', () => {
@@ -899,7 +970,7 @@ test('a missed level 5 names the holding that failed it, in the card', () => {
   // the pass check used.
   assert.equal(result.whyCard.values.ticker, result.aboutTicker);
   assert.equal(result.whyCard.values.limitPct, '35%');
-  assert.match(result.whyCard.text, new RegExp(`^${result.aboutTicker} carries`));
+  assert.match(result.whyCard.text, new RegExp(`^${result.aboutTicker} is`));
 });
 
 test('a passed level 5 is not told a holding went over the limit', () => {
@@ -1002,7 +1073,9 @@ test('a cushion that rose here and fell harder elsewhere carries the warning', (
     otherMove: '−29%',
     otherIndexMove: '25%',
   });
-  assert.match(card.text, /You can watch that one in Crash replay\.$/);
+  // The pointer moved to the card's third line when the cards were rewritten:
+  // "watch the other window" is a thing to TRY, not a thing that happened.
+  assert.match(card.tryNext, /Crash replay/);
 
   // The numbers are the file's, to the percent: a card that quoted a stale
   // figure would be the one thing this rule exists to prevent.
@@ -1082,7 +1155,7 @@ test('a loan fund that takes less risk than money gets the card that says why', 
   const card = pickWhy(facts, WHY, WEEKLY_ROUND);
   assert.equal(card.key, 'quietNotABet');
   assert.match(card.text, /TLT/);
-  assert.match(card.text, /counts risk, not money/i);
+  assert.match(card.text, /a bet counts risk, not money/i);
   // The numbers are the holding's own, formatted as every other card does it.
   assert.equal(card.values.ticker, 'TLT');
   assert.match(card.values.dollarPct, /^\d+%$/);

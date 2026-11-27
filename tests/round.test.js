@@ -1142,7 +1142,12 @@ test('a level 6 reveal gets a card read off the replay, not off a covariance mat
 
   assert.equal(result.whyCard.key, 'crashCushionElsewhere');
   assert.equal(result.whyCard.values.ticker, 'TLT');
-  assert.equal(result.whyCard.leadIn, why.leadIn.passed);
+  // The card's second line relates the answer to the guess, where a lead-in
+  // used to repeat the verdict the panel above had already given. 0.15
+  // against 0.14 is inside level 6's three-star band of 0.10, so the line
+  // says so and drops the direction - the band is the level's own, read from
+  // levels.json rather than invented for the card.
+  assert.equal(result.whyCard.guess, `You guessed 0.15 and it is ${result.shown}. Close.`);
   // The facts are the replay's own per-holding numbers, and nothing else: no
   // covariance, no correlations, no risk shares to be read off 23 days.
   assert.deepEqual(Object.keys(result.whyFacts), ['crash']);
@@ -1166,7 +1171,7 @@ test('a missed level 6 round names the holding that took it down', () => {
   assert.equal(result.passed, false);
   assert.equal(result.whyCard.key, 'crashDrag');
   assert.equal(result.whyCard.values.ticker, 'XOM', 'XOM lost the most dollars, not the most percent');
-  assert.equal(result.whyCard.leadIn, why.leadIn.missed);
+  assert.ok(result.whyCard.guess, 'the card says nothing about the guess');
 });
 
 test('the bought-and-held rule is what level 6 measures, not a rebalanced portfolio', () => {

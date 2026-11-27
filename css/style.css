@@ -916,6 +916,15 @@ label.lede { display: block; }
   color: var(--text-secondary);
 }
 .why-card-lead { margin: 0 0 6px; font-weight: 600; }
+/* A card is three lines now: what happened, how that compares with the guess,
+   and one thing to try. The middle one carries the two numbers, so it is
+   emphasised; the last is a suggestion, so it is quieter than both. */
+.why-card-guess { margin: 8px 0 0; font-weight: 600; }
+.why-card-try { margin: 8px 0 0; color: var(--text-secondary); }
+/* The pair's chart, inside the card that claims the two move together. Shorter
+   than a full-width chart: it is evidence for a sentence, not the subject of
+   the screen. */
+.chart-plot-card { margin: 10px 0 0; }
 /* The same card, carried onto the build screen by "Try again". It describes
    the attempt behind the player rather than the one in front of them, so it
    is marked as looking backwards - the heading says "Why that one missed" -

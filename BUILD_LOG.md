@@ -6575,3 +6575,96 @@ mentions a hint, and the plain-words rule and the no-hints rule are written
 into the levels section.
 
 Educational, not investment advice.
+
+## Player feedback 14: the "Why?" cards rewritten, 27 November 2026 (session 2.48)
+
+**The last of the sixteen.** Every card in why.json is rewritten - 14 rules,
+3 bucket cards, the fallback - in the voice of the definition lines: short,
+plain, for somebody with no finance background.
+
+### A card is three lines now, and none of them is a verdict
+
+(a) what happened, in the player's own holdings; (b) how that compares with
+what they guessed; (c) one thing to try next. Each is its own template filled
+in, never joined into one string - a card built by concatenating them would be
+generated prose, which this game does not put on a screen.
+
+**The guess line is keyed by MEASURE, not by rule.** "You guessed too high"
+means a different thing about a correlation than about a fall through a crash,
+and that meaning belongs to the measure. Fourteen rules times three directions
+would have been forty-two strings saying five things; there are fifteen.
+
+**"Close" is the level's own three-star band**, read from levels.json rather
+than invented, so the card and the stars above it cannot disagree about what
+close means. On the bets levels the close line still carries the lesson - "you
+counted what moves the portfolio, not how many holdings it has" - because a
+player who got it right should be told WHAT they got right.
+
+### The lead-in is retired
+
+It opened each card with "You passed. One thing to notice:" or "Close guess.
+One thing to notice:" - a verdict the reveal panel and the stars panel
+directly above it had each already given, and a closeness the new guess line
+now states with the two numbers in it. Three lines are enough.
+
+### Every level's lesson, and where it lives
+
+"The idea" left the reveal last session, so a card is the only general thing a
+player meets after a guess. levels.json gains a one-line `lesson` per level -
+not shown anywhere on its own - and `node scripts/check_why_cards.mjs
+--lessons` prints each level's lesson beside every card that level can show.
+That table is how a missing lesson is seen, and it is what Maya reviewed
+before this was committed.
+
+`CARDS_BY_LEVEL` is hand-written and says so: a rule fires on the FACTS, and
+which facts exist depends on what the level measures, so deriving the map
+would mean reimplementing that branching and hoping the second copy agreed.
+
+**The two weakest carriers are named rather than papered over.** `fallback`
+and `manyBets` fire when nothing stands out, so they state the absence of the
+lesson. Their "try next" lines turn that into the lesson by inviting the
+opposite experiment: "build five from one group and watch the count collapse."
+
+### The chart moved into the card, and reaches further for it
+
+Session 2.46 drew the pair chart standalone on level 1's reveal. The card now
+makes the claim the chart illustrates - "these two rise and fall as one" - so
+two copies on one screen would be exactly the repetition this round of changes
+is about. It is drawn inside the card instead.
+
+**And it is not only level 1's.** A pair card can fire on levels 2, 3, 5 and
+7, where the two holdings are two of five and the correlation has to be taken
+on trust; those now get the chart too, computed in `pairLines()` from the same
+window the measure used.
+
+**Level 1 never gets the `pair` card** - it takes the bucket path - so wiring
+the chart to `pair` alone would have left the one level that is entirely about
+a pair with no picture of it. A test reaches all three buckets with real pairs
+and asserts each carries the chart. Finding those pairs was worth doing
+properly: QQQ with NVDA reads 0.744 on the frozen snapshot and is "the same
+bet", not "partly", and the first draft of the test assumed otherwise.
+
+### The ticker guard moved across, and got stricter
+
+A retired hint could not name a ticker, because a list of tickers is what a
+winning design IS. The "one thing to try" line runs the same risk with less
+excuse - the card knows the player's actual holdings - so the guard follows
+the advice: no tryNext may contain a literal symbol. A placeholder naming
+THEIR holding is fine; naming one they do not hold is an answer key.
+
+### One number, two places, caught by a test
+
+The first draft formatted the guess line's answer with `formatGuess()`, which
+put "it is 1.0" on a card sitting under a panel reading 1.03 - two numbers for
+one thing on one screen, which is the disagreement docs/PRD.md's display rule
+exists to prevent. The answer string is now computed once and used by the
+panel, the result line and the card alike.
+
+### Checked, not assumed
+
+1,270 to **1,273 passing**. All 12 lesson portfolios still get the card
+written down beside them, including the five-AI-stocks case the game is named
+after. Contrast table empty. The level 1 reveal was screenshotted at 375px:
+one card, three lines, the chart between the second and the third.
+
+Educational, not investment advice.

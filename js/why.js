@@ -126,7 +126,41 @@ export const LEAD_MATCHES = ['measure', 'passed', 'mode'];
  * so its line reports on the guess - close, or wide of it. js/round.js decides
  * which pair applies from the level's own pass rule.
  */
-export const LEAD_IN_KEYS = ['passed', 'missed', 'closeGuess', 'wideGuess'];
+/**
+ * The measures a guess line is written for, and the three ways a guess can
+ * land against the answer.
+ *
+ * "close" is a guess inside the level's own three-star band, which
+ * js/levels.js already computes; inside it the direction is not worth a
+ * sentence. The LEAD_IN_KEYS that used to live here are gone: a card opened
+ * with "You passed." or "Close guess." which the reveal panel and the stars
+ * directly above it had each already said.
+ */
+export const GUESS_LINE_MEASURES = ['effectiveBets', 'correlation', 'beta', 'maxRiskShare', 'fallShare'];
+export const GUESS_DIRECTIONS = ['high', 'low', 'close'];
+
+/**
+ * Which way a guess fell against the answer, and whether it was close enough
+ * that the direction does not matter.
+ *
+ * @param {number} guess  what the player said
+ * @param {number} actual what it turned out to be
+ * @param {number} band   the level's three-star distance
+ */
+export function guessDirection(guess, actual, band) {
+  if (!Number.isFinite(guess) || !Number.isFinite(actual)) return null;
+  if (Number.isFinite(band) && Math.abs(guess - actual) <= band + 1e-9) return 'close';
+  return guess > actual ? 'high' : 'low';
+}
+
+/** The line relating a guess to the answer, or null when there is no guess. */
+export function guessLine(why, measure, { guess, actual, band, format = (v) => String(v) }) {
+  const direction = guessDirection(guess, actual, band);
+  if (direction === null) return null;
+  const block = why.guessLines?.[measure];
+  if (!block) return null;
+  return fillTemplate(block[direction], { guess: format(guess), actual: format(actual) });
+}
 
 // ------------------------------------------------------------------ loading
 
@@ -155,6 +189,20 @@ export function validateWhy(data) {
           `${where}: the template uses {${name}}, which nothing can fill. `
           + `This card allows ${allowed.length === 0 ? 'no placeholders' : allowed.map((a) => `{${a}}`).join(', ')}.`,
         );
+      }
+    }
+    // (c) THE LINE THAT SAYS WHAT TO TRY, held to the same placeholders. It is
+    // the one part of a card that suggests rather than reports, which is why
+    // tests/why.test.js also holds it to naming no ticker literally: a card
+    // that names a holding the player does not hold is an answer key.
+    if (card.tryNext !== undefined) {
+      if (typeof card.tryNext !== 'string' || card.tryNext.length === 0) {
+        throw new Error(`${where}: tryNext is there but empty`);
+      }
+      for (const name of placeholdersIn(card.tryNext)) {
+        if (!allowed.includes(name)) {
+          throw new Error(`${where}: tryNext uses {${name}}, which nothing can fill`);
+        }
       }
     }
   };
@@ -249,20 +297,31 @@ export function validateWhy(data) {
 
   checkCard(data.fallback, PLACEHOLDERS.fallback, 'why: fallback');
 
-  if (!data.leadIn || typeof data.leadIn !== 'object') {
-    throw new Error('why: leadIn is missing, so no card could say whether the round was passed');
+  // THE GUESS LINE, which is the second of a card's three. Keyed by measure
+  // and then by direction - a guess that is "too high" says a different thing
+  // about a correlation than about a fall - and checked here so a measure
+  // without one cannot reach a reveal.
+  if (!data.guessLines || typeof data.guessLines !== 'object') {
+    throw new Error('why: guessLines is missing, so no card could relate a guess to the answer');
   }
-  for (const key of LEAD_IN_KEYS) {
-    const line = data.leadIn[key];
-    if (typeof line !== 'string' || line.length === 0) {
-      throw new Error(`why: leadIn.${key} is missing`);
+  for (const measure of GUESS_LINE_MEASURES) {
+    const block = data.guessLines[measure];
+    if (!block || typeof block !== 'object') {
+      throw new Error(`why: guessLines.${measure} is missing`);
     }
-    // A lead-in is a fixed line, not a template. It says whether the round was
-    // passed and nothing else, so there is nothing in it to fill in, and
-    // allowing one would mean deciding what it could name.
-    const found = placeholdersIn(line);
-    if (found.length > 0) {
-      throw new Error(`why: leadIn.${key} uses {${found[0]}}; a lead-in takes no placeholders`);
+    for (const direction of GUESS_DIRECTIONS) {
+      const line = block[direction];
+      if (typeof line !== 'string' || line.length === 0) {
+        throw new Error(`why: guessLines.${measure}.${direction} is missing`);
+      }
+      for (const name of placeholdersIn(line)) {
+        if (!['guess', 'actual'].includes(name)) {
+          throw new Error(
+            `why: guessLines.${measure}.${direction} uses {${name}}; a guess line `
+            + 'may name only {guess} and {actual}',
+          );
+        }
+      }
     }
   }
 
@@ -799,8 +858,9 @@ export function leadingRules(why, outcome = null) {
  *                                      bucket card is used and no rule is applied
  * @param {number|null} options.pairThreshold the level's own pass threshold, when
  *                                      the level's measure is a correlation
- * @param {string|null} options.leadIn which of LEAD_IN_KEYS opens the card, or
- *                                      null on a level that takes no lead-in
+ * @param {string|null} options.guess the card's second line - how what
+ *                                      happened compares with the guess -
+ *                                      or null on a part of a series
  * @param {object|null} options.outcome what this round WAS - {measure, passed} -
  *                                      which decides whether any rule leads
  * @param {number|null} options.limit   the level's own pass threshold, for a card
@@ -811,17 +871,13 @@ export function leadingRules(why, outcome = null) {
  *                                      0.996 would be the screen contradicting itself
  */
 export function pickWhy(facts, why, {
-  bucket = null, pairThreshold = null, pairPlaces = undefined, leadIn = null, outcome = null,
+  bucket = null, pairThreshold = null, pairPlaces = undefined, guess = null, outcome = null,
   limit = null,
 } = {}) {
   // The lead-in is kept BESIDE the card text and never joined to it. Two
   // templates, each rendered as written, is still no generated prose; one string
   // built out of two would not be, and the test that holds the card text to its
   // own template would have nothing left to hold.
-  if (leadIn !== null && !LEAD_IN_KEYS.includes(leadIn)) {
-    throw new Error(`pickWhy: "${leadIn}" is not a lead-in why.json carries (${LEAD_IN_KEYS.join(', ')})`);
-  }
-  const leadInLine = bucket === null && leadIn !== null ? why.leadIn[leadIn] : null;
 
   if (bucket !== null) {
     const card = why.bucketCards[bucket];
@@ -832,7 +888,7 @@ export function pickWhy(facts, why, {
       b: facts.pair.b,
       r: formatCorrelation(facts.pair.r, pairThreshold, pairPlaces),
     };
-    return asCard(bucket, card, values, leadInLine);
+    return asCard(bucket, card, values, guess);
   }
 
   // A rule that leads on this round speaks before why.json's own order. On every
@@ -840,9 +896,9 @@ export function pickWhy(facts, why, {
   for (const key of [...leadingRules(why, outcome), ...why.order]) {
     const rule = why.rules.find((r) => r.key === key);
     const candidate = ruleCandidate(facts, rule, { pairThreshold, pairPlaces, limit });
-    if (candidate.fires) return asCard(rule.key, rule, candidate.values, leadInLine);
+    if (candidate.fires) return asCard(rule.key, rule, candidate.values, guess);
   }
-  return asCard(why.fallback.key ?? 'fallback', why.fallback, {}, leadInLine);
+  return asCard(why.fallback.key ?? 'fallback', why.fallback, {}, guess);
 }
 
 // ------------------------------------------------------- the series card
@@ -985,19 +1041,27 @@ export function pickSeriesWhy(facts, why) {
 }
 
 /** One card, with its text already filled in, so no screen has to word anything. */
-function asCard(key, card, values, leadIn = null) {
-  // The template is kept beside the text on purpose: tests/why.test.js asserts
-  // that the one is the other filled in, which is what "no generated prose"
-  // means in practice.
+function asCard(key, card, values, guess = null) {
+  // THREE LINES, EACH ITS OWN TEMPLATE, never joined. What happened, how it
+  // compares with the guess, and one thing to try. Keeping them separate is
+  // what keeps "no generated prose" true: every line on the screen is one
+  // template filled in, and tests/why.test.js holds each to its own.
+  //
+  // The template is kept beside the text for the same reason.
   const trimmed = {};
   for (const name of placeholdersIn(card.template)) trimmed[name] = values[name];
+  const tryValues = {};
+  for (const name of placeholdersIn(card.tryNext ?? '')) tryValues[name] = values[name];
   return {
     key,
     says: card.says,
     template: card.template,
     values: trimmed,
+    /** (a) What happened, in the player's own holdings. */
     text: fillTemplate(card.template, trimmed),
-    /** The line before the card, or null on a level that takes no lead-in. */
-    leadIn,
+    /** (b) How that compares with what they guessed, or null if they made none. */
+    guess,
+    /** (c) One thing to try next. Names a group, never a holding they do not hold. */
+    tryNext: card.tryNext ? fillTemplate(card.tryNext, tryValues) : null,
   };
 }

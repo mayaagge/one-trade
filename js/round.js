@@ -33,7 +33,7 @@ import {
   topRiskShare,
 } from './math.js';
 import { gameWindow, windowEndingOn, windowMatrix } from './gameView.js';
-import { crashFacts, pickWhy, whyFacts } from './why.js';
+import { crashFacts, guessLine, pickWhy, whyFacts } from './why.js';
 // Level 6 is replayed through a crash window, so this file reaches into Crash
 // replay's arithmetic rather than keeping a second copy of it: fallAgainstIndex()
 // is the measure, and replay() is bought-and-held against VOO, both already
@@ -46,6 +46,7 @@ import {
 } from './crash.js';
 import {
   bucketOf,
+  formatGuess,
   displayFor,
   kindFloorFor,
   levelById,
@@ -531,6 +532,10 @@ export function measureFor(level, game, { tickers, weights }, window, {
     basketReturns,
     aboutTicker,
     indexed,
+    // The window's own dates, for a "Why?" card that draws a pair. Taken off
+    // the result by reveal() exactly as the matrix is: 757 strings do not
+    // belong on something every screen holds.
+    windowDates: [slice.startDate, ...slice.dates],
     // The "Why?" card reads the same window the measure was taken over, so the
     // matrix is handed back rather than built a second time. reveal() takes it
     // off before storing the result: a 756-by-5 array does not belong on
@@ -540,29 +545,35 @@ export function measureFor(level, game, { tickers, weights }, window, {
 }
 
 /**
- * Which lead-in line opens the card, from the level's own pass rule.
+ * The card's second line: how what happened compares with what was guessed.
  *
- * A level that checks the PORTFOLIO reports a verdict on the portfolio: level 3
- * asks for at least 3 effective bets, and a round either cleared that or did
- * not.
+ * ONE LINE PER MEASURE, NOT PER RULE. why.json keys these by the measure and
+ * then by direction, because "you guessed high" says a different thing about
+ * a correlation than about a fall through a crash - and that meaning belongs
+ * to the measure. Fourteen rules times three directions would be forty-two
+ * strings saying five things.
  *
- * A level whose pass rule IS THE GUESS has nothing to pass or miss. levels.json
- * gives level 2 `pass.measure: "guess"` and `says: "make a guess"`, so every
- * round passes, and "You passed" on a level nobody can fail says nothing. Its
- * line reports on the guess instead.
+ * "CLOSE" IS THE LEVEL'S OWN THREE-STAR BAND, read from levels.json rather
+ * than invented here, so the card and the stars agree about what close means.
  *
- * "Close" is the level's own TWO-STAR BAND and is read as `stars >= 2` rather
- * than recomputed from a threshold of its own. levels.json words level 2's band
- * as "within 1 bet", and the line sits directly beneath the stars it describes,
- * so the two cannot be allowed to disagree - a second copy of that number could.
+ * NULL ON A SERIES PART. Level 7 is decided by three guesses together, and a
+ * line about one of them is a verdict on a level the player is halfway
+ * through.
  */
-function leadInKey(level, { passed, stars }) {
-  // A SERIES PART HAS NO VERDICT YET, so it gets no lead-in. Level 7 is decided
-  // by three guesses together, and "close" or "wide" about one of them would be
-  // a verdict on a level the player is still halfway through.
+function guessLineFor(level, why, { guess, actual, actualText, measure }) {
   if (level.pass.measure === 'series') return null;
-  if (level.pass.measure === 'guess') return stars >= 2 ? 'closeGuess' : 'wideGuess';
-  return passed ? 'passed' : 'missed';
+  // THE TWO NUMBERS ARE FORMATTED THE WAY THEIR OWN SCREEN FORMATS THEM: the
+  // guess as the slider wrote it, and the answer exactly as the panel above
+  // the card states it. The first draft ran both through formatGuess(), which
+  // put "it is 1.0" on a card sitting under a panel reading 1.03 - two
+  // numbers for one thing on one screen, which is the disagreement
+  // docs/PRD.md's display rule exists to prevent.
+  return guessLine(why, measure, {
+    guess,
+    actual,
+    band: level.stars?.three?.of ?? null,
+    format: (value) => (value === actual ? actualText : formatGuess(level, value)),
+  });
 }
 
 /**
@@ -585,7 +596,8 @@ function leadInKey(level, { passed, stars }) {
  */
 function buildWhyCard(level, {
   tickers, weights, matrix, groups, why, basketReturns = null, basketMembers = null,
-  crash = null, crashes = null, value, passed, stars,
+  crash = null, crashes = null, value, passed, guess = null, actualText = null,
+  windowDates = null,
 }) {
   if (!why) return { whyCard: null, whyFacts: null };
 
@@ -605,7 +617,9 @@ function buildWhyCard(level, {
     return {
       whyCard: pickWhy(facts, why, {
         outcome: { measure: 'fallShare', passed },
-        leadIn: leadInKey(level, { passed, stars }),
+        guess: guessLineFor(level, why, {
+          guess, actual: value, actualText, measure: 'fallShare',
+        }),
       }),
       whyFacts: facts,
     };
@@ -615,8 +629,7 @@ function buildWhyCard(level, {
   const measure = measureOf(level);
   const onCorrelation = measure === 'correlation';
   const facts = whyFacts({ tickers, weights, matrix, groups, basketReturns, basketMembers });
-  return {
-    whyCard: pickWhy(facts, why, {
+  const card = pickWhy(facts, why, {
       bucket: onCorrelation && Array.isArray(level.buckets) ? bucketOf(level, value) : null,
       pairThreshold: onCorrelation ? level.pass.threshold ?? null : null,
       // And to the same number of decimals as the panel above it: level 1
@@ -635,14 +648,50 @@ function buildWhyCard(level, {
       // The level's own threshold, so a card that states the limit states the
       // same number the pass check used.
       limit: level.pass.threshold ?? null,
-      // Only the rule path takes a lead-in. A level 1 reveal already says
-      // whether the pair cleared its threshold and which bucket the guess
-      // named, so a third verdict line would be the same news a third time.
-      leadIn: leadInKey(level, { passed, stars }),
-    }),
+      // The card's second line. Unlike the retired lead-in, this one goes on
+      // every card including level 1's: it carries the two numbers rather
+      // than repeating a verdict the panel above has already given.
+      guess: guessLineFor(level, why, { guess, actual: value, actualText, measure }),
+  });
+
+  return {
+    whyCard: card,
     whyFacts: facts,
+    whyIndexed: pairLines(card, tickers, matrix, windowDates),
   };
 }
+
+/**
+ * The two lines a pair card illustrates, indexed to the same starting point.
+ *
+ * A PAIR CARD CLAIMS A SHAPE - "these two rise and fall as one" - and the
+ * shape is what a reader cannot get from a correlation. Level 1 computes its
+ * own pair's lines in measureFor() because the whole level is about them;
+ * this is the same thing for the OTHER levels, where a pair card can name two
+ * of five holdings and the number alone has to be taken on trust.
+ *
+ * Null on every card that is not about a pair, so nothing else grows a chart
+ * that illustrates a claim it did not make.
+ */
+function pairLines(card, tickers, matrix, dates) {
+  if (!card || !PAIR_CARD_KEYS.has(card.key) || !dates) return null;
+  const a = card.values?.a;
+  const b = card.values?.b;
+  const i = tickers.indexOf(a);
+  const j = tickers.indexOf(b);
+  if (i < 0 || j < 0) return null;
+  return {
+    base: INDEX_BASE,
+    dates,
+    lines: [
+      { ticker: a, values: valuePath(INDEX_BASE, matrix.map((day) => day[i])) },
+      { ticker: b, values: valuePath(INDEX_BASE, matrix.map((day) => day[j])) },
+    ],
+  };
+}
+
+/** The card keys whose claim is about two holdings moving together. */
+const PAIR_CARD_KEYS = new Set(['same', 'partly', 'different', 'pair', 'pairLowRisk']);
 
 /**
  * Start a round.
@@ -1117,7 +1166,7 @@ export function createRound({
       ? weightsFromDollars(round.dollars)
       : { tickers: [...round.picks], weights: round.picks.map(() => 1 / round.picks.length) };
 
-    const { matrix, basketReturns, ...measured } = measureFor(
+    const { matrix, basketReturns, windowDates, ...measured } = measureFor(
       level, gameData, weighted, window, {
         basket, crashes, dollars: round.dollars, endDate,
       },
@@ -1133,6 +1182,16 @@ export function createRound({
       ? null
       : starsFor(level, { guess: round.guess, actual: measured.value, passed });
 
+    // ONE STRING FOR THE ANSWER, computed once and used by the panel, the
+    // result line and the "Why?" card's guess line alike. The comment below
+    // promises every screen reads the same number; this is what makes the
+    // card one of them.
+    const shownValue = formatMeasure(measured.value, {
+      threshold: level.pass.threshold ?? null,
+      display: displayFor(level).display,
+      places: displayFor(level).revealPlaces,
+    });
+
     round.result = {
       ...measured,
       tickers: weighted.tickers,
@@ -1143,11 +1202,7 @@ export function createRound({
       stars,
       // Formatted here so every screen reads the same number - the panel, the
       // result line, the "Why?" card and the share card all take these.
-      shown: formatMeasure(measured.value, {
-        threshold: level.pass.threshold ?? null,
-        display: displayFor(level).display,
-        places: displayFor(level).revealPlaces,
-      }),
+      shown: shownValue,
       // The GUESS keeps the slider's own places: it is a value the player set
       // in hundredths or tenths, not a measured answer, and showing "0.950"
       // would claim a precision the control does not have.
@@ -1175,7 +1230,10 @@ export function createRound({
         // crash" from being the lesson a player takes away.
         crash: measured.crash ?? null,
         crashes,
-        value: measured.value, passed, stars,
+        value: measured.value, passed, guess: round.guess, windowDates,
+        // The answer as the panel above the card states it, so the two cannot
+        // print the same number differently.
+        actualText: shownValue,
       }),
     };
     round.state = REVEAL;

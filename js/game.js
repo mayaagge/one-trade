@@ -491,11 +491,9 @@ function renderBuild(ctx, round) {
   // portfolio still on the screen, which is why it survives the move; any
   // other way into this level drops it (see startRound).
   if (ctx.carried && ctx.carried.levelId === round.levelId) {
-    const card = h('section', 'why-card why-card-carried');
-    card.append(h('h2', 'why-card-head', 'Why that one missed'));
-    if (ctx.carried.card.leadIn) card.append(h('p', 'why-card-lead', ctx.carried.card.leadIn));
-    card.append(h('p', 'why-card-text', ctx.carried.card.text));
-    view.append(card);
+    view.append(whyCardView(ctx.carried.card, {
+      heading: 'Why that one missed', className: 'why-card-carried',
+    }));
   }
 
   if (round.fixed) {
@@ -909,6 +907,45 @@ export function pairChartSpec(indexed) {
   };
 }
 
+/**
+ * A "Why?" card: three lines, and on level 1 the chart of the pair.
+ *
+ * THE LINES ARE NEVER JOINED. Each is one template from why.json filled in -
+ * what happened in the player's own holdings, how that compares with what
+ * they guessed, and one thing to try next - and a card built by concatenating
+ * them would be generated prose, which this game does not put on a screen.
+ *
+ * THE CHART GOES IN THE PAIR CARD because the card is where the claim is
+ * made: "these two rise and fall as one" is a sentence about a shape, and the
+ * shape is right there. It is the same two lines level 1's reveal panel draws
+ * - the card is handed the already-computed `indexed`, never its own copy -
+ * and it is drawn only for the cards that are actually about a pair.
+ */
+export function whyCardView(card, { indexed = null, ctx = null, heading = 'Why?', className = '' } = {}) {
+  const node = h('section', `why-card${className ? ` ${className}` : ''}`);
+  node.append(h('h2', 'why-card-head', heading));
+  node.append(h('p', 'why-card-text', card.text));
+  if (card.guess) node.append(h('p', 'why-card-guess', card.guess));
+
+  // PAIR CARDS ONLY. `pair` and `pairLowRisk` name two holdings and say they
+  // move as one; the bucket cards are level 1's and say the same thing. Every
+  // other card is about a holding or a group, and a two-line chart under it
+  // would illustrate a claim it did not make.
+  const aboutAPair = PAIR_CARDS.includes(card.key);
+  if (indexed && ctx && aboutAPair) {
+    const plot = h('div', 'chart-plot chart-plot-card');
+    node.append(plot);
+    ctx.redrawChart = () => renderLineChart(plot, {
+      ...pairChartSpec(indexed), ...chartBox(plot.clientWidth),
+    });
+  }
+  if (card.tryNext) node.append(h('p', 'why-card-try', card.tryNext));
+  return node;
+}
+
+/** The cards whose claim is about two holdings moving together. */
+export const PAIR_CARDS = ['same', 'partly', 'different', 'pair', 'pairLowRisk'];
+
 export function renderReveal(ctx, round) {
   const level = round.level;
   const result = round.result;
@@ -933,20 +970,12 @@ export function renderReveal(ctx, round) {
     });
   }
 
-  // THE PAIR, FROM THE SAME STARTING POINT, on the level whose answer is a
-  // correlation. Attached the same way the replay above is - built here,
-  // drawn by ctx.redrawChart() once the view is on the page, because
-  // clientWidth is 0 until then.
-  if (result.indexed) {
-    const plot = h('div', 'chart-plot');
-    view.append(plot);
-    ctx.redrawChart = () => renderLineChart(plot, {
-      ...pairChartSpec(result.indexed), ...chartBox(plot.clientWidth),
-    });
-    view.append(h('p', 'note', `Both start at ${result.indexed.base} on `
-      + `${longDate(result.indexed.dates[0])}, so the lines show what each one did, `
-      + 'not what either costs.'));
-  }
+  // THE PAIR'S CHART IS IN THE "WHY?" CARD, not here. It was drawn standalone
+  // when level 1 got it in session 2.46; the cards were then rewritten to
+  // make the claim the chart illustrates - "these two rise and fall as one" -
+  // and two copies of one chart on one screen is the repetition this round of
+  // changes is about. It also reaches further there: a pair card can fire on
+  // levels 2, 3, 5 and 7, where the two holdings are two of five.
 
   const panel = h('div', 'reveal-panel');
   // ANNOUNCED. The reveal replaces the screen with the answer a player has been
@@ -1044,13 +1073,10 @@ export function renderReveal(ctx, round) {
   // pair the player picked, the group their money went into - and the general
   // text reads as the lesson behind it.
   if (result.whyCard) {
-    const card = h('section', 'why-card');
-    card.append(h('h2', 'why-card-head', 'Why?'));
-    // Two templates from why.json, rendered as two lines. They are never joined
-    // into one string: see the note at the top of js/why.js.
-    if (result.whyCard.leadIn) card.append(h('p', 'why-card-lead', result.whyCard.leadIn));
-    card.append(h('p', 'why-card-text', result.whyCard.text));
-    view.append(card);
+    // THREE LINES, EACH ITS OWN TEMPLATE, never joined into one string: what
+    // happened, how it compares with the guess, and one thing to try. See the
+    // note at the top of js/why.js for why that matters.
+    view.append(whyCardView(result.whyCard, { indexed: result.whyIndexed, ctx }));
   }
 
   // NO "THE IDEA" BLOCK. A reveal used to carry the level's general

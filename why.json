@@ -8,26 +8,19 @@
   "bucketCards": {
     "same": {
       "says": "the pair moves together",
-      "template": "{a} and {b} move together almost every day, at {r}. Two different names, and very nearly the same bet."
+      "template": "{a} and {b} move together almost every day, at {r}. Two different names, one bet.",
+      "tryNext": "Try a pair from two groups that have nothing to do with each other, and watch the number fall."
     },
     "partly": {
       "says": "the pair moves together some of the time",
-      "template": "{a} and {b} move together some of the time, at {r}. Partly the same bet: they share some of what drives them, but not all of it."
+      "template": "{a} and {b} move together some of the time, at {r}. They share some of what drives them, but not all of it.",
+      "tryNext": "Try two holdings of the same kind. The closer they are, the closer to one bet they count."
     },
     "different": {
       "says": "the pair moves on different things",
-      "template": "{a} and {b} move on different things, at {r}. Knowing what one did on a given day tells you little about the other, so these are two real bets."
+      "template": "{a} and {b} move on different things, at {r}. What one did on a given day tells you little about the other, so these are two real bets.",
+      "tryNext": "Try two funds that hold the same companies under different names, and watch the number jump."
     }
-  },
-  "leadIn": {
-    "note": "One line before the card, on the levels that have a portfolio to pass or miss. It is a separate template from the card, rendered as its own line, and the two are never joined into one sentence: that is what keeps 'no generated prose' true with two templates on screen.",
-    "levelsNote": "Levels 2 and 3 only. Level 1's bucket cards carry no lead-in: its own reveal panel already says whether the pair cleared 0.80, and the bucket line under it says which bucket the guess named, so a third verdict line would be the same news a third time.",
-    "pathNote": "Which pair of lines a level uses depends on what its pass rule measures. A level that checks the PORTFOLIO - level 3's 'at least 3 effective bets' - gets passed or missed. A level whose pass rule IS the guess - level 2's 'make a guess', which every round satisfies - has no portfolio to pass or miss, so its line speaks to the guess instead: there is no verdict on the build to report, and 'You passed' on a level nobody can fail says nothing.",
-    "closeNote": "Close means the round earned the level's own two-star band, which levels.json words for level 2 as 'within 1 bet'. The band is read from levels.json rather than repeated here on purpose: the line sits directly under the stars it describes, and a second copy of the number could drift from the first and have the screen contradict itself.",
-    "passed": "You passed. One thing to notice:",
-    "missed": "Here's what held you back:",
-    "closeGuess": "Close guess. One thing to notice:",
-    "wideGuess": "Here's what made this one tricky:"
   },
   "order": [
     "hiddenAiAll",
@@ -44,7 +37,7 @@
   "rules": [
     {
       "key": "overRiskLimit",
-      "says": "one holding is over the level’s risk limit",
+      "says": "one holding is over the level\u2019s risk limit",
       "leads": {
         "measure": "maxRiskShare",
         "passed": false
@@ -52,7 +45,8 @@
       "leadsNote": "This card LEADS on one kind of round and is in no order at all: a level 5 round that missed. There, the holding with the biggest share of the risk is the holding that failed the level, and naming it is the whole answer to 'where's the risk?'. On a level 5 round that passed there is nothing over the limit to name, and on any other level the limit is not what was being checked, so the card would be answering a question nobody asked. js/why.js matches `leads` against what the round was; a round that matches nothing uses this file's order exactly as before.",
       "when": {},
       "whenNote": "No thresholds of its own. The limit is the LEVEL'S - levels.json's own pass threshold, handed in by js/round.js - so the card states the same number the reveal panel checked against, and a change to the level cannot leave the card quoting the old one. It fires only when the biggest share really is over that limit, which on a missed level 5 it is by definition.",
-      "template": "{ticker} carries {riskPct} of your risk on {dollarPct} of your money - past the {limitPct} this level allows. That is the holding to shrink or swap.",
+      "template": "{ticker} is {riskPct} of your risk on {dollarPct} of your money, past the {limitPct} this level allows. Equal money is not equal risk.",
+      "tryNext": "Give {ticker} less of the money, or swap it for something from a quieter group.",
       "templateNote": "Both shares and the limit, because the gap between the two shares is the lesson and the limit is what the round turned on. No percentage here is a difference between two others, so nothing on the card can disagree with the numbers beside it."
     },
     {
@@ -65,7 +59,8 @@
       "leadsNote": "Leads on a level 6 round that passed, ahead of crashCushion, and is in no order at all. A replay has 23 days of one particular February in it, so this file's own order - which is thresholded on a three-year covariance matrix - says nothing about it: over a crash nearly everything correlates above 0.9, and every round would be told its holdings move together. What a player who has just watched two lines wants is which holding did that, which is arithmetic on the replay itself.",
       "when": {},
       "whenNote": "No thresholds of its own, and nothing about any particular holding. It fires when the holding that held the portfolio up ROSE in this window - which makes the claim unarguable - and fell harder than the index in another window of data/crashes.json. Both halves are read from the file by js/why.js, so the warning is the data's and not a sentence somebody typed: in February 2020 it is TLT, up 14% here and down 29% against the index's 25% through 2022. If that ever stopped being true of the data, the card would stop appearing rather than keep saying it.",
-      "template": "{ticker} is what held this portfolio up: it moved {move} while the index fell {indexMove}, on {dollarPct} of your money. It was not a cushion every time - in {otherWindow} it moved {otherMove} while the index fell {otherIndexMove}. You can watch that one in Crash replay.",
+      "template": "{ticker} is what held this up: it moved {move} while the index fell {indexMove}, on {dollarPct} of your money. It did not cushion every crash - in {otherWindow} it moved {otherMove} while the index fell {otherIndexMove}.",
+      "tryNext": "Watch {otherWindow} in Crash replay. What protects a portfolio depends on what the crash is made of.",
       "templateNote": "Every move is signed and stated beside the index's own fall for the same window, so no number here is a difference between two others and nothing on the card can disagree with the chart above it. The last line points at a window the game already has rather than asking the player to take the warning on trust."
     },
     {
@@ -78,7 +73,8 @@
       "leadsNote": "Leads on a level 6 round that passed, behind crashCushionElsewhere. Same reason as that rule: a replay is not a covariance matrix, and this file's order has nothing to say about one.",
       "when": {},
       "whenNote": "No thresholds. The holding named is the one whose own dollars moved the most in the portfolio's favour - which on a passing round is what held it up, whether it rose or merely fell least. Dollars rather than percent, because a holding's move does not say how much of the fall it accounts for: 20% of the money rising 14% matters more than 1% of it doubling.",
-      "template": "{ticker} is what held this portfolio up: it moved {move} while the index fell {indexMove}, on {dollarPct} of your money.",
+      "template": "{ticker} is what held this up: it moved {move} while the index fell {indexMove}, on {dollarPct} of your money.",
+      "tryNext": "Try the same shape in another window in Crash replay. What cushions one crash can make the next one worse.",
       "templateNote": "The holding's own move beside the index's fall, and its share of the money. A holding that fell, but fell far less than the market, reads correctly here because the two numbers are both on the card."
     },
     {
@@ -91,7 +87,8 @@
       "leadsNote": "Leads on a level 6 round that MISSED. The mirror of crashCushion, and the same shape as overRiskLimit: on a round that failed, the holding that failed it is the whole answer.",
       "when": {},
       "whenNote": "No thresholds. The holding named is the one whose own dollars lost the most, which on a missed round is what took the portfolio down with the market.",
-      "template": "{ticker} is what took this portfolio down: it moved {move} while the index fell {indexMove}, on {dollarPct} of your money.",
+      "template": "{ticker} is what took this down: it moved {move} while the index fell {indexMove}, on {dollarPct} of your money.",
+      "tryNext": "Keep the 60% in stocks, but take some from the group that fell hardest and give it to one people kept paying for.",
       "templateNote": "Deliberately the same sentence as crashCushion with one clause turned around, because it is the same fact about the opposite end of the portfolio, and a player who meets both should recognise the second."
     },
     {
@@ -107,7 +104,8 @@
       },
       "whenNote": "The same card as hiddenAi for the case where the fund accounts for the WHOLE beta, which on level 4 is the ordinary way to pass rather than an edge case: QQQ at its floor beside bonds and staples, several of which move slightly against the basket, so what they take off cancels what gold and the broad fund add. It fires when the fund's part of the beta is at least the whole of it, or rounds to the whole of it at the two decimals the card prints. It sits directly before hiddenAi in the order, and the two are exact complements: every portfolio one of them would speak to is spoken to by exactly one of them.",
       "wordingNote": "Without this, the card read 'Your portfolio moves 0.17% when AI stocks move 1%, and 0.17 of that comes from QQQ alone' - true, and it reads as a typo. Found by playing level 4 in a browser, not by a test: both numbers were right.",
-      "template": "Your portfolio moves {portfolioBeta}% when AI stocks move 1%, and all of that comes from {ticker} alone, which is only {dollarPct} of your money. The AI is inside the fund."
+      "template": "Your portfolio moves {portfolioBeta}% when AI stocks move 1%, and all of that comes from {ticker} alone - only {dollarPct} of your money. The AI is inside the fund.",
+      "tryNext": "You cannot drop {ticker} on this level, so the other holdings have to come from groups the AI trade does not drive."
     },
     {
       "key": "hiddenAi",
@@ -123,7 +121,8 @@
       },
       "whenNote": "Three conditions, and each one has to hold for the sentence to be true of this portfolio. portfolioBetaAtLeast keeps the card off a portfolio that barely moves with the basket at all, where a part of a beta near zero means nothing. shareOfBetaAtLeast asks that the one holding brings at least half of what there is. fundGroups is the one that stops the card lying: 'The AI is inside the fund' is false of a chipmaker, and INTC is not in basket.json but carries a beta of about 1.0 to it, so without this the card would name INTC and call it a fund.",
       "unitsNote": "Both numbers are betas, never shares of a beta. JNJ, PG, KO and XOM all move slightly AGAINST the AI basket, so a holding's share of the total can run past 100% and below 0%: QQQ beside staples comes to 148% of its own portfolio's beta. {portfolioBeta} is how far the portfolio moves when the basket moves 1%, and {contribution} is how much of that one holding brings.",
-      "template": "Your portfolio moves {portfolioBeta}% when AI stocks move 1%, and {contribution} of that comes from {ticker} alone, which is only {dollarPct} of your money. The AI is inside the fund."
+      "template": "Your portfolio moves {portfolioBeta}% when AI stocks move 1%, and {contribution} of that comes from {ticker} alone - only {dollarPct} of your money. The AI is inside the fund.",
+      "tryNext": "Buying AI names on top stacks the same bet twice. Fill the other places from groups that move for other reasons."
     },
     {
       "key": "groupRisk",
@@ -138,7 +137,8 @@
       "whenNote": "Below 3 holdings, 'one group holds most of the risk' is true by arithmetic and teaches nothing: two Core US funds are 100% of their own risk. That is why minHoldings is 3.",
       "minGroupsNote": "minGroups was 2 in the first draft, to keep the card off a portfolio that is all one group. That was wrong, and a browser check caught it: five AI stocks make 1.03 bets, the lesson this whole game is named after, and the card read 'nothing stands out here'. A portfolio that is ALL one group is the most concentrated one a player can build, not the least worth mentioning. The case the guard was written for - two holdings from one group - is level 1, and level 1 takes the bucket path and never reaches these rules at all.",
       "thresholdNote": "70% of the risk, chosen on real prices rather than guessed. At the 50% first drafted, this card won 73% of 420 test portfolios - a player would read very nearly the same sentence every round, and 'most of the risk' is a weak claim when a 5-holding portfolio spans only two or three groups. At 70% it wins 38%, and the claim is one a player can see in the numbers. BUILD_LOG.md carries the table.",
-      "template": "{count} of your {total} holdings are {group}. They are {dollarPct} of your money and {riskPct} of your risk, so that is where this portfolio's fortunes are decided - and where the damage lands on a bad day.",
+      "template": "{count} of your {total} holdings are {group}: {dollarPct} of your money and {riskPct} of your risk. Holdings of one kind move together, so they count as about one bet.",
+      "tryNext": "Swap one of them for something from a group that moves for a different reason.",
       "templateNote": "The tail has to read as well at 100% as at 71%, because a portfolio that is all one group now reaches this card. An earlier draft ended 'they are doing most of the work', which understates it when the answer is all of it.",
       "minHoldingsInGroupNote": "A group of ONE holding is not a group, it is a holding. Without this, three bond funds beside NVDA read '1 of your 4 holdings are AI stocks. They are 25% of your money and 82% of your risk' - bad grammar, and a weaker claim than the truth, which is that one holding carries four fifths of the risk. riskGapOver already has the template for that, so a one-holding group falls through to it. Found by the lesson portfolio added for level 5's failing build, which is the first case in the set where a single holding dominates a 3-or-more-holding portfolio.",
       "betsNote": "THE CARD READS AS CONCENTRATION - \"that is where this portfolio's fortunes are decided, and where the damage lands on a bad day\" - so it stands down on a portfolio that makes several separate bets, however much of the risk one group happens to hold. The weekly challenge's most diversified week had 73% of its risk in bonds and gold and made 4.4 bets; the sentence was wrong about it. 3 is the mirror of fewBets' own betsBelow, and level 3's pass threshold. A floor on how closely the GROUP moves was the other candidate and does not work: the AI stocks this card exists to explain correlate 0.26 to 0.63 inside these portfolios, so any floor that caught the diversified week would take the card off the AI lesson as well."
@@ -153,7 +153,8 @@
       },
       "thresholdNote": "2.00 bets, derived rather than tuned: with 4 holdings it is the claim that four collapsed to fewer than two, which a player can check against the number the reveal panel just showed them. It also sits below level 3's own 3-bet bar, so nothing this card calls mostly one bet is a portfolio the game elsewhere calls diversified. Measured on the frozen snapshot: of 2,000 seeded 4-holding builds, the 213 that pass level 5 have a median of 1.31 bets, and 92% of them are under 2.00. At 1.50 it would catch 69% of them and at 2.25, 97%. BUILD_LOG.md session 2.5 carries the table.",
       "whenNote": "maxRiskShareBelow is level 5's own pass threshold, so 'the risk is spread' means the same thing on the card as it does in the level that checks it. minHoldings is groupRisk's guard, for the same reason: with two holdings, evenly spread risk and one bet is arithmetic rather than a lesson.",
-      "template": "No holding carries more than {maxRiskPct} of the risk, yet your {total} holdings make only {bets} separate bets. The risk is spread evenly, but it's still mostly one bet, because these holdings move together."
+      "template": "No holding carries more than {maxRiskPct} of the risk, but your {total} holdings still make only {bets} separate bets. Spreading the money evenly is not the same as spreading the bets.",
+      "tryNext": "Even risk is not the fix. Swap one holding for a group that moves for a different reason."
     },
     {
       "key": "pair",
@@ -165,7 +166,8 @@
       "thresholdNote": "The correlation was left where it was after the real-data check: moving it only trades this card against the fallback, and one number meaning one thing across the whole game is worth more than a balanced table.",
       "pairRiskNote": "pairRiskAtLeast asks that the two holdings carry at least a fifth of the portfolio's risk between them. Without it the card could name two bond funds correlated 0.94 that are 5% of what moves the portfolio - a true sentence about a corner of it, crowding out what is actually driving the number. 20% was measured: it removes 10 of the 76 pair cards in the 420-portfolio check, every one of them a pair under a fifth of the risk. Going higher gets expensive fast - at 35% the rule loses 49 of 76, including VEA and VXUS at 0.99, two funds that are nearly the same fund, which is the clearest statement of this whole game's lesson. The pair that carries little risk is not dropped; it falls to pairLowRisk below.",
       "whenNote": "0.70 is the 'same bet' edge already used by levels.json's buckets and by the daily 'Same bet?' puzzle, so one number means one thing across the whole game.",
-      "template": "{a} and {b} are the closest pair you hold, at {r}. They rise and fall together, so the two of them count as closer to one bet than two."
+      "template": "{a} and {b} are the closest pair you hold, at {r}. Two different names, and they rise and fall as one - so they count as one bet, not two.",
+      "tryNext": "Keep one of them and give the other's place to a different group."
     },
     {
       "key": "riskGapOver",
@@ -175,7 +177,8 @@
       },
       "whenNote": "20 points of the portfolio. Below that the two percents read as near enough the same, and the card would be making a point out of rounding.",
       "thresholdNote": "Raised from the 15 first drafted after the real-data check: at 15 points this rule had something to say about three quarters of all portfolios, which is too loose to be called a gap.",
-      "template": "{ticker} is {dollarPct} of your money but {riskPct} of your risk. Share of risk is not share of dollars: a holding that swings harder than the rest carries more of the risk than its size suggests."
+      "template": "{ticker} is {dollarPct} of your money but {riskPct} of your risk. Equal money is not equal risk: the holding that swings hardest takes more than its share.",
+      "tryNext": "Give {ticker} less of the money, and the rest to holdings that move more quietly."
     },
     {
       "key": "pairLowRisk",
@@ -185,7 +188,8 @@
         "pairRiskBelow": 0.2
       },
       "whenNote": "The exact complement of the pair rule's own risk condition: pairRiskBelow here and pairRiskAtLeast there must be the same number, or a pair would fall between the two rules and get no card at all. A test holds them equal, and holds the two correlation thresholds equal too.",
-      "template": "{a} and {b} move together, at {r}, but between them they are only {riskPct} of your risk. They are the same bet - just not the bet that decided this portfolio."
+      "template": "{a} and {b} move as one, at {r}, but together they are only {riskPct} of your risk. They are the same bet - just not the bet deciding this portfolio.",
+      "tryNext": "Something else is driving this. Look at which holding has the biggest share of the risk."
     },
     {
       "key": "riskGapUnder",
@@ -196,7 +200,8 @@
       },
       "thresholdNote": "15 points, deliberately lower than riskGapOver's 20, and the asymmetry is structural rather than a preference. The shares sum to 1, so the gaps sum to 0: a holding 20 points under its dollar share means other holdings are over, and riskGapOver takes them first. Held to the same 20 this card never appeared at all in 420 test portfolios. At 15 it appears in 7%.",
       "whenNote": "The same 15 points, the other way round. riskShareAtLeast keeps the card off a holding whose share of risk is negative, which happens when a holding offsets the rest rather than adding to it: that is a real thing a portfolio can do, but it is a different lesson from steadiness and has no template of its own. This is the bond-fund case, and it is a separate template rather than a reworded one, because the lesson is the opposite: steadiness, not concentration.",
-      "template": "{ticker} is {dollarPct} of your money but only {riskPct} of your risk. It moves more quietly than the rest, so it takes up room in the portfolio without adding much to what can go wrong."
+      "template": "{ticker} is {dollarPct} of your money but only {riskPct} of your risk. It moves quietly, so it takes up room without adding much that can go wrong.",
+      "tryNext": "A quiet holding steadies a portfolio but adds little to the bet count. Spend one place on a group that moves on its own."
     },
     {
       "key": "quietNotABet",
@@ -212,7 +217,8 @@
       "whenNote": "Fires when one of the three loan funds holds a share of the MONEY at least 15 points above its share of the RISK. The gap is the point: a bond fund carrying its share of the risk has nothing to explain, and a holding that is merely quiet is covered by riskGapUnder, which does not call it a bond.",
       "tickersNote": "BND, TLT and LQD, which is levels.json's kinds.notStocks without GLD - gold is in the same group and is not a loan. tests/why.test.js holds the two lists together, so a bond fund added to levels.json and not here fails rather than quietly getting the wrong card.",
       "thresholdNote": "15 points, the same gap riskGapUnder uses for the general version of this card. Not a new number.",
-      "template": "{ticker} is {dollarPct} of your money but only {riskPct} of your risk. Bonds steady a portfolio, which is what they are there for - but effective bets counts risk, not money, so a holding this quiet adds less to the count than its share of the dollars suggests.",
+      "template": "{ticker} is {dollarPct} of your money but only {riskPct} of your risk. Bonds steady a portfolio, which is what they are for - but a bet counts risk, not money.",
+      "tryNext": "To add a bet rather than calm, give one place to a group that moves for its own reasons.",
       "leads": {
         "mode": "weekly"
       },
@@ -227,6 +233,7 @@
       },
       "whenNote": "3 bets is level 3's own pass threshold - \"at least 3 effective bets\" - and 3 holdings is the minimum fewBets uses. Neither is a new number.",
       "template": "Your {total} holdings make {bets} separate bets - nearly one each. Nothing here moves much with anything else, which is what spreading risk actually looks like.",
+      "tryNext": "Try it the other way: build five from one group and watch the count collapse.",
       "orderNote": "LAST, above the fallback, and that placement is the whole decision. Put where its mirror fewBets sits it would take over nine of the twenty capstone portfolios, replacing the pair and risk-gap cards that each name something specific about them. Last, it speaks only where the fallback used to - \"nothing stands out here\" is true of a portfolio making four separate bets, but it is not the most useful true thing to say about one."
     }
   ],
@@ -234,7 +241,8 @@
   "fallback": {
     "key": "fallback",
     "says": "nothing stands out",
-    "template": "Nothing stands out here. No pair you hold moves closely together, no holding carries much more risk than money, and no one group holds most of the risk. That is what a spread-out portfolio looks like from the inside."
+    "template": "Nothing stands out here. No pair moves closely together, no holding carries far more risk than money, and no one group holds most of it.",
+    "tryNext": "That is what a spread-out portfolio looks like from the inside. Try one built from a single group to see the difference."
   },
   "seriesCards": {
     "note": "Level 7's card. Every card above names something inside ONE portfolio; this one names the shape of a player's three errors, because on the capstone that shape is the misconception itself rather than a symptom of it. No lead-in: the series screen already states its verdict and its stars above the card, worked out from all three.",
@@ -300,5 +308,35 @@
       "says": "the three went different ways",
       "template": "Your three guesses went different ways: close on some of these portfolios and wide on another. That is usually a sign of reading the holdings on one and the count on the other - the number of lines is never the answer on its own."
     }
-  }
+  },
+  "guessLines": {
+    "note": "How the card relates what happened to what the player guessed. Keyed by MEASURE and then by direction, because \"too high\" means a different thing about a correlation than about a fall - and that meaning belongs to the measure rather than to each of the fourteen rules, which would be forty-two strings saying five things. Rendered as its own line beside the card, never joined to it.",
+    "closeNote": "\"close\" is a guess inside the level's three-star band, which js/levels.js already computes. Inside it the direction is not worth a sentence - but on the bets levels the close line still carries the lesson, because a player who got it right should be told WHAT they got right rather than just that they did.",
+    "effectiveBets": {
+      "high": "You guessed {guess}; it is {actual}. Most people guess high: they count holdings instead of what moves them.",
+      "low": "You guessed {guess}; it is {actual}. There are more separate bets here than you expected.",
+      "close": "You guessed {guess} and it is {actual}. Close: you counted what moves the portfolio, not how many holdings it has."
+    },
+    "correlation": {
+      "high": "You guessed {guess}; it is {actual}. They move together less than you thought.",
+      "low": "You guessed {guess}; it is {actual}. They move together more than you thought.",
+      "close": "You guessed {guess} and it is {actual}. Close."
+    },
+    "beta": {
+      "high": "You guessed {guess}; it is {actual}. Less of your money rides on the AI trade than you thought.",
+      "low": "You guessed {guess}; it is {actual}. More of it rides on the AI trade than you thought - that is the part hiding in the fund.",
+      "close": "You guessed {guess} and it is {actual}. Close."
+    },
+    "maxRiskShare": {
+      "high": "You guessed {guess}; it is {actual}. The risk is spread more evenly than you thought.",
+      "low": "You guessed {guess}; it is {actual}. One holding takes more of the risk than you thought.",
+      "close": "You guessed {guess} and it is {actual}. Close."
+    },
+    "fallShare": {
+      "high": "You guessed {guess}; it is {actual}. It held up better than you expected.",
+      "low": "You guessed {guess}; it is {actual}. It fell further than you expected.",
+      "close": "You guessed {guess} and it is {actual}. Close."
+    }
+  },
+  "leadInNote": "The leadIn block was removed on 27 November 2026. It opened each card with \"You passed. One thing to notice:\" or \"Close guess. One thing to notice:\" - a verdict the reveal panel and the stars panel directly above it had each already given, and a closeness guessLines now says with the numbers in it. Three lines on a card are enough: what happened, how it compares with the guess, and one thing to try."
 }

@@ -447,12 +447,88 @@ export function frequencies(game, levels, groups, why, universe, { samples = SAM
 
 // -------------------------------------------------------------- reporting
 
+/**
+ * Which cards each level can show, and the lesson every one of them carries.
+ *
+ * WHY THIS IS A HAND-WRITTEN MAP and not derived: a rule fires on the FACTS,
+ * and which facts exist depends on what the level measures - level 6 has no
+ * covariance matrix, level 4 is the only one with a basket beta, and level 1
+ * takes the bucket path and no rule at all. Deriving it would mean
+ * reimplementing that branching here and hoping the second copy agrees. The
+ * firing table this script prints is what the map is read against.
+ *
+ * THE POINT OF IT. "The idea" left the reveal on 27 November 2026, so a card
+ * is the only general thing a player meets after a guess. A level whose cards
+ * never state its lesson has lost that lesson rather than moved it.
+ */
+export const CARDS_BY_LEVEL = {
+  1: ['same', 'partly', 'different'],
+  2: ['pair', 'groupRisk', 'fewBets', 'manyBets', 'riskGapOver', 'riskGapUnder',
+    'quietNotABet', 'pairLowRisk', 'fallback'],
+  3: ['pair', 'groupRisk', 'fewBets', 'manyBets', 'riskGapOver', 'riskGapUnder',
+    'quietNotABet', 'pairLowRisk', 'fallback'],
+  4: ['hiddenAiAll', 'hiddenAi', 'pair', 'groupRisk', 'fewBets', 'manyBets',
+    'riskGapOver', 'riskGapUnder', 'quietNotABet', 'pairLowRisk', 'fallback'],
+  5: ['overRiskLimit', 'pair', 'groupRisk', 'fewBets', 'manyBets', 'riskGapOver',
+    'riskGapUnder', 'quietNotABet', 'pairLowRisk', 'fallback'],
+  6: ['crashCushionElsewhere', 'crashCushion', 'crashDrag'],
+  7: ['pair', 'groupRisk', 'fewBets', 'manyBets', 'riskGapOver', 'riskGapUnder',
+    'quietNotABet', 'pairLowRisk', 'fallback'],
+};
+
+/** The review table: each level's lesson, then every card it can show. */
+function printLessons(levels, why) {
+  console.log("Every level's lesson, and every card that level can show.");
+  console.log('A card is three lines: what happened, how that compares with the guess,');
+  console.log('and one thing to try. The middle line is per MEASURE, so it is printed');
+  console.log('once per level rather than once per card.');
+
+  const byKey = new Map(why.rules.map((rule) => [rule.key, rule]));
+  for (const [key, card] of Object.entries(why.bucketCards)) byKey.set(key, card);
+  byKey.set('fallback', why.fallback);
+
+  for (const level of levels.levels) {
+    const keys = CARDS_BY_LEVEL[level.id] ?? [];
+    console.log(`\n${'='.repeat(74)}`);
+    console.log(`LEVEL ${level.id}: ${level.title}`);
+    console.log(`  LESSON    ${level.lesson}`);
+    console.log(`  defines   ${level.guess.define}`);
+    const lines = why.guessLines[level.guess.measure];
+    if (lines) {
+      console.log(`  guess line, ${level.guess.measure}:`);
+      for (const direction of ['high', 'low', 'close']) {
+        console.log(`    ${pad(direction, 6)}${lines[direction]}`);
+      }
+    }
+    console.log(`\n  ${keys.length} cards can appear here:`);
+    for (const key of keys) {
+      const card = byKey.get(key);
+      if (!card) {
+        console.log(`    !! ${key} - no such card in why.json`);
+        continue;
+      }
+      console.log(`\n    [${key}]`);
+      console.log(`      happened: ${card.template}`);
+      console.log(`      try next: ${card.tryNext}`);
+    }
+  }
+  console.log('\nEducational, not investment advice.');
+}
+
 const pad = (text, width) => String(text).padEnd(width);
 
-function main() {
+function main(argv = []) {
   const levels = validateLevels(readJson('levels.json'));
   const why = validateWhy(readJson('why.json'));
   const groups = groupIndex(readJson('tickers.json'));
+
+  // --lessons prints the review table and stops: every level's lesson beside
+  // every card that level can show. It is for reading, not for CI.
+  if (argv.includes('--lessons')) {
+    printLessons(levels, why);
+    return;
+  }
+
   const game = frozenGameDoc(readJson('data/prices.json'));
 
   console.log(`The "Why?" cards, over the frozen snapshot through ${game.meta.liveThrough}.`);
@@ -531,4 +607,4 @@ function main() {
   }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) main();
+if (process.argv[1] === fileURLToPath(import.meta.url)) main(process.argv.slice(2));

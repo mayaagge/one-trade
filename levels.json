@@ -75,6 +75,7 @@
       "id": 1,
       "title": "Two of a kind",
       "concept": "Correlation",
+      "lesson": "Two different names can be the same bet.",
       "challenge": "Pick two holdings with different names that move together.",
       "holdings": {
         "exactly": 2
@@ -159,6 +160,7 @@
       "id": 2,
       "title": "How many bets?",
       "concept": "Effective bets",
+      "lesson": "Counting bets is not counting holdings.",
       "challenge": "Here is a starter portfolio. Guess how many separate bets it really makes, then see the answer.",
       "hintNote": "Unreachable by design - see hint. Every other level's hint is shown on the build screen once that level has been finished three times without earning a star.",
       "holdings": {
@@ -214,6 +216,7 @@
       "id": 3,
       "title": "Three real bets",
       "concept": "Diversifying across groups",
+      "lesson": "Holdings of the same kind collapse into one bet.",
       "challenge": "Build a 5-holding portfolio that makes at least 3 separate bets.",
       "holdings": {
         "exactly": 5
@@ -259,6 +262,7 @@
       "id": 4,
       "title": "Hidden AI",
       "concept": "Index concentration",
+      "lesson": "Exposure hides inside funds.",
       "challenge": "Keep at least 30% in QQQ, and still move less than half as much as the AI basket.",
       "holdings": {
         "exactly": 4,
@@ -335,6 +339,7 @@
       "id": 5,
       "title": "Where's the risk?",
       "concept": "Risk share vs dollar share",
+      "lesson": "Equal money is not equal risk.",
       "challenge": "Build any 4-holding portfolio where no holding carries more than 35% of the risk.",
       "holdings": {
         "exactly": 4
@@ -398,6 +403,7 @@
       "id": 6,
       "title": "Crash test",
       "concept": "Behaviour under stress",
+      "lesson": "What protects a portfolio depends on the crash.",
       "challenge": "Build a 4-holding portfolio with at least 60% in stocks, then hold it through the February to March 2020 crash. Fall less than half as much as the S&P 500.",
       "holdings": {
         "exactly": 4,
@@ -474,6 +480,7 @@
       "id": 7,
       "title": "One trade",
       "concept": "Everything",
+      "lesson": "All of it at once: what decides the count is whether holdings move together.",
       "challenge": "Three mystery portfolios, one after another. Guess how many separate bets each one makes. Every guess has to land within 1.",
       "holdings": {
         "fixed": true,
@@ -1348,5 +1355,6 @@
     ]
   },
   "defineNote": "guess.define is one plain sentence saying what the level's question is about, shown in the same place and the same format directly above the question, on EVERY level. Levels 2, 3 and 7 all ask for a number of bets and carry the identical sentence, word for word - repeating it is the point rather than a slip, because level 2 and the first of level 7's portfolios are the pair PREREG.md's Hypothesis 3 compares and the two screens have to ask the same thing the same way. tests/levels.test.js holds all of that. Added 27 November 2026 on playtest feedback; the fuller version of every term is in the About tab.",
-  "explainNote": "There is no explain, why or whyMore on a level, by decision on 27 November 2026 (playtest feedback). A level says ONE explanatory thing: guess.define, one line above its question. Everything longer - what a concept means, the intuition, the worked numbers - is in the About tab, which a player opens on purpose. What happened in THIS portfolio is the \"Why?\" card from why.json, which is specific rather than general. A level that grows a second explanatory field has undone this."
+  "explainNote": "There is no explain, why or whyMore on a level, by decision on 27 November 2026 (playtest feedback). A level says ONE explanatory thing: guess.define, one line above its question. Everything longer - what a concept means, the intuition, the worked numbers - is in the About tab, which a player opens on purpose. What happened in THIS portfolio is the \"Why?\" card from why.json, which is specific rather than general. A level that grows a second explanatory field has undone this.",
+  "lessonNote": "One line per level saying what that level is FOR. It is not shown anywhere on its own: it is the thing every \"Why?\" card a player can get on that level has to carry, now that the general explanation has moved to the About tab. node scripts/check_why_cards.mjs --lessons prints each level's lesson beside the cards it can show, which is how a missing one is seen. Added 27 November 2026."
 }

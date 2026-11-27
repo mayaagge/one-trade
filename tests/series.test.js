@@ -763,13 +763,17 @@ test('the series card is filled in from its own template, with no prose generate
   assert.equal(card.text, rebuilt, 'the text is the template filled in and nothing else');
 });
 
-test('a series card carries no lead-in: the screen above it already gave the verdict', () => {
+test('a series card carries no guess line: it is about all three at once', () => {
+  // The per-portfolio cards each relate one guess to one answer. The summary
+  // card is about the shape of all three together, and a line about one of
+  // them would be the wrong scale. The lead-in this used to check is retired;
+  // it said "You passed", which the verdict above the card already said.
   const facts = seriesFacts([
     { guess: 2, actual: 1.2, holdings: 5, groups: 4 },
     { guess: 2, actual: 4.15, holdings: 8, groups: 6 },
     { guess: 2, actual: 1.22, holdings: 8, groups: 5 },
   ]);
-  assert.equal(pickSeriesWhy(facts, WHY).leadIn, null);
+  assert.equal(pickSeriesWhy(facts, WHY).guess, null);
 });
 
 test('seriesFacts refuses a part with no guess to read', () => {
