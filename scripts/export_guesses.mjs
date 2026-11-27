@@ -18,7 +18,23 @@
 //   CLOUDFLARE_ACCOUNT_ID   - from `npx wrangler whoami` in worker/
 //   CLOUDFLARE_API_TOKEN    - a token scoped to Account Analytics: Read only
 //
-// Usage: CLOUDFLARE_ACCOUNT_ID=... CLOUDFLARE_API_TOKEN=... node scripts/export_guesses.mjs
+// RUN IT WITH `npm run export`, which reads both from a .env file in the repo
+// root if there is one and falls back to whatever is already exported if there
+// is not. Write that file once and the weekly run is one command:
+//
+//   printf 'CLOUDFLARE_ACCOUNT_ID=...\nCLOUDFLARE_API_TOKEN=...\n' > .env
+//
+// .env is in .gitignore and must stay there. A token that reaches a commit is
+// a token to revoke, not to tidy up afterwards.
+//
+// CAREFUL WHICH SHELL YOU EXPORT IT IN. `wrangler` prefers CLOUDFLARE_API_TOKEN
+// over its own OAuth login, so a terminal holding this read-only analytics
+// token cannot deploy the Worker - it fails with "No access to the specified
+// service", which looks nothing like a permissions problem with the token you
+// are actually using. Deploy from a different tab, or `unset` it first.
+//
+// Confirmed working against the live datasets on 27 November 2026, the day the
+// Worker was deployed (BUILD_LOG.md session 2.29).
 
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
