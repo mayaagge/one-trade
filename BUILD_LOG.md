@@ -5657,3 +5657,67 @@ locked cards, which would have cost about 36 words on a screen where reading is
 89% of the time to finish levels 1 to 3 (session 2.34).
 
 Educational, not investment advice.
+
+## Decision: no level shows a hint, 27 November 2026 (taken between sessions 2.38 and 2.39)
+
+**Maya's call, from the playtest.** No level offers a hint at any point - not
+after three failed tries, not after a miss, not beside "Try again". Every
+level's `hint` comes out of levels.json and off the build screen. The ideas in
+them are not thrown away: each moves to the two places a player reads after
+trying, or by choice.
+
+1. **Into that level's "Why?" cards**, which appear after the reveal. Item 14
+   of this round already gives every card a "one concrete thing to try next"
+   line, which is the same job the hint was doing, at a moment when the player
+   has seen their own answer rather than guessing in the dark.
+
+2. **Into the About tab**, as a short "What each level teaches" section. Opt-in
+   reading, so it costs nothing against the ten-minute gate for levels 1 to 3.
+
+**Recorded here now, and done later: the removal in session 9 with the About
+tab, the fold-in in session 10 with the cards.** Written down when the decision
+was taken rather than when it ships, which is this log's job.
+
+### Why this is safe now and would not have been yesterday
+
+Session 2.24 shipped the three-tries hint *as part of* pass-to-unlock, and said
+so plainly: "The per-level hint after three failed tries is what stands between
+this rule and a wall, which is why it ships in the same change rather than
+after it." Under that rule, taking the hint away would have left a stuck player
+with no help and no way past.
+
+Session 2.38 - two hours before this decision - removed the wall. A player who
+cannot pass level 4 now finishes it, earns nothing, and carries on to level 5.
+The hint is no longer the only thing between a player and a dead end, so it can
+be judged on what it is worth rather than on what it rescues. These two changes
+only work in this order.
+
+### The hint guard is not where a comment in the code says it is
+
+Worth recording because it was believed and repeated before it was checked.
+js/game.js's note beside the hint says "scripts/check_levels.mjs still has to
+find at least 3 winning designs that the hint does not name". **It does not.**
+`grep -c hint scripts/check_levels.mjs` is 0; that script has never known what
+a hint is.
+
+The real guard is tests/learnProgress.test.js: *every level carries a hint, and
+no hint names a ticker this game carries* - a check on naming a portfolio, not
+on winning designs. So the test is what inverts in session 9 ("no level carries
+a hint", and no build screen shows one), the ticker-naming half moves in
+session 10 to the Why? cards' new suggestion line, where the same risk lives,
+and the comment that misdescribed all of it goes.
+
+### Two small consequences
+
+**`tries` becomes a stored field nobody reads.** `triesOf()` has one caller,
+`levelHint()`. The saved record moved to version 2 for the sole purpose of
+keeping `tries` across a closed tab (see PROGRESS_VERSION's note). The plan is
+to keep the field and stop reading it: a schema version is a real cost to
+spend on removing three bytes, and a later feature may want the count.
+
+**Session 7 will briefly still show hints.** "Try again" lands back on the
+build screen, which renders a hint for any level failed three times, and
+session 7 comes before session 9. That resolves itself when the hints go; it is
+noted so it is not reported as a bug in between.
+
+Educational, not investment advice.
