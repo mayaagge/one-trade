@@ -260,51 +260,81 @@ test('the explanation for level 1 uses its bucket band, not a bets band', () => 
   assert.match(text, /within 0\.10 of the real correlation/);
 });
 
-test('the tight band earns three stars in the wrong bucket, and the screen says so', () => {
-  // PLAYER FEEDBACK 3 OF 16. Level 5's pass threshold and its middle bucket
-  // edge are the same number, 35%, so a portfolio that passes sits just under
-  // an edge and a guess a couple of points out lands just over it. Within 5
-  // points of the answer, wrong side of the bucket: starsFor() awards the full
-  // three, and the sentence used to credit "2 for naming the right bucket".
-  const level = levelById(LEVELS, 5);
-  const result = { passed: true, guess: 0.35, value: 0.32 };
-  const stars = starsFor(level, { guess: result.guess, actual: result.value, passed: true });
-  assert.equal(stars, 3, 'the tight band no longer earns three on its own');
-  assert.deepEqual(bandsMet(level, { guess: result.guess, actual: result.value }),
-    { two: false, three: true }, 'the bands this case is built on have moved');
-
-  const text = starsExplanation(level, { ...result, stars });
-  assert.match(text, /3 for within 5 points of the real share/);
-  assert.ok(!/2 for naming the right bucket/.test(text),
-    `the screen still credits a bucket this guess missed: ${text}`);
-  assert.match(text, /the tight band earns all three on its own/);
-  // And it does not ask for anything more: three stars is the top score.
-  assert.doesNotMatch(text, /needed/);
-});
-
-test('every level whose bands can come apart is named, and level 1 is not one', () => {
-  // WHICH LEVELS THIS REACHES, worked out from the rules rather than asserted
-  // from memory. A level can only strand the two-star band when its pass
-  // threshold sits ON a bucket edge: then a passing answer is just inside the
-  // edge and a close guess is just outside it. Levels 4, 5 and 6 are built
-  // that way - 0.50, 35% and 0.50 are each both the pass rule and a bucket
-  // edge. Level 1's threshold, 0.80, sits ABOVE its top edge of 0.70, so any
-  // guess within 0.10 of a passing answer is in the same bucket as it.
+test('no shipped level can strand its two-star band any more', () => {
+  // PLAYER FEEDBACK 3 FOUND IT, PLAYER FEEDBACK 4 REMOVED IT. A level could
+  // strand its two-star band only when that band was a bucket AND its pass
+  // threshold sat on a bucket edge: a passing answer lands just inside the
+  // edge and a close guess just outside it. That was levels 4, 5 and 6, and
+  // the amendment of 27 November 2026 gave all three a distance instead.
+  // Level 1 keeps its bucket and never could - its threshold of 0.80 is above
+  // its top edge of 0.70, so a guess within 0.10 of a passing answer is in the
+  // same bucket as it.
+  //
+  // Swept over every guess each slider can produce, against every answer on a
+  // half-step grid, rather than sampled: the sliders are discrete and small.
   const reachable = [];
   for (const level of LEVELS.levels) {
     if (!Array.isArray(level.buckets)) continue;
     const { min, max, step } = level.guess;
-    let found = false;
+    let found = null;
     for (let actual = min; actual <= max + 1e-9 && !found; actual += step / 2) {
       if (!passes(level, actual)) continue;
       for (let guess = min; guess <= max + 1e-9 && !found; guess += step) {
         const met = bandsMet(level, { guess, actual });
-        if (met.three && !met.two) found = true;
+        if (met.three && !met.two) found = { actual, guess };
       }
     }
-    if (found) reachable.push(level.id);
+    if (found) reachable.push({ id: level.id, ...found });
   }
-  assert.deepEqual(reachable, [4, 5, 6]);
+  assert.deepEqual(reachable, [],
+    `a level can still earn three stars while missing its two-star band: ${JSON.stringify(reachable)}`);
+});
+
+test('the sentence still handles a stranded band, for a level that had one', () => {
+  // THE BRANCH IS DORMANT, NOT DEAD, and it is tested on a hand-built level
+  // for exactly that reason: nothing shipped can reach it today, and the day
+  // somebody gives a level a bucket two-star band beside a distance three-star
+  // one, the bug player feedback 3 found comes straight back. This level is
+  // level 5 as it was registered, before the amendment.
+  const asRegistered = {
+    ...levelById(LEVELS, 5),
+    stars: {
+      pass: 1,
+      two: { test: 'bucket', says: 'naming the right bucket' },
+      three: { test: 'within', of: 0.05, says: 'within 5 points of the real share' },
+    },
+  };
+  const result = { passed: true, guess: 0.35, value: 0.32 };
+  const stars = starsFor(asRegistered, { guess: result.guess, actual: result.value, passed: true });
+  assert.equal(stars, 3, 'the tight band no longer earns three on its own');
+  assert.deepEqual(bandsMet(asRegistered, { guess: result.guess, actual: result.value }),
+    { two: false, three: true });
+
+  const text = starsExplanation(asRegistered, { ...result, stars });
+  assert.match(text, /3 for within 5 points of the real share/);
+  assert.ok(!/2 for naming the right bucket/.test(text),
+    `the screen still credits a bucket this guess missed: ${text}`);
+  assert.match(text, /the tight band earns all three on its own/);
+  assert.doesNotMatch(text, /needed/);
+});
+
+test('level 5 now scores the same error the same way in both directions', () => {
+  // WHAT PLAYER FEEDBACK 4 WAS ABOUT, as one assertion. Level 5's passing
+  // answers have a median of 0.3302 against a bucket edge at 0.35, so under
+  // the registered rule a guess 6 points high scored 1 star and a guess 6
+  // points low scored 2. The same error, punished differently, and the high
+  // one is the direction a beginner errs.
+  const level = levelById(LEVELS, 5);
+  const actual = 0.3302;
+  for (const error of [0.06, 0.08, 0.10]) {
+    const high = starsFor(level, { guess: actual + error, actual, passed: true });
+    const low = starsFor(level, { guess: actual - error, actual, passed: true });
+    assert.equal(high, low, `an error of ${error} scores ${high} high and ${low} low`);
+    assert.equal(high, 2, `an error of ${error} should be inside the two-star band of 0.10`);
+  }
+  // And the three-star band is untouched by the amendment.
+  assert.equal(starsFor(level, { guess: actual + 0.04, actual, passed: true }), 3);
+  assert.equal(starsFor(level, { guess: actual - 0.04, actual, passed: true }), 3);
 });
 
 // ------------------------------------------------- what a count ping carries

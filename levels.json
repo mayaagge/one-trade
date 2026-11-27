@@ -197,7 +197,7 @@
       },
       "poolRef": "guessPool",
       "share": {
-        "headline": "I guessed the bets in a mystery portfolio — {band}. {ending}",
+        "headline": "I guessed the bets in a mystery portfolio \u2014 {band}. {ending}",
         "bands": {
           "1": "out by more than 1 bet",
           "2": "within 1 bet",
@@ -318,8 +318,9 @@
       "stars": {
         "pass": 1,
         "two": {
-          "test": "bucket",
-          "says": "naming the right bucket"
+          "test": "within",
+          "of": 0.2,
+          "says": "within 0.20 of the real beta"
         },
         "three": {
           "test": "within",
@@ -383,8 +384,9 @@
       "stars": {
         "pass": 1,
         "two": {
-          "test": "bucket",
-          "says": "naming the right bucket"
+          "test": "within",
+          "of": 0.1,
+          "says": "within 10 points of the real share"
         },
         "three": {
           "test": "within",
@@ -458,8 +460,9 @@
       "stars": {
         "pass": 1,
         "two": {
-          "test": "bucket",
-          "says": "naming the right bucket"
+          "test": "within",
+          "of": 0.2,
+          "says": "within 0.20 of the real ratio"
         },
         "three": {
           "test": "within",
@@ -545,7 +548,7 @@
       "explain": "This is every level at once. A portfolio can hold eight things and make one bet, or hold six and make four: what decides it is whether the holdings move together, not how many there are or how the money is split. Guessing three in a row is the test of that, because one number cannot be right about all three.",
       "why": "The first of these three portfolios comes from the same pool of 20 that dealt your level 2 portfolio, so the two are equally hard on average - that pair of guesses is how Hypothesis 3 measures whether players improve. It is never the same portfolio you saw on level 2.",
       "share": {
-        "headline": "Three mystery portfolios — {band}. {ending}",
+        "headline": "Three mystery portfolios \u2014 {band}. {ending}",
         "bands": {
           "0": "not all three within 1 bet",
           "1": "all three within 1 bet",
@@ -670,7 +673,7 @@
       "source": "weekly",
       "hidesAnswer": true,
       "hidesAnswerNote": "EVERYBODY HAS THE SAME PORTFOLIO THIS WEEK, which makes a card naming the answer a spoiler for every player who has not gone yet - a wider leak than levels 2 and 7, where only the one player in twenty who draws the same portfolio could use it. So the card carries the stars and how close the guess came, and neither the answer nor the guess. The portfolio's NAME is not on it either: \"Gold, bonds, oil and staples\" is a list of the holdings in words.",
-      "headline": "This week’s mystery portfolio — {band}. {ending}",
+      "headline": "This week\u2019s mystery portfolio \u2014 {band}. {ending}",
       "bands": {
         "1": "out by more than 1 bet",
         "2": "within 1 bet",

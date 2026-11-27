@@ -128,14 +128,23 @@ function prdLevelTable() {
   });
 }
 
-/** The scoring table, for the three levels whose answer is not a bets count. */
+/**
+ * The scoring table, for the three levels whose answer is not a bets count.
+ *
+ * FIVE COLUMNS SINCE THE AMENDMENT of 27 November 2026. The two-star rule and
+ * the buckets used to be one column, because on every row the rule WAS the
+ * buckets. On levels 4 and 5 it is now a distance while the buckets stay and
+ * are still named on the reveal, so they are two separate things and the table
+ * says so.
+ */
 function prdScoringTable() {
   const rows = tableAfter(
-    '| Level | The answer it asks for | 2 stars: the right bucket | 3 stars: within |',
+    '| Level | The answer it asks for | 2 stars: the right bucket, or a distance '
+    + '| 3 stars: within | The three buckets, named on every reveal |',
   );
   assert.equal(rows.length, 3, 'the PRD scoring table does not have three levels');
-  return Object.fromEntries(rows.map(([level, answer, buckets, within]) => [
-    Number(level.match(/^(\d)\./)[1]), { answer, buckets, within },
+  return Object.fromEntries(rows.map(([level, answer, two, within, buckets]) => [
+    Number(level.match(/^(\d)\./)[1]), { answer, two, within, buckets },
   ]));
 }
 
@@ -268,10 +277,49 @@ test("the scoring table's 3-star distances are the bands levels.json awards", ()
   }
 });
 
+test("the scoring table's 2-star rule is the one levels.json applies", () => {
+  // Level 1 still scores its second star on the bucket; levels 4 and 5 score
+  // it on twice their own three-star band, after the amendment of 27 November
+  // 2026. The table says which, per row, and this holds the file to it.
+  for (const [id, row] of Object.entries(prdScoringTable())) {
+    const level = levelById(Number(id));
+    if (/the right bucket/.test(row.two)) {
+      assert.equal(level.stars.two.test, 'bucket', `level ${id}: the PRD says 2 stars for the bucket`);
+      continue;
+    }
+    assert.equal(level.stars.two.test, 'within', `level ${id}: the PRD says 2 stars for a distance`);
+    assert.equal(level.stars.two.of, numberIn(row.two),
+      `level ${id}: the PRD says 2 stars within "${row.two}"`);
+  }
+});
+
+test('a two-star distance is exactly twice the three-star one, as the amendment says', () => {
+  // "No new distance is introduced - each level takes double its own
+  // registered three-star band." The ratio is the one levels 2 and 3 have used
+  // since they were built, and this is what keeps that claim true in the file
+  // rather than only in the prose.
+  const amended = LEVELS.levels.filter((level) => Array.isArray(level.buckets)
+    && level.stars.two.test === 'within');
+  assert.deepEqual(amended.map((level) => level.id), [4, 5, 6],
+    'the set of levels scoring a bucket level on a distance has changed');
+  for (const level of amended) {
+    assert.equal(level.stars.two.of, level.stars.three.of * 2,
+      `level ${level.id}: ${level.stars.two.of} is not twice ${level.stars.three.of}`);
+  }
+  // And the ratio it copies is still what levels 2 and 3 do.
+  for (const id of [2, 3]) {
+    const level = levelById(id);
+    assert.equal(level.stars.two.of, level.stars.three.of * 2);
+  }
+});
+
 test("the scoring table's bucket edges are the buckets levels.json defines", () => {
   for (const [id, row] of Object.entries(prdScoringTable())) {
     const level = levelById(Number(id));
-    assert.equal(level.stars.two.test, 'bucket', `level ${id} should score 2 stars on a bucket`);
+    // THE BUCKETS OUTLIVED THE STAR THEY USED TO EARN. Every edge in this
+    // table is still in levels.json and still named on the reveal; what the
+    // amendment of 27 November 2026 changed is only whether naming the right
+    // one is worth the second star, and only on levels 4, 5 and 6.
     assert.ok(Array.isArray(level.buckets), `level ${id} has no buckets`);
 
     // The edges are the bucket floors, leaving out the lowest bucket's: it is
@@ -320,11 +368,13 @@ test('levels 2 and 3 keep the bands of 1 and 0.5', () => {
   }
 });
 
-test("level 6's buckets and band are the ones the PRD writes down", () => {
-  const sentence = lineWith('its buckets and its band are fixed when it is built');
+test("level 6's buckets and bands are the ones the PRD writes down", () => {
+  // Level 6 has no row in the scoring table - it is described in prose,
+  // because it is the one level measured over a crash window. The amendment of
+  // 27 November 2026 gave it a two-star distance like levels 4 and 5, so the
+  // sentence now states both bands and the buckets it still names.
+  const sentence = lineWith('its bands are fixed when it is built');
   const level = levelById(6);
-  // "below 0.50 held up, 0.50 to 1.00 fell with the index, 1.00 and above fell
-  // harder than it, and 3 stars within 0.10 of the real ratio."
   const written = sentence.slice(sentence.indexOf('fixed when it is built'));
   const edges = level.buckets
     .map((bucket) => bucket.min)
@@ -334,9 +384,15 @@ test("level 6's buckets and band are the ones the PRD writes down", () => {
     assert.ok(written.includes(edge.toFixed(2)),
       `level 6's bucket edge ${edge.toFixed(2)} is not in the PRD's sentence`);
   }
-  const band = written.match(/3 stars within (\d+(?:\.\d+)?)/);
-  assert.ok(band, 'the PRD does not state level 6\'s 3-star band');
-  assert.equal(level.stars.three.of, Number(band[1]));
+  const three = written.match(/3 stars within (\d+(?:\.\d+)?)/);
+  assert.ok(three, "the PRD does not state level 6's 3-star band");
+  assert.equal(level.stars.three.of, Number(three[1]));
+
+  const two = written.match(/2 stars within (\d+(?:\.\d+)?)/);
+  assert.ok(two, "the PRD does not state level 6's 2-star band");
+  assert.equal(level.stars.two.test, 'within');
+  assert.equal(level.stars.two.of, Number(two[1]));
+  assert.equal(level.stars.two.of, level.stars.three.of * 2, 'twice the band, as the amendment says');
 });
 
 test("level 7's bands are counts of three guesses, as the PRD now describes them", () => {

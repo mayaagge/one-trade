@@ -5796,3 +5796,119 @@ count - only what the screen says about them - so docs/PRD.md is untouched.
 Session 3b is the half that does move numbers.
 
 Educational, not investment advice.
+
+## Player feedback 4: the second star is a distance on levels 4, 5 and 6, 27 November 2026 (session 2.40)
+
+**From the playtest: close guesses in the wrong bucket were punished too hard.**
+The second half of item 4, and the first star band in this game to move after
+results existed. New in the repo: `scripts/calibrate_bands.mjs`, which prints
+the case and writes nothing - the pattern `scripts/calibrate_threshold.mjs`
+already set, so a person decides what goes into docs/PRD.md - and
+`tests/calibrateBands.test.js`, which holds every figure the amendment quotes
+to the frozen snapshot it was read from.
+
+### What the answer distribution actually showed
+
+Read from the design sample `scripts/check_levels.mjs` already draws: seed 11,
+1,200 draws a level, and **the draws it sets aside are now counted and printed**
+(8 on level 5, 69 on level 4, 1 on level 3) rather than dropped in silence.
+That is the lesson of the 49-of-400 entry earlier in this log, applied to a
+threshold table before it could go wrong rather than after.
+
+| Level | Passing answers | Median | Median distance to the nearest bucket edge | Answers hugging an edge |
+| --- | --- | --- | --- | --- |
+| 1. Two of a kind | 8 | 0.9483 | 0.2483 — **2.5x its band** | 0 of 8 (0%) |
+| 4. Hidden AI | 634 | 0.3394 | 0.1610 — 1.6x | 202 of 634 (32%) |
+| 5. Where's the risk? | 126 | 0.3302 | 0.0201 — **0.4x** | **107 of 126 (85%)** |
+| 6. Crash test | 2 named | 0.4325 | 0.0675 — 0.7x | 1 of 2 |
+
+**The defect, stated precisely.** Stars are only awarded to a portfolio that
+PASSED, and on these levels the pass threshold *is* a bucket edge. So a passing
+answer always lands in the same bucket - 100% of passing designs, on every one
+of the four - and "naming the right bucket" was never the three-way judgement
+it was written as. It was asking "did you guess on the passing side of the
+threshold".
+
+That made it **asymmetric in the direction a beginner errs.** On level 5, whose
+passing answers sit a median 2 points under the 35% edge, a guess 6 points high
+scored 1 star and a guess 6 points low scored 2. The same error, punished by
+direction. And the high guess is the one a beginner makes, because beginners
+overestimate how concentrated risk is.
+
+### The fix, and why twice
+
+The two-star band becomes twice the level's own three-star band: 0.20 on level
+4, 10 points on level 5, 0.20 on level 6. **No new number enters the game.**
+Two is the ratio levels 2 and 3 have used since they were built - "within 1
+bet" for two stars is twice "within half a bet" for three - and each level's
+three-star band is exactly as registered. No pass threshold moves, no bucket
+edge moves, and **the buckets still exist and are still named on every reveal**:
+"That is spread. You said one holding leaning heavy." The daily puzzle's own
+buckets were never involved.
+
+Level 5, against its median passing answer of 0.3302:
+
+| Guess | Error | Was | Now |
+| --- | --- | --- | --- |
+| 0.2702 | −0.0600 | 2 | 2 |
+| 0.2802 | −0.0500 | 3 | 3 |
+| 0.3502 | +0.0200 | 3 | 3 |
+| 0.3802 | +0.0500 | 3 | 3 |
+| 0.3902 | +0.0600 | **1** | **2** |
+| 0.4302 | +0.1000 | **1** | **2** |
+| 0.4802 | +0.1500 | 1 | 1 |
+
+**The 2-or-3-points-high player was never the one losing stars.** At 2 points
+high the guess is inside the 5-point band and scored three stars all along -
+what was wrong there was the SENTENCE, which credited a bucket the guess had
+missed, and session 2.39 fixed that. The scoring harshness starts at 6 points
+high. Both halves of item 4 were real; they were two different bugs on the same
+screen.
+
+### Level 1 was examined and deliberately left alone
+
+The sweep is why. **Every guess each slider can actually produce** was scored
+both ways - the sliders are discrete, 201 guesses on level 1 and 76 on level 5,
+so there is no reason to sample - and on level 1 moving to a distance would
+have changed 5 of the 201, **every one of them downwards.** A player who
+answers 0.72 about a pair correlating 0.95 has named the right bucket, which is
+the whole lesson of level 1, and would have lost the star for it. A change made
+because scoring was too harsh must not make a level harsher.
+
+The ladder of error multiples found none of this: it stepped from 0.20 to 0.30
+straight over the only window where the two rules disagree, 0.2083 to 0.2483,
+and reported "0 of 9 ladder guesses change" on level 1. **An exhaustive sweep
+over a discrete control beats a sample of it, and the first draft of this
+session nearly shipped level 1 on the sample's word.** Named cases beat random
+samples; an exhaustive sweep beats both.
+
+### It is stricter in places, and the amendment says so
+
+Against each level's median answer, over every guess its slider offers: level 5
+gains a star on 5 and loses on none; level 4 gains on 1, loses on 3; level 6
+gains on 2, loses on 5; level 1 unchanged. Every loss is a guess 2 to 4 times
+the three-star band out, on the passing side, which the bucket rule handed two
+stars to however far out it went. Rewarding a guess four times the band out as
+generously as one just outside it was the other half of the same defect. A test
+asserts that no loss lands closer in than twice the band, so "the losses are
+all far-off guesses" cannot quietly stop being true.
+
+### The branch from session 2.39 is now dormant, not dead
+
+No shipped level can strand its two-star band any more: levels 4, 5 and 6 score
+distances, which nest, and level 1 cannot (its 0.80 threshold is above its 0.70
+edge). `starsExplanation`'s "the tight band earns all three on its own" sentence
+is therefore unreachable in play. It is kept, and tested on a hand-built copy of
+level 5 *as registered*, because the day somebody puts a bucket band beside a
+distance band again the bug comes straight back.
+
+### Checked, not assumed
+
+1,215 to **1,226 passing**. `node scripts/check_levels.mjs` still finds every
+level solvable with the same winning-design counts - the bands do not touch
+solvability. Four reveal sentences printed and read, since session 2.31 found
+star rules ungrammatical in two frames. Nothing any hypothesis reads is
+touched: a guess record carries the level, the guess and the actual value, and
+no star.
+
+Educational, not investment advice.

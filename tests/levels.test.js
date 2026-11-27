@@ -359,11 +359,19 @@ test('level 4 measures the basket frozen in basket.json, not a list of its own',
 test('the star bands for levels 4 and 5 are the ones the PRD scoring table fixes', () => {
   for (const level of [level4, level5]) {
     assert.equal(level.stars.pass, 1);
-    assert.equal(level.stars.two.test, 'bucket');
+    // A DISTANCE SINCE 27 NOVEMBER 2026, not a bucket. The pass threshold on
+    // each of these IS a bucket edge, so every passing answer landed in the
+    // same bucket and the second star was really asking "did you guess on the
+    // passing side of the threshold" - which punished a guess just over the
+    // edge and rewarded one just as far under it. docs/PRD.md's amendment.
+    assert.equal(level.stars.two.test, 'within');
     assert.equal(level.stars.three.test, 'within');
+    assert.equal(level.stars.two.of, level.stars.three.of * 2, 'twice its own three-star band');
   }
   assert.equal(level4.stars.three.of, 0.1, 'the 0.10 band level 1 already uses');
   assert.equal(level5.stars.three.of, 0.05, '5 points of the real share');
+  // The buckets outlived the star: still three of them, still on the reveal.
+  for (const level of [level4, level5]) assert.equal(level.buckets.length, 3);
 });
 
 test('the bucket edges are each level’s own threshold and one plain anchor', () => {
@@ -574,10 +582,17 @@ test("level 6's buckets are its own threshold and the index itself, nothing new"
 test("level 6's three-star band is the 0.10 levels 1 and 4 already use", () => {
   assert.equal(level6.stars.three.of, 0.1);
   assert.equal(level6.stars.three.of, levelById(LEVELS, 4).stars.three.of);
-  assert.equal(level6.stars.two.test, 'bucket');
-  // A passing build with a guess in the right bucket but 0.3 out: 2 stars.
-  assert.equal(starsFor(level6, { guess: 0.1, actual: 0.4, passed: true }), 2);
+  assert.equal(level6.stars.two.test, 'within');
+  assert.equal(level6.stars.two.of, 0.2, 'twice its own three-star band');
   assert.equal(starsFor(level6, { guess: 0.35, actual: 0.4, passed: true }), 3);
+  // 0.2 out: the two-star band exactly, and the boundary is inside it.
+  assert.equal(starsFor(level6, { guess: 0.2, actual: 0.4, passed: true }), 2);
+  assert.equal(starsFor(level6, { guess: 0.6, actual: 0.4, passed: true }), 2,
+    'the same error the other way, which the bucket rule scored 1');
+  // 0.3 out: outside both. Under the bucket rule this was 2 stars, because
+  // 0.1 and 0.4 are both "held up" - two stars for being three times the
+  // three-star band out, which was the over-generous half of the old defect.
+  assert.equal(starsFor(level6, { guess: 0.1, actual: 0.4, passed: true }), 1);
   // And a miss scores nothing, however good the guess was.
   assert.equal(starsFor(level6, { guess: 0.72, actual: 0.72, passed: false }), 0);
 });
