@@ -1,8 +1,8 @@
 {
  "generated_by": "scripts/run_research.mjs",
- "generated_at": "2026-11-25T21:16:22Z",
+ "generated_at": "2026-11-27T03:38:27Z",
  "code": {
-  "commit": "ae315beb392b117b3aed3ccf418e26f22777c14c",
+  "commit": "49cbfab677cbd4520c09107f00b05503c43e0818",
   "clean": true
  },
  "snapshot": {
@@ -56,7 +56,7 @@
    "PREREG_AMENDMENT_2.md"
   ]
  },
- "headline": "Hypothesis 1 (hidden concentration): not supported on the headline correlation-only test, supported on the registered test. Hypothesis 2 (a tightening market): not supported against RSP, the registered benchmark. Hypothesis 3 (players learn): collecting - no player data exists yet. The two tests disagree, and both are reported. The headline verdict is \"not supported\", from the correlation-only ratio R, which holds the weights and the volatilities fixed and so measures correlation alone. The registered test says \"supported\", from the registered ratio of effective risk sources to holdings, which also moves with how unevenly the weights spread the money. A disagreement is itself a result: it says the two measures are answering different questions, and it is not resolved by choosing the more favourable one.",
+ "headline": "Hypothesis 1 (hidden concentration): not supported on the headline correlation-only test, supported on the registered test. Hypothesis 2 (a tightening market): not supported against RSP, the registered benchmark. Hypothesis 3 (players learn): collecting - no player data exists yet. The two tests disagree, and both are reported. The verdict for Hypothesis 1 is the headline one, \"not supported\", from the correlation-only ratio R, which holds the weights and the volatilities fixed and so measures correlation alone. Beside it, and reported because it is what was registered rather than because it decides anything, the registered test says \"supported\", from the registered ratio of effective risk sources to holdings, which also moves with how unevenly the weights spread the money - and that test clears its own 0.60 threshold at 0.523 even on holdings with no correlation at all, so \"supported\" there is not on its own evidence for the claim. A disagreement is itself a result: it says the two measures are answering different questions, and it is not resolved by choosing the more favourable one.",
  "hypothesis1": {
   "seed": 2026,
   "days": 756,
@@ -2122,7 +2122,7 @@
    "limit": "On holdings that are exactly uncorrelated and exactly equally volatile - where there is no hidden concentration at all - this median still comes out at 0.523, below its own 0.6 threshold. So it is only meaningful to the extent the beginner median falls below that benchmark, not merely below 0.6."
   },
   "verdictsAgree": false,
-  "statement": "The two tests disagree, and both are reported. The headline verdict is \"not supported\", from the correlation-only ratio R, which holds the weights and the volatilities fixed and so measures correlation alone. The registered test says \"supported\", from the registered ratio of effective risk sources to holdings, which also moves with how unevenly the weights spread the money. A disagreement is itself a result: it says the two measures are answering different questions, and it is not resolved by choosing the more favourable one.",
+  "statement": "The two tests disagree, and both are reported. The verdict for Hypothesis 1 is the headline one, \"not supported\", from the correlation-only ratio R, which holds the weights and the volatilities fixed and so measures correlation alone. Beside it, and reported because it is what was registered rather than because it decides anything, the registered test says \"supported\", from the registered ratio of effective risk sources to holdings, which also moves with how unevenly the weights spread the money - and that test clears its own 0.60 threshold at 0.523 even on holdings with no correlation at all, so \"supported\" there is not on its own evidence for the claim. A disagreement is itself a result: it says the two measures are answering different questions, and it is not resolved by choosing the more favourable one.",
   "window": {
    "startDate": "2023-11-20",
    "endDate": "2026-11-24",
