@@ -40,9 +40,10 @@ export const PROGRESS_KEY = 'oneTrade.learn';
  * VERSION 2 ADDED `tries`. The hint a level shows after three failed attempts
  * has to survive the player closing the tab - somebody who fails twice on the
  * bus and once at home has failed three times - so the count is in the record
- * rather than in the session. That is the one reason the version moved; the
- * pass-to-unlock rule itself needed no migration at all, because `stars` was
- * already being stored and "played but not passed" is simply `stars: 0`.
+ * rather than in the session. That is the one reason the version moved; no
+ * unlock rule has ever needed a migration, in either direction, because both
+ * `played` and `stars` were being stored from the start and every rule so far
+ * has been a different reading of the same two fields.
  */
 export const PROGRESS_VERSION = 2;
 
@@ -147,27 +148,32 @@ export function passedLevels(progress) {
 
 /**
  * The furthest level a player may start: the one after the furthest they have
- * PASSED, and level 1 to begin with.
+ * PLAYED, and level 1 to begin with.
  *
- * PASSED, NOT PLAYED, and that is a decision with a cost. Until now reaching a
- * level's reveal opened the next one, so a player could walk the whole ladder
- * without ever meeting a pass condition. One star is now the toll.
+ * PLAYED, NOT PASSED, changed on playtest feedback (BUILD_LOG.md session 2.38).
+ * Session 2.24 made a star the toll for the next level, and watching people
+ * play is what undid it: a player stuck on level 4's beta never meets levels 5,
+ * 6 or 7 at all, and the ideas are the point. A level still has to be finished
+ * - built, guessed and revealed - before the next one appears, so nobody skips
+ * the guess, which is where the lesson lands.
  *
- * WHAT IT COSTS: PREREG.md's Hypothesis 3 pairs a player's level-2 error with
- * their level-7 error and needs 60 players carrying both. Every player who
- * would have stumbled past level 4's beta under 0.50, or level 6's half-the-
- * index fall, now stops there instead. The 60-player minimum was not set
- * against a gated ladder - see BUILD_LOG.md. The per-level hint after three
- * failed tries is what stands between this rule and a wall, which is why it
- * ships in the same change rather than after it.
+ * WHAT IT COSTS, and it is not nothing. "Reached level 7" stops meaning "passed
+ * levels 1 to 6", so docs/PRD.md's two success targets can no longer be read
+ * off a level's ping alone. That is why the ping now carries whether every
+ * earlier level had been passed when this one was reached - js/analytics.js -
+ * rather than the targets being quietly redefined to mean less.
  *
- * A level that has already been PLAYED stays open regardless - see isUnlocked().
+ * WHAT IT DOES NOT TOUCH: Hypothesis 3. The registered test pairs a player's
+ * level-2 error with their level-7 error and needs 60 players carrying both;
+ * this rule lets more players get there, and known weakness 1 - "players who
+ * reach level 7 may already be the stronger ones" - is exactly the selection a
+ * gated ladder was creating. The guess records themselves are unchanged.
  */
 export function unlockedThrough(progress, ids) {
   const first = ids[0];
-  const passed = passedLevels(progress).filter((id) => ids.includes(id));
-  if (passed.length === 0) return first;
-  const furthest = Math.max(...passed);
+  const played = playedLevels(progress).filter((id) => ids.includes(id));
+  if (played.length === 0) return first;
+  const furthest = Math.max(...played);
   const at = ids.indexOf(furthest);
   return at >= 0 && at + 1 < ids.length ? ids[at + 1] : ids[ids.length - 1];
 }
@@ -175,12 +181,17 @@ export function unlockedThrough(progress, ids) {
 /**
  * May this level be started?
  *
- * THE SECOND CLAUSE IS WHAT MAKES THE NEW RULE SAFE FOR OLD SAVES. A level with
- * any record stays open whatever the rule says, so a player who reached level 4
- * under the old "played is enough" rule keeps level 4 when they come back; only
- * their next step has to be earned. Nobody is sent backwards by a rule that
- * changed while they were away, and no migration code is needed to achieve it.
- * It also covers a hand-edited save and a level played out of order.
+ * THE SECOND CLAUSE IS WHAT MAKES ANY RULE CHANGE SAFE FOR OLD SAVES. A level
+ * with any record stays unlocked whatever the rule says, so nobody is sent
+ * backwards by a rule that changed while they were away, and no migration code
+ * is needed to achieve it. It also covers a hand-edited save and a level played
+ * out of order.
+ *
+ * It is redundant under play-to-unlock as such - a played level always sits at
+ * or before the furthest played - and it is kept precisely because that is a
+ * property of today's rule rather than of this function. It cost nothing when
+ * the rule was pass-to-unlock, where it was the whole of the safety net, and it
+ * will cost nothing if the rule moves again.
  */
 export function isUnlocked(progress, levelId, ids) {
   const at = ids.indexOf(levelId);

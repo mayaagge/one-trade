@@ -22,6 +22,7 @@ import { GAME_DAYS } from '../scripts/build_game_data.mjs';
 import { validateLevels, levelById } from '../js/levels.js';
 import { createRound } from '../js/round.js';
 import {
+  allPassedBefore,
   basketFrom,
   seenPoolIds,
   buildHint,
@@ -35,6 +36,7 @@ import {
   starText,
   starsExplanation,
 } from '../js/game.js';
+import { emptyProgress, recordLevel, starsOf } from '../js/progress.js';
 import { validateCrashes } from '../js/crash.js';
 // The picker, the allocator and the money they are written in now live in
 // js/build.js, shared with Crash replay.
@@ -246,6 +248,46 @@ test('the explanation for level 1 uses its bucket band, not a bets band', () => 
   const text = starsExplanation(levelById(LEVELS, 1), { passed: true, stars: 2 });
   assert.match(text, /naming the right bucket/);
   assert.match(text, /within 0\.10 of the real correlation/);
+});
+
+// ------------------------------------------------- what a count ping carries
+
+test('allPassedBefore is vacuously true on the first level', () => {
+  // Nothing stands before level 1 to have been failed, and that is the honest
+  // answer rather than a special case to code around.
+  assert.equal(allPassedBefore(emptyProgress(), LEVELS.levels, 1), true);
+});
+
+test('allPassedBefore means EVERY earlier level, not just the one before', () => {
+  // The difference only exists because of play-to-unlock: a player can walk
+  // past a level they failed, so "level 3 was passed" and "levels 1 to 3 were
+  // all passed" became different claims. docs/PRD.md's "players who reach
+  // level 7" is the second one.
+  let progress = emptyProgress();
+  progress = recordLevel(progress, 1, { stars: 0, error: 2.0 });   // missed
+  progress = recordLevel(progress, 2, { stars: 2, error: 0.3 });
+  progress = recordLevel(progress, 3, { stars: 1, error: 0.8 });
+  assert.equal(allPassedBefore(progress, LEVELS.levels, 4), false,
+    'level 1 was missed, so not everything before level 4 was passed');
+
+  const fixed = recordLevel(progress, 1, { stars: 1, error: 0.4 });
+  assert.equal(allPassedBefore(fixed, LEVELS.levels, 4), true);
+});
+
+test('allPassedBefore on the capstone is the claim the success target makes', () => {
+  // "Players who reach level 7: 60" is level 7's ping with this true, which is
+  // the same sentence as "levels 1 to 6 were all passed".
+  let progress = emptyProgress();
+  for (const level of LEVELS.levels.slice(0, 6)) {
+    progress = recordLevel(progress, level.id, { stars: 1, error: 0.2 });
+  }
+  assert.equal(allPassedBefore(progress, LEVELS.levels, 7), true);
+
+  const oneMissed = recordLevel(progress, 6, { stars: 0, error: 0.9 });
+  assert.equal(starsOf(oneMissed, 6), 1, 'a worse replay lowered a saved score');
+  // ...so the flag is still true: the record keeps the best, and the target is
+  // about whether the level was ever passed, not about the last attempt.
+  assert.equal(allPassedBefore(oneMissed, LEVELS.levels, 7), true);
 });
 
 // ------------------------------------------------------------ the session

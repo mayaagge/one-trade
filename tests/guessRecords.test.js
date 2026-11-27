@@ -44,7 +44,7 @@ import { mountMyPortfolio } from '../js/myPortfolio.js';
 import { PARTICIPANT_KEY, newId, participantId } from '../js/participant.js';
 import { SEEN_POOL_KEY } from '../js/seenPool.js';
 import { validateLevels } from '../js/levels.js';
-import { PROGRESS_KEY, starsOf } from '../js/progress.js';
+import { PROGRESS_KEY, recordLevel, starsOf } from '../js/progress.js';
 
 const root = new URL('..', import.meta.url);
 const readJson = (name) => JSON.parse(readFileSync(fileURLToPath(new URL(name, root)), 'utf8'));
@@ -465,6 +465,15 @@ test('Learn sends exactly the pings and guess records, and nothing else', async 
     const pings = worker.filter((r) => r.url.endsWith('/ping'));
     assert.deepEqual(pings.map((r) => r.body.level), [1, 2, 3, 4, 5, 6, 7],
       'a level was pinged twice, or not at all');
+    // AND NOTHING ON A PING BUT THE LEVEL, THE FLAG AND THE SOURCE CODE. No
+    // per-browser id has ever ridden on a ping and none may start to: a ping
+    // counts a visit, and the moment it could be tied to a person the success
+    // targets would be measuring something docs/PRD.md does not promise.
+    for (const { body } of pings) {
+      assert.deepEqual(Object.keys(body).sort(), ['level', 'passed'],
+        `a ping carried the wrong fields: ${JSON.stringify(body)}`);
+      assert.equal(typeof body.passed, 'boolean');
+    }
 
     // ONE GUESS PER LOCKED GUESS, on levels 2 and 7 only: one from level 2,
     // three from the series, in that order.
@@ -481,6 +490,41 @@ test('Learn sends exactly the pings and guess records, and nothing else', async 
     }
     const ids = new Set(guesses.map((r) => r.body.id));
     assert.equal(ids.size, 1, 'one browser sent records under more than one ID');
+  } finally { b.restore(); }
+});
+
+test("a ping says whether everything before that level had been passed", async () => {
+  // WHAT TWO SUCCESS TARGETS NOW REST ON. Since session 2.38 a level unlocks by
+  // being played, so reaching level 4 no longer implies passing level 3, and
+  // docs/PRD.md measures "players who finish level 3" by level 4's pings. The
+  // flag is what keeps that row meaning what it says.
+  const b = browser();
+  try {
+    const ctx = await mountLearn(b.root);
+    const pingsSince = (from) => workerSends(b.sent.slice(from))
+      .filter((r) => r.url.endsWith('/ping'))
+      .map((r) => r.body);
+
+    // Level 1 finished and MISSED. Level 2 is unlocked all the same, and its
+    // ping says the ladder behind it is not clean.
+    ctx.progress = recordLevel(ctx.progress, 1, { stars: 0, error: 2.0 });
+    let before = b.sent.length;
+    ctx.startRound(2);
+    assert.deepEqual(pingsSince(before), [{ level: 2, passed: false }]);
+
+    // The same level 2, reached by a player who passed level 1.
+    ctx.progress = recordLevel(ctx.progress, 1, { stars: 2, error: 0.3 });
+    ctx.session.pingedLevels.delete(2);
+    before = b.sent.length;
+    ctx.startRound(2);
+    assert.deepEqual(pingsSince(before), [{ level: 2, passed: true }]);
+
+    // Level 1 itself: nothing stands before it, so the flag is true and says
+    // nothing about skill.
+    ctx.session.pingedLevels.delete(1);
+    before = b.sent.length;
+    ctx.startRound(1);
+    assert.deepEqual(pingsSince(before), [{ level: 1, passed: true }]);
   } finally { b.restore(); }
 });
 

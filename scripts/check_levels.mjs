@@ -432,28 +432,38 @@ export function checkLevel7(built, level, guessPool, finalPool) {
 }
 
 /**
- * What it means for a level to have no winning design, now that a level must be
- * PASSED to unlock the next one.
+ * What it means for a level to have no winning design.
  *
- * It used to mean "this level is too hard", which is a judgement about one
- * screen. Under pass-to-unlock it means the ladder ENDS there: nobody earns a
- * star, so nobody reaches any level after it, and PREREG.md's Hypothesis 3 - a
- * player's level-2 error paired with their level-7 error - becomes
- * uncomputable for every player. That is a different size of problem from
- * "fewer than 3", and the message says so rather than leaving a reader to work
- * it out from a count.
+ * THE STAKES CHANGED TWICE. It first meant "this level is too hard", a
+ * judgement about one screen. Under pass-to-unlock (session 2.24) it meant the
+ * ladder ENDED there - nobody earns a star, so nobody reaches any level after
+ * it, and PREREG.md's Hypothesis 3 becomes uncomputable for every player. The
+ * playtest moved the rule to play-to-unlock (session 2.38), so an unpassable
+ * level no longer blocks the ladder: a player finishes it, earns nothing, and
+ * carries on to the next one. Hypothesis 3 still gets its pair.
+ *
+ * SO WHY THIS STILL FAILS THE RUN. A level nobody can pass is a level whose
+ * stated goal is a lie, which is worse on a teaching game than on a ladder -
+ * the player is told what to build, builds it, and is told they were wrong
+ * with no design in existence that would have been right. And two of
+ * docs/PRD.md's success targets are counted off pings that say every earlier
+ * level was passed, so an unpassable level zeroes both of them while the
+ * levels after it still fill up with visits. The message says which of the two
+ * problems it is rather than leaving a reader to infer it from a count.
  */
 function solvabilityVerdict(level, winners) {
   if (winners === 0) {
-    return `FAIL - NO WINNING DESIGN AT ALL. Under pass-to-unlock this BLOCKS `
-      + `EVERY PLAYER at level ${level}: nobody earns a star, so nobody reaches `
-      + `any level after it, and Hypothesis 3 gets no level-7 guesses from anybody.`;
+    return `FAIL - NO WINNING DESIGN AT ALL on level ${level}. Under `
+      + `play-to-unlock this no longer blocks the ladder, so it costs no player `
+      + `the levels after it - but the level asks for something nobody can `
+      + `build, and every success target counted off a passed ladder reads 0 `
+      + `from here on.`;
   }
   if (winners < REQUIRED_DESIGNS) {
     return `FAIL - only ${winners} winning design${winners === 1 ? '' : 's'}, `
       + `fewer than the ${REQUIRED_DESIGNS} this level needs. Passable, but on so `
-      + `few designs that most players will be stopped here - and a level that `
-      + `stops a player now stops them for good.`;
+      + `few designs that most players will miss it - and a level most players `
+      + `miss is a star nobody earns, not a level nobody gets past.`;
   }
   return 'OK';
 }
@@ -494,7 +504,8 @@ function main(argv = []) {
   console.log(`Levels 1 to 5 and 7 against ${pricesPath}, ${WINDOW_DAYS}-day windows.`);
   console.log('Level 6 against data/crashes.json, which is history and does not move.');
   console.log(`Each level needs at least ${REQUIRED_DESIGNS} different winning designs.`);
-  console.log('A level with NONE blocks every player: passing a level is what unlocks the next.');
+  console.log('A level with NONE asks for something nobody can build: playing unlocks the next,');
+  console.log('so it stops no player - but no star is ever earned on it either.');
 
   const level1 = levelById(levels, 1);
   const one = checkLevel1(built, level1);

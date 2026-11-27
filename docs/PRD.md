@@ -114,7 +114,7 @@ Level 6 is why this is written down. A portfolio that fell 20% while the index f
 
 | Mode | What the player does | When |
 | --- | --- | --- |
-| **Learn** | Levels 1 to 7 in order, each unlocked by passing the one before it — one star is a pass, and level 1 is always open. A level that has been failed three times offers a hint. Progress saved in the browser | Launch |
+| **Learn** | Levels 1 to 7 in order, each unlocked by *playing* the one before it — finishing a level is enough, passed or not, and level 1 is always open. A level that has been failed three times offers a hint. Progress saved in the browser | Launch |
 | **Sandbox** | Build any portfolio from the full ticker list and see every measure | Launch |
 | **Crash replay** | Watch a pretend portfolio through the 2020 crash, the 2022 bear market or the January 2025 AI selloff, next to the S&P 500. The three windows are fixed below | Launch |
 | **Research** | Read the three pre-registered hypotheses and their verdicts, and see the rolling correlation chart continue past the freeze date on live data | Launch |
@@ -274,6 +274,12 @@ Amended on 26 November 2026 by PREREG_AMENDMENT_3.md, before any real guess reco
 
 4. Data collection closes 60 days after launch.
 
+5. **The window opens at the `launch` tag, added 27 November 2026** (BUILD_LOG.md session 2.38). The analysis reads only rows timestamped at or after an annotated git tag named `launch`, created on launch day and pushed to GitHub, whose timestamp is therefore public and fixed before the rows it admits exist. A start bound chosen afterwards, by looking at the rows and deciding which ones were "real", is a researcher degree of freedom; a tag is not.
+
+   **This is a second guard, not the one that excludes the author's own testing.** PREREG_AMENDMENT_3.md section 3 already registers that the analysis reads only the `GUESSES` dataset and never `GUESSES_PLAYTEST`, which is where every `?src=playtest` row goes - the 8 rows in `data/guess_exports/` are all in the playtest file and `GUESSES` holds none. That rule is timestamped on GitHub and is what keeps Maya's play out of the test. The tag bound catches the different case it cannot: a stray row that reached `GUESSES` itself before the game was open to anybody - from a smoke test against the live Worker, say, or a `?src` that was mistyped and so never matched `playtest`.
+
+   **The tag does not exist yet.** It has to be created on launch day, and nothing in the repo can create it; until it does, the analysis has no start bound and must not be run. See the launch-window table below for how the tag's date relates to the 26 November Pages date.
+
 **Supported if:** at least 60 players reach level 7, their median level-7 error is at most 70% of their median level-2 error, and a one-sided sign test on each player's improvement gives p below 0.05.
 
 **Not enough data:** if fewer than 60 players reach level 7, the page says so and shows what was collected.
@@ -380,7 +386,7 @@ see milestone 3 step 5.
 
 **Data terms:** committing `data/game.json` to a public repo and serving it from GitHub Pages sends Yahoo data to the public, which goes beyond personal use. There is no Worker in this path to put an allowlist or a cache in front of — the equivalent limits are in the fetch itself: `scripts/fetch_data.py` only ever requests the tickers named in `tickers.json`, and it runs once per weekday evening rather than once per visitor, so the game's many readers never turn into many calls to Yahoo. The Methods tab says this openly. Before launch, test one fallback source's free tier and terms (for example Tiingo) so a switch is planned, not improvised.
 
-**What leaves the browser:** two kinds of anonymous record go to the Worker, and nothing else. A count ping carries the level reached and a source code from the link. A guess record carries a random per-browser ID, the level, the guess, the actual value and the date. Neither carries tickers, amounts, names or emails. Progress, stars and portfolios stay in the browser's own storage, and the page works even if that storage is unavailable.
+**What leaves the browser:** two kinds of anonymous record go to the Worker, and nothing else. A count ping carries the level reached, whether every level before it had been passed, and a source code from the link. A guess record carries a random per-browser ID, the level, the guess, the actual value and the date. Neither carries tickers, amounts, names or emails. Progress, stars and portfolios stay in the browser's own storage, and the page works even if that storage is unavailable.
 
 ## Launch goals and definition of done
 
@@ -393,6 +399,7 @@ Written down on 27 November 2026, because "60 days after launch" and "day 80" ar
 | What | Date | Where it comes from |
 | --- | --- | --- |
 | **Launch** | **26 November 2026** | GitHub Pages first served the site from `main`. The Worker's `/guess` route went live the next day, 27 November, so no guess record can predate it — the window below is therefore one day conservative, in the safe direction |
+| **The `launch` tag** | **not created yet** | An annotated git tag named `launch`, to be created on launch day and pushed. Its timestamp, not this table, is the start bound Hypothesis 3's analysis applies to the rows — see Hypothesis 3, point 5. Created now it would read 27 November, a day after Pages, which is the same one-day-conservative direction as the row above: it can only exclude rows, never admit an early one |
 | **Collection closes** | **25 January 2027** | Launch plus the 60 days PREREG.md registers for Hypothesis 3. No guess record after this date enters the registered test |
 | **Export runs** | **26 December 2026, 25 January 2027, 14 February 2027** | `npm run export`, monthly. Workers Analytics Engine keeps data about three months, so the rows must be out of it and into a file before the last of these — which is launch plus 80 days, and the last safe date rather than the intended one |
 
@@ -419,8 +426,8 @@ Written down on 27 November 2026, because "60 days after launch" and "day 80" ar
 | Metric | Target | How it's measured |
 | --- | --- | --- |
 | Players who start level 1 | 500 | Count-only ping. Counts **visits**, not people - see below |
-| Players who finish level 3 | 150 | Measured by **level 4** pings - see below |
-| Players who reach level 7 | 60 | Level ping; also the minimum for Hypothesis 3 |
+| Players who finish level 3 | 150 | Measured by **level 4** pings carrying `passed` - see below |
+| Players who reach level 7 | 60 | Level 7's ping carrying `passed`; also the minimum for Hypothesis 3 |
 | Classes or club sessions that use it | 3 | Classroom links created, confirmed by the host |
 | Feedback responses | 40 | Three-question form |
 | Changes shipped from feedback | 2, written up in the README | Git history |
@@ -428,9 +435,13 @@ Written down on 27 November 2026, because "60 days after launch" and "day 80" ar
 
 These are stretch targets.
 
-**The first column says "players" and the pings count visits.** Added 27 November 2026, when the pings were actually wired up (BUILD_LOG.md session 2.29). A count ping carries the level reached and a source code, and deliberately no per-browser id - so nothing downstream can tell one person's second visit from a second person. The client sends each level at most once per visit, so a player who retries level 4 six times in one sitting is counted once; a player who comes back tomorrow is counted again. Every "players who..." row above is therefore an upper bound on people and an exact count of visits, and the write-up should say so rather than quietly reporting visits as players. The guess records are the one place a returning player can be recognised, because those do carry an id - which is exactly why Hypothesis 3 can pair a level-2 error with a level-7 error across visits and the targets table cannot.
+**The first column says "players" and the pings count visits.** Added 27 November 2026, when the pings were actually wired up (BUILD_LOG.md session 2.29). A count ping carries the level reached, whether every level before it had been passed, and a source code, and deliberately no per-browser id - so nothing downstream can tell one person's second visit from a second person. The client sends each level at most once per visit, so a player who retries level 4 six times in one sitting is counted once; a player who comes back tomorrow is counted again. Every "players who..." row above is therefore an upper bound on people and an exact count of visits, and the write-up should say so rather than quietly reporting visits as players. The guess records are the one place a returning player can be recognised, because those do carry an id - which is exactly why Hypothesis 3 can pair a level-2 error with a level-7 error across visits and the targets table cannot.
 
-**"Finished level 3" is measured by level 4 pings.** There is no "finished" ping - a ping fires when a level is *reached*. Since session 2.24 made each level unlock only by passing the one before it, reaching level 4 is the same event as passing level 3, so level 4's ping is the measurement. The same reasoning is why "reach level 7" is read straight from level 7's own ping: reaching it means levels 1 to 6 were all passed.
+**"Finished level 3" is measured by level 4 pings that say the ladder behind them was passed.** Rewritten 27 November 2026 (BUILD_LOG.md session 2.38), when playtest feedback moved the unlock rule from passing a level to playing it. There is no "finished" ping - a ping fires when a level is *reached*. Under the old rule reaching level 4 *was* passing level 3, so the level alone was the measurement; under the new one a player can walk past a level they failed, and the level alone would quietly have started counting something weaker.
+
+So the ping now carries one more field, `passed`: whether **every** level before this one had been passed at the moment this one was reached. "Finished level 3" is the count of level-4 pings with it true, and "reach level 7" is level 7's pings with it true - which is the same sentence as "levels 1 to 6 were all passed", exactly what that row claimed before. Every earlier level and not merely the one before, because those are now different claims.
+
+Three points of honesty about the field. It is still a property of a **visit**, like everything else on a ping - there is no id beside it, by design, so a player who passes level 3 tomorrow having failed it today sends a second, truer ping and is counted twice. It is a **snapshot at the moment of reaching**, so a player who reaches level 5, goes back and passes level 4, and never re-reaches 5 in that visit leaves a `false` behind that their save would now contradict; both of these make the rows an upper bound on visits and never an undercount. And a ping from a page that was already open before the field existed carries no `passed` at all; those rows are written as **-1, "not stated"**, rather than as a 0 that would undercount or a 1 that would inflate, so a query can set them aside instead of averaging them in.
 
 ## Audience, marketing and outreach
 
@@ -610,7 +621,8 @@ Worker never holds a secret.
    and actual inside that level's registered guess range, a date within a day
    of the Worker's own clock), a Cloudflare dashboard rate-limit rule on both
    routes (per visitor, no IP read or stored by our code), and two routes:
-   `/ping` (level reached and source code) and `/guess` (per-browser ID,
+   `/ping` (level reached, whether every earlier level had been passed, and
+   a source code) and `/guess` (per-browser ID,
    level, guess, actual value, date). Both are anonymous and written to
    Workers Analytics Engine — `/guess` rows carrying `?src=playtest` go to a
    separate `GUESSES_PLAYTEST` dataset instead of `GUESSES`, so Maya's own

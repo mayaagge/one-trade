@@ -90,21 +90,36 @@ test('saved stars are on the list when the browser comes back', () => {
   } finally { restore(); }
 });
 
-test('PASSING a level unlocks the next one on the very next render', () => {
+test('FINISHING a level unlocks the next one on the very next render, pass or not', () => {
   const { restore } = screen();
   try {
-    const failed = recordLevel(emptyProgress(), 1, { stars: 0, error: 2.0 });
-    const locked = renderMenu(context(failed));
-    assert.equal(playButton(cardFor(locked, 2)).disabled, true,
-      'a failed level 1 unlocked level 2');
-    assert.match(cardFor(locked, 2).textContent, /Pass level 1 to unlock this one\./);
+    const fresh = renderMenu(context(emptyProgress()));
+    assert.equal(playButton(cardFor(fresh, 2)).disabled, true, 'level 2 was open from the start');
+    assert.match(cardFor(fresh, 2).textContent, /Play level 1 to unlock this one\./);
 
-    const passed = recordLevel(failed, 1, { stars: 1, error: 0.4 });
-    const open = renderMenu(context(passed));
+    // MISSED, NOT PASSED, and level 2 opens anyway - the whole of session 2.38.
+    const failed = recordLevel(emptyProgress(), 1, { stars: 0, error: 2.0 });
+    const open = renderMenu(context(failed));
     assert.equal(playButton(cardFor(open, 2)).disabled, false,
-      'one star on level 1 did not unlock level 2');
+      'a finished level 1 did not unlock level 2');
     assert.ok(!/to unlock this one/.test(cardFor(open, 2).textContent),
       'an unlocked card still carries its lock note');
+    // One level on, and no further.
+    assert.equal(playButton(cardFor(open, 3)).disabled, true, 'it unlocked two levels at once');
+  } finally { restore(); }
+});
+
+test('the menu says what unlocking costs, once, and does not say "pass"', () => {
+  // A locked card names the level that unlocks it; this line says what counts
+  // as unlocking it, which is the half a player cannot guess. It is stated
+  // once rather than on each of six locked cards - on a first visit six of the
+  // seven are locked, and reading is 89% of the time to finish levels 1 to 3.
+  const { restore } = screen();
+  try {
+    const text = textOf(renderMenu(context(emptyProgress())));
+    assert.match(text, /Finish one to unlock the next/);
+    assert.match(text, /do not have to pass it/);
+    assert.equal((text.match(/do not have to pass it/g) ?? []).length, 1, 'said more than once');
   } finally { restore(); }
 });
 
@@ -159,11 +174,11 @@ test('a level played and missed says so, instead of reading as never opened', ()
     const text = textOf(card);
     assert.ok(!/not played/.test(text), `a played level still reads as unplayed: ${text}`);
     assert.match(text, /no stars yet/);
-    // "Continue" rather than "Play again", and that is right: under
-    // pass-to-unlock a level that was missed is still the next one to play, so
-    // the continue treatment wins over the replay wording. "Play again" is
-    // asserted above, on a level that was passed and left behind.
-    assert.equal(playButton(card)._text, 'Continue');
+    // "Play again", because play-to-unlock has moved on past it: finishing
+    // level 1 made level 2 the next one to play, so level 1 is a level to
+    // replay rather than the one to continue with. Under the old rule a missed
+    // level was still the frontier and this read "Continue".
+    assert.equal(playButton(card)._text, 'Play again');
   } finally { restore(); }
 });
 
@@ -230,10 +245,10 @@ test('a locked card says "unlock", never "open"', () => {
     const view = renderMenu(context(emptyProgress()));
     for (const id of [2, 3, 4, 5, 6, 7]) {
       const card = cardFor(view, id);
-      assert.match(card.textContent, new RegExp(`Pass level ${id - 1} to unlock this one\\.`));
+      assert.match(card.textContent, new RegExp(`Play level ${id - 1} to unlock this one\\.`));
       assert.match(
         playButton(card).getAttribute('aria-label') ?? '',
-        new RegExp(`Level ${id} unlocks when level ${id - 1} is passed`),
+        new RegExp(`Level ${id} unlocks when level ${id - 1} is played`),
       );
     }
     // The word the brief retired, nowhere on the screen.

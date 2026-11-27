@@ -24,7 +24,9 @@
 //
 // Educational, not investment advice.
 
-import { MAX_BODY_BYTES, rateLimited, validateGuessBody, validatePingBody } from './validate.js';
+import {
+  MAX_BODY_BYTES, passedValue, rateLimited, validateGuessBody, validatePingBody,
+} from './validate.js';
 
 function corsHeaders(origin, allowedOrigin) {
   if (!allowedOrigin || origin !== allowedOrigin) return null;
@@ -109,7 +111,11 @@ async function handlePing(request, env, url, headers) {
   const src = body.src ?? 'direct';
   env.PINGS?.writeDataPoint({
     blobs: [src],
-    doubles: [body.level],
+    // The level reached, then whether every level before it had been passed
+    // when it was reached: 1 yes, 0 no, -1 the client did not say (a page
+    // open since before session 2.38). docs/PRD.md reads "players who finish
+    // level 3" off level 4's pings where the second number is 1.
+    doubles: [body.level, passedValue(body)],
     indexes: [src],
   });
   return new Response(null, { status: 204, headers });

@@ -5548,3 +5548,112 @@ No PRD change: the level list's wording is not in the specification, and the
 unlock rule is untouched here - that is the next session.
 
 Educational, not investment advice.
+
+## Player feedback 2: a level unlocks by being played, 27 November 2026 (session 2.38)
+
+**From the playtest, and it reverses session 2.24.** A level now unlocks the
+one after it by being *finished* - built, guessed, revealed - rather than by
+earning a star. Maya's reason: a player stuck on level 4's beta never meets
+levels 5, 6 or 7 at all, and the ideas are the point. Level 2 is unaffected
+either way, since its pass rule is "make a guess".
+
+Session 2.24's reasoning was not wrong, and it is worth saying what it bought
+and what it cost. It bought a ladder where reaching a level meant something.
+It cost the player who gets stuck everything after the sticking point - and
+known weakness 1, "players who reach level 7 may already be the stronger
+ones", describes exactly the selection a gated ladder manufactures. The new
+rule weakens that selection rather than strengthening it, which is the one way
+this change helps Hypothesis 3 rather than merely not hurting it.
+
+**The guess is still compulsory.** Finishing a level means passing through its
+reveal, so nobody skips the prediction. That is the part the PRD calls the
+learning moment, and it is the part the unlock rule still gates.
+
+### The two success targets would have gone quietly wrong
+
+This is the half of the change that was not asked for and had to happen anyway.
+docs/PRD.md measures **"players who finish level 3"** by *level 4's* pings, and
+**"players who reach level 7"** by level 7's, and both only mean that because
+a level used to unlock by being passed - the PRD says so in as many words.
+Under play-to-unlock a player walks past a level they failed, and both rows
+would have carried on being reported while counting something weaker. Nothing
+would have errored; the numbers would just have been wrong, 60 days later.
+
+So a count ping now carries one more field, **`passed`: whether every level
+before this one had been passed at the moment this one was reached.** Not the
+level immediately before - *every* earlier one, because play-to-unlock makes
+"level 3 was passed" and "levels 1 to 3 were all passed" different claims, and
+the targets mean the second. Vacuously true on level 1. `allPassedBefore()` in
+js/game.js computes it; js/analytics.js sends it; the Worker writes it as the
+second double on the ping row.
+
+**Three honest limits, all written into docs/PRD.md rather than left for the
+write-up to discover.** It is still a property of a *visit* - there is no id on
+a ping and there never will be - so a player who fails level 3 today and passes
+it tomorrow sends two pings and is counted twice. It is a *snapshot at the
+moment of reaching*, so a player who reaches level 5, goes back and passes
+level 4, and does not re-reach 5 that visit leaves a stale `false` behind. Both
+push the rows toward being an upper bound on visits, never an undercount.
+
+**And a third value, -1, for "not stated".** The field arrived after the site
+went live, so a browser holding the old page open keeps sending the old body
+shape. The validator accepts all four shapes - with and without `passed`, with
+and without `src` - because a rejected ping is a lost count with no error
+anywhere to notice it by. Those rows are written as -1 rather than as a 0 that
+would undercount the target or a 1 that would inflate it. A query can set them
+aside; it cannot un-average them.
+
+### Hypothesis 3's window now opens at a tag that does not exist yet
+
+Maya's second addition this round. The analysis reads only rows timestamped at
+or after an annotated git tag named **`launch`**, created on launch day and
+pushed, so the start bound is fixed by a public timestamp rather than chosen
+afterwards by looking at the rows and deciding which ones were real. That is a
+researcher degree of freedom; a tag is not.
+
+**It is a second guard, and not the one that excludes Maya's own testing.**
+PREREG_AMENDMENT_3.md section 3 already registers that the analysis reads only
+the `GUESSES` dataset and never `GUESSES_PLAYTEST`, and all 8 rows in
+`data/guess_exports/` are in the playtest file - `one_trade_guesses.json` reads
+`"rows": 0`. That registered rule is what keeps her play out of the test. The
+tag catches the case it cannot: a stray row reaching `GUESSES` itself before
+the game was open to anybody, from a smoke test against the live Worker or a
+`?src` typo that never matched `playtest`.
+
+**THE TAG DOES NOT EXIST. It must be created on launch day, by hand, and
+pushed.** Nothing in this repo creates it and nothing checks for it yet. Until
+it exists the analysis has no start bound and must not be run. Note the date
+arithmetic: launch in the PRD's table is 26 November 2026, when Pages first
+served the site, and a tag created today would read 27 November - the day
+`/guess` went live. That is the same one-day-conservative direction the PRD
+already records for the collection window: the tag can only exclude rows,
+never admit an early one.
+
+### What else said the old rule out loud
+
+`scripts/check_levels.mjs` carried the sharpest version of session 2.24's
+reasoning - that a level with no winning design *ends the ladder* - and that is
+no longer true: a player finishes it, earns nothing and carries on. It still
+fails the run, for two different reasons now written into the message. A level
+nobody can pass tells the player to build something that does not exist, which
+is worse on a teaching game than on a ladder. And both success targets are
+counted off pings saying the ladder behind them was passed, so an unpassable
+level zeroes them while the levels after it keep filling with visits.
+
+### Checked, not assumed
+
+1,205 to **1,213 passing**; eight tests failed on the way through, every one of
+them a test that encoded pass-to-unlock, and each was rewritten rather than
+loosened. Two new ones are about what the rule now costs: a player can walk the
+whole ladder passing nothing, and `allPassedBefore` is about every earlier
+level rather than the previous one. `node scripts/check_levels.mjs` still finds
+every level solvable. The menu was screenshotted at 375px rather than reasoned
+about. The a11y run reports an empty contrast table and no heading out of
+order.
+
+The rule is stated once above the list - "Levels unlock in order. Finish one to
+unlock the next — you do not have to pass it." - rather than on each of six
+locked cards, which would have cost about 36 words on a screen where reading is
+89% of the time to finish levels 1 to 3 (session 2.34).
+
+Educational, not investment advice.

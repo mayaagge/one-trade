@@ -297,9 +297,9 @@ function levelCard(ctx, level, { continueId, allPassed }) {
   card.append(head);
   card.append(h('p', 'level-concept', level.concept));
 
-  // IN ORDER, and now by PASSING: level N+1 unlocks once level N has at least
-  // one star. Level 1 is always open. js/progress.js carries the rule and the
-  // reason it costs something - see unlockedThrough().
+  // IN ORDER, and by PLAYING: level N+1 unlocks once level N has been finished,
+  // passed or not. Level 1 is always unlocked. js/progress.js carries the rule
+  // and what it costs - see unlockedThrough().
   const ids = ctx.levels.levels.map((l) => l.id);
   const unlocked = isUnlocked(ctx.progress, level.id, ids);
   const before = ids[ids.indexOf(level.id) - 1];
@@ -318,7 +318,13 @@ function levelCard(ctx, level, { continueId, allPassed }) {
 
   if (!unlocked) {
     card.classList.add('level-locked');
-    card.append(h('p', 'level-lock-note', `Pass level ${before} to unlock this one.`));
+    // WHAT UNLOCKS IT, in the card's own words. Since session 2.38 that is
+    // playing the level before, not passing it - and "play" is the surprising
+    // half, so the menu states the rule once above the list rather than
+    // adding "you don't have to pass it" to each of six locked cards. On a
+    // first visit six of the seven are locked, and reading is 89% of the time
+    // to finish levels 1 to 3 (BUILD_LOG.md 2.34).
+    card.append(h('p', 'level-lock-note', `Play level ${before} to unlock this one.`));
   }
   // The one level worth pressing next stands out from the rest of the column -
   // never once every level has been passed, since there is no next one then.
@@ -328,7 +334,7 @@ function levelCard(ctx, level, { continueId, allPassed }) {
   // click, never a caller. js/round.js refuses the same kinds of thing.
   card.append(button(isContinue ? 'Continue' : (played ? 'Play again' : 'Play'), 'btn btn-primary btn-wide',
     () => { if (isUnlocked(ctx.progress, level.id, ids)) ctx.startRound(level.id); },
-    { disabled: !unlocked, aria: unlocked ? null : `Level ${level.id} unlocks when level ${before} is passed` }));
+    { disabled: !unlocked, aria: unlocked ? null : `Level ${level.id} unlocks when level ${before} is played` }));
   return card;
 }
 
@@ -379,6 +385,12 @@ export function renderMenu(ctx) {
   const ids = ctx.levels.levels.map((l) => l.id);
   const passedCount = passedLevels(ctx.progress).filter((id) => ids.includes(id)).length;
   const allPassed = passedCount === ids.length;
+  // THE RULE, ONCE, above the list. A locked card says which level unlocks it;
+  // this says what counts as unlocking, which is the part a player will not
+  // guess - finishing a level is enough, and passing is a separate reward.
+  // "Unlock", never "open": the menu retired that word (tests/learnProgress).
+  view.append(h('p', 'note',
+    'Levels unlock in order. Finish one to unlock the next — you do not have to pass it.'));
   view.append(h('p', 'level-progress', allPassed
     ? `All ${ids.length} passed`
     : `${passedCount} of ${ids.length} passed`));
@@ -398,6 +410,31 @@ export function renderMenu(ctx) {
   }
   view.append(footNotes(ctx.game));
   return view;
+}
+
+/**
+ * Has every level BEFORE this one been passed?
+ *
+ * What a count ping carries beside the level it reached, and what two of
+ * docs/PRD.md's success targets are actually about: "players who finish level
+ * 3" is level 4's ping with this true, and "players who reach level 7" is
+ * level 7's ping with this true, which is the same claim as "levels 1 to 6
+ * were all passed".
+ *
+ * VACUOUSLY TRUE ON THE FIRST LEVEL, which is the honest answer rather than a
+ * special case: nothing stands before level 1 to have been failed.
+ *
+ * EVERY earlier level, not just the one immediately before. Play-to-unlock
+ * lets a player walk past a level they failed, so "level 3 was passed" and
+ * "levels 1, 2 and 3 were all passed" are now different claims, and the
+ * targets mean the second one.
+ */
+export function allPassedBefore(progress, levels, levelId) {
+  const ids = levels.map((level) => level.id);
+  const at = ids.indexOf(levelId);
+  if (at <= 0) return true;
+  const passed = new Set(passedLevels(progress));
+  return ids.slice(0, at).every((id) => passed.has(id));
 }
 
 // -------------------------------------------------------------- the build
@@ -1390,7 +1427,14 @@ export async function mountLearn(root, { session = null, progress = null } = {})
       // four times, and "players who reached level 7" becomes "attempts".
       if (!ctx.session.pingedLevels.has(levelId)) {
         ctx.session.pingedLevels.add(levelId);
-        ctx.sendPing(levelId);
+        // AND WHETHER EVERYTHING BEFORE IT WAS PASSED. Since session 2.38 a
+        // level unlocks by being played rather than passed, so reaching level
+        // 4 no longer means level 3 was passed - and docs/PRD.md measures
+        // "players who finish level 3" by level 4's pings. The ping carries
+        // the answer rather than the target being read off a weaker event.
+        // Taken HERE, at the moment of reaching, which is the moment the
+        // target is about.
+        ctx.sendPing(levelId, allPassedBefore(ctx.progress, levels.levels, levelId));
       }
       // A LEVEL THAT ASKS THREE QUESTIONS STARTS A SERIES, not a round. One
       // entry point, so a menu button, a "Next level" button and a replay all

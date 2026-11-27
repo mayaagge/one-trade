@@ -30,6 +30,8 @@ import {
   rateLimited,
   validateGuessBody,
   validatePingBody,
+  passedValue,
+  PASSED_NOT_STATED,
 } from '../worker/src/validate.js';
 
 const root = new URL('..', import.meta.url);
@@ -176,6 +178,36 @@ test('a source code outside the safe charset is rejected', () => {
 
 test('an extra field on a ping is rejected too', () => {
   assert.ok(!validatePingBody({ level: 1, src: 'daily', id: GOOD_ID }));
+});
+
+test('a ping carrying whether everything before it was passed is accepted', () => {
+  // Session 2.38: a level unlocks by being played, so "reached level 4" no
+  // longer implies "passed level 3", and docs/PRD.md reads two success targets
+  // off exactly this field.
+  assert.ok(validatePingBody({ level: 4, passed: true }));
+  assert.ok(validatePingBody({ level: 4, passed: false }));
+  assert.ok(validatePingBody({ level: 4, passed: true, src: 'club-ucla' }));
+});
+
+test('a ping from a page open since before the field still counts', () => {
+  // A LOST PING IS A LOST COUNT, with no error anywhere to notice it by. The
+  // field arrived after the site was live, so a browser holding the old page
+  // keeps sending the old shape; rejecting it would quietly undercount every
+  // target while looking exactly like nobody visited.
+  assert.ok(validatePingBody({ level: 4 }));
+  assert.ok(validatePingBody({ level: 4, src: 'daily' }));
+  assert.equal(passedValue({ level: 4 }), PASSED_NOT_STATED);
+  assert.equal(passedValue({ level: 4, passed: true }), 1);
+  assert.equal(passedValue({ level: 4, passed: false }), 0);
+  // NOT ZERO FOR "did not say". Zero is a claim the client never made, and it
+  // is the claim that would undercount "players who finish level 3".
+  assert.notEqual(PASSED_NOT_STATED, 0);
+});
+
+test('passed has to be a boolean, not a number that looks like one', () => {
+  for (const value of [1, 0, 'true', null, undefined]) {
+    assert.ok(!validatePingBody({ level: 4, passed: value }), `passed: ${JSON.stringify(value)}`);
+  }
 });
 
 // --------------------------------------------------------------- MAX_BODY_BYTES
@@ -387,6 +419,16 @@ test('a full class-sized burst of pings from one IP all succeed, too', async () 
   }
   assert.equal(sent, 280);
   assert.equal(env.PINGS.points.length, 280);
+});
+
+test('the ping row carries the level and the passed flag, in that order', async () => {
+  const env = baseEnv();
+  await worker.fetch(postRequest('/ping', { level: 4, passed: true, src: 'daily' }), env);
+  await worker.fetch(postRequest('/ping', { level: 4, passed: false, src: 'daily' }), env);
+  await worker.fetch(postRequest('/ping', { level: 4, src: 'daily' }), env);
+  assert.deepEqual(env.PINGS.points.map((point) => point.doubles), [
+    [4, 1], [4, 0], [4, PASSED_NOT_STATED],
+  ]);
 });
 
 test('the real visitor IP is never written to any dataset, any blob, or any index', async () => {

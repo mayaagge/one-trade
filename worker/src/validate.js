@@ -90,15 +90,42 @@ export function validateGuessBody(body, now = new Date()) {
   return true;
 }
 
-/** Lighter than /guess's: a ping is not a PREREG-registered record. */
+/**
+ * What a ping's `passed` field is written as when the body did not carry one.
+ *
+ * A THIRD VALUE, NOT A DEFAULT. Pings from before session 2.38 have no such
+ * field, and a page already open in somebody's browser keeps sending them for
+ * as long as that tab lives. Writing those rows as 0 would undercount
+ * docs/PRD.md's "players who finish level 3" and writing them as 1 would
+ * inflate it; either way the row would claim something the client never said.
+ * -1 says "not stated", so a query can exclude those rows rather than silently
+ * average them in.
+ */
+export const PASSED_NOT_STATED = -1;
+
+/**
+ * Lighter than /guess's: a ping is not a PREREG-registered record.
+ *
+ * FOUR SHAPES, AND THE TWO WITHOUT `passed` ARE NOT LEGACY TOLERANCE FOR ITS
+ * OWN SAKE. The field arrived in session 2.38, after the site was already
+ * live; a browser holding the old page open would have every ping rejected by
+ * a validator that insisted on it, and a lost ping is a lost count with no
+ * error anywhere. They are accepted and written as PASSED_NOT_STATED.
+ */
 export function validatePingBody(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return false;
-  const withSrc = hasExactFields(body, ['level', 'src']);
-  const withoutSrc = hasExactFields(body, ['level']);
-  if (!withSrc && !withoutSrc) return false;
+  const shapes = [['level'], ['level', 'src'], ['level', 'passed'], ['level', 'passed', 'src']];
+  if (!shapes.some((fields) => hasExactFields(body, fields))) return false;
   if (!PING_LEVELS.has(body.level)) return false;
-  if (withSrc && (typeof body.src !== 'string' || !SRC_RE.test(body.src))) return false;
+  if ('passed' in body && typeof body.passed !== 'boolean') return false;
+  if ('src' in body && (typeof body.src !== 'string' || !SRC_RE.test(body.src))) return false;
   return true;
+}
+
+/** A validated ping's `passed`, as the number the row stores. */
+export function passedValue(body) {
+  if (!('passed' in body)) return PASSED_NOT_STATED;
+  return body.passed ? 1 : 0;
 }
 
 /** True if the limiter says this key is over budget. No limiter or no key

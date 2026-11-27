@@ -65,8 +65,21 @@ export function sendGuess(row) {
  * The source code is a FIELD here rather than a query parameter, because for a
  * ping it is the point: it is how a shared link's channel gets counted. There
  * is no per-browser id on a ping and there never will be.
+ *
+ * `passed` IS WHAT KEEPS TWO SUCCESS TARGETS MEASURABLE. It says whether every
+ * level BEFORE this one had been passed at the moment this one was reached -
+ * vacuously true on level 1, since nothing stands before it. Until session 2.38
+ * a level only unlocked by passing the one before, so reaching level 4 WAS
+ * passing level 3 and the ping needed to carry nothing; now that a level
+ * unlocks by being played, docs/PRD.md's "players who finish level 3" and
+ * "players who reach level 7" would have quietly started counting something
+ * weaker. They are read off the pings where this is true instead.
+ *
+ * STILL NO PER-BROWSER ID, so this is a property of a visit and not of a
+ * person, exactly like the level and the source code beside it.
  */
-export function sendPing(level) {
+export function sendPing(level, passed) {
   const src = visitSource();
-  return send('/ping', src ? { level, src } : { level });
+  const body = { level, passed: Boolean(passed) };
+  return send('/ping', src ? { ...body, src } : body);
 }

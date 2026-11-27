@@ -128,14 +128,15 @@ test('the two bests are kept separately, which is a choice worth seeing', () => 
   assert.deepEqual(levelProgress(progress, 5), { played: true, stars: 3, error: 0.01, tries: 0 });
 });
 
-test('a failed level is recorded as played, and unlocks nothing', () => {
-  // `played` is still written, because it is what keeps a level somebody has
-  // already reached from being taken away. It is no longer what unlocks.
+test('a failed level is recorded as played, and unlocks the next one', () => {
+  // Playtest feedback, session 2.38: a player stuck on a level never meets the
+  // ideas after it. Finishing is the toll now; passing is the reward.
   const progress = recordLevel(emptyProgress(), 1, { stars: 0, error: 0.5 });
   assert.equal(levelProgress(progress, 1).played, true);
   assert.equal(starsOf(progress, 1), 0);
   assert.equal(levelProgress(progress, 1).tries, 1, 'a failure counts as a try');
-  assert.equal(isUnlocked(progress, 2, IDS), false, 'failing level 1 unlocked level 2');
+  assert.equal(isUnlocked(progress, 2, IDS), true, 'failing level 1 did not unlock level 2');
+  assert.equal(isUnlocked(progress, 3, IDS), false, 'it unlocked more than the next one');
 });
 
 test('a result with no usable guess is recorded without an error', () => {
@@ -164,12 +165,12 @@ test('level 1 is always open, and the rest wait their turn', () => {
   const nothing = emptyProgress();
   assert.equal(isUnlocked(nothing, 1, IDS), true);
   for (const id of IDS.slice(1)) {
-    assert.equal(isUnlocked(nothing, id, IDS), false, `level ${id} was open before level ${id - 1} was played`);
+    assert.equal(isUnlocked(nothing, id, IDS), false, `level ${id} was unlocked before level ${id - 1} was played`);
   }
   assert.equal(unlockedThrough(nothing, IDS), 1);
 });
 
-test('passing a level unlocks the next one, and only the next one', () => {
+test('finishing a level unlocks the next one, and only the next one', () => {
   let progress = recordLevel(emptyProgress(), 1, { stars: 1, error: 0.1 });
   assert.equal(unlockedThrough(progress, IDS), 2);
   assert.equal(isUnlocked(progress, 2, IDS), true);
@@ -182,22 +183,42 @@ test('passing a level unlocks the next one, and only the next one', () => {
   assert.equal(unlockedThrough(progress, IDS), IDS[IDS.length - 1]);
 });
 
-test('PLAYING a level is no longer enough: a pass is one star', () => {
-  // The whole of the change. Before this, reaching a reveal unlocked the next
-  // level and a player could walk the ladder without ever meeting a pass
-  // condition.
+test('PLAYING a level is enough, and passing is still recorded separately', () => {
+  // THE WHOLE OF SESSION 2.38. A level unlocks the next by being finished -
+  // built, guessed and revealed - rather than by earning a star. Passing is
+  // not thereby made meaningless: it is what the stars, the progress line and
+  // the count ping's `passed` are still about, and all three are checked here
+  // on a save where the level was played and missed.
   const failed = recordLevel(emptyProgress(), 1, { stars: 0, error: 0.9 });
-  assert.equal(playedLevels(failed).length, 1, 'it was still played');
+  assert.equal(playedLevels(failed).length, 1, 'it was played');
   assert.deepEqual(passedLevels(failed), [], 'and not passed');
   assert.equal(isPassed(failed, 1), false);
   assert.equal(isUnlocked(failed, 1, IDS), true, 'level 1 is always open');
-  assert.equal(isUnlocked(failed, 2, IDS), false, 'a failed level 1 does not unlock level 2');
-  assert.equal(unlockedThrough(failed, IDS), 1);
+  assert.equal(isUnlocked(failed, 2, IDS), true, 'a finished level 1 did not unlock level 2');
+  assert.equal(unlockedThrough(failed, IDS), 2);
+  assert.equal(isUnlocked(failed, 3, IDS), false, 'one finished level unlocked two');
 
-  // One star is the toll, and the lowest one counts.
+  // Passing changes the record, not the gate - level 2 was already unlocked.
   const passed = recordLevel(failed, 1, { stars: 1, error: 0.2 });
   assert.equal(isPassed(passed, 1), true);
+  assert.deepEqual(passedLevels(passed), [1]);
   assert.equal(isUnlocked(passed, 2, IDS), true);
+  assert.equal(isUnlocked(passed, 3, IDS), false, 'passing skipped a level ahead');
+});
+
+test('a player can walk the whole ladder without passing anything', () => {
+  // The cost of the new rule, stated as a test rather than left implicit: this
+  // is exactly what session 2.24 set out to prevent, and what the playtest
+  // asked for back. docs/PRD.md's two success targets are no longer readable
+  // off a level's ping alone because of it - see allPassedBefore() in
+  // js/game.js and the `passed` field it feeds.
+  let progress = emptyProgress();
+  for (const id of IDS) {
+    assert.equal(isUnlocked(progress, id, IDS), true, `level ${id} was still locked`);
+    progress = recordLevel(progress, id, { stars: 0, error: 1.2 });
+  }
+  assert.deepEqual(passedLevels(progress), [], 'something was passed after all');
+  assert.equal(playedLevels(progress).length, IDS.length);
 });
 
 test('a level already reached under the old rule is never taken away', () => {
@@ -211,11 +232,13 @@ test('a level already reached under the old rule is never taken away', () => {
   progress = recordLevel(progress, 3, { stars: 0, error: 0.9 });
   progress = recordLevel(progress, 4, { stars: 0, error: 0.8 });
 
-  assert.equal(isUnlocked(progress, 3, IDS), true, 'level 3 was played and stays open');
-  assert.equal(isUnlocked(progress, 4, IDS), true, 'level 4 was played and stays open');
-  // But the next step is earned, not given: level 5 waits for a star on 4.
-  assert.equal(isUnlocked(progress, 5, IDS), false);
-  assert.equal(unlockedThrough(progress, IDS), 3, 'the furthest PASSED is 2, so 3 is the frontier');
+  assert.equal(isUnlocked(progress, 3, IDS), true, 'level 3 was played and stays unlocked');
+  assert.equal(isUnlocked(progress, 4, IDS), true, 'level 4 was played and stays unlocked');
+  // And under play-to-unlock the frontier is the one after the furthest
+  // PLAYED, so this save reaches level 5 rather than stopping at 3.
+  assert.equal(isUnlocked(progress, 5, IDS), true);
+  assert.equal(isUnlocked(progress, 6, IDS), false, 'it went further than one level on');
+  assert.equal(unlockedThrough(progress, IDS), 5, 'the furthest played is 4, so 5 is the frontier');
 });
 
 test('a try is a finished attempt that earned no star, and it is remembered', () => {
@@ -248,13 +271,14 @@ test('a level played out of order does not unlock everything behind it', () => {
   // or an old one from before unlocking could say so. Being generous here is
   // right: the levels it claims were played stay played.
   const progress = recordLevel(emptyProgress(), 5, { stars: 2, error: 0.1 });
-  assert.equal(isUnlocked(progress, 5, IDS), true, 'a level recorded as played is open');
-  assert.equal(isUnlocked(progress, 6, IDS), true, 'the level after the furthest passed is unlocked');
+  assert.equal(isUnlocked(progress, 5, IDS), true, 'a level recorded as played is unlocked');
+  assert.equal(isUnlocked(progress, 6, IDS), true, 'the level after the furthest played is unlocked');
   assert.equal(isUnlocked(progress, 7, IDS), false);
-  // And a level played out of order WITHOUT passing unlocks nothing new.
+  // A star makes no difference to the gate now: played is played.
   const nostar = recordLevel(emptyProgress(), 5, { stars: 0, error: 0.9 });
-  assert.equal(isUnlocked(nostar, 5, IDS), true, 'still open, because it was played');
-  assert.equal(isUnlocked(nostar, 6, IDS), false, 'but it opened nothing');
+  assert.equal(isUnlocked(nostar, 5, IDS), true, 'still unlocked, because it was played');
+  assert.equal(isUnlocked(nostar, 6, IDS), true, 'a finished level unlocked nothing');
+  assert.equal(isUnlocked(nostar, 7, IDS), false, 'and it unlocked more than one');
 });
 
 // ------------------------------------------------------- reading a record
@@ -288,12 +312,13 @@ test('a version 1 save is brought forward, not thrown away', () => {
   assert.equal(errorOf(now, 4), 0.42, 'the best guess survived');
   assert.equal(triesOf(now, 1), 0, 'a player who has never had a hint starts the count at 0');
   assert.equal(triesOf(now, 4), 0);
-  // And the strict rule reads the brought-forward record correctly: level 1 was
-  // passed so level 2 is unlocked; level 4 was played but not passed, so it
-  // stays open and level 5 does not.
+  // And the unlock rule reads the brought-forward record correctly: levels 1
+  // and 4 were played, so both stay unlocked, and the frontier is the one
+  // after the furthest played.
   assert.equal(isUnlocked(now, 2, IDS), true);
   assert.equal(isUnlocked(now, 4, IDS), true);
-  assert.equal(isUnlocked(now, 5, IDS), false);
+  assert.equal(isUnlocked(now, 5, IDS), true);
+  assert.equal(isUnlocked(now, 6, IDS), false);
   // Migrating twice changes nothing.
   assert.deepEqual(migrate(JSON.parse(JSON.stringify(now)), IDS), now);
   // A version 1 entry that is broken in some OTHER way is still refused whole.
