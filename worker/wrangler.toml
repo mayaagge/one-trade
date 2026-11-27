@@ -32,21 +32,30 @@ dataset = "one_trade_guesses"
 binding = "GUESSES_PLAYTEST"
 dataset = "one_trade_guesses_playtest"
 
-# Per-participant-id limit on /guess. Kept alongside PING_LIMITER's IP check
-# below, not instead of it: an id alone is client-chosen and can be minted
-# fresh on every request, so this one only catches a flood that reuses a
-# single id from many different IPs.
+# Per-participant-id limit on /guess, kept tight. An id alone is
+# client-chosen and can be minted fresh on every request, so this one only
+# catches a flood that reuses a single id from many different IPs -
+# GUESS_IP_LIMITER below closes the opposite gap.
 [[ratelimits]]
 name = "GUESS_LIMITER"
 namespace_id = "1001"
 simple = { limit = 20, period = 60 }
 
-# Per-IP limit, shared by /ping (the one route with no better key) AND
-# /guess (closing the gap a fresh-random-id-per-request script would
-# otherwise dodge in GUESS_LIMITER above). One budget, two routes. The IP
-# itself is only ever passed to this binding's own ephemeral counter - see
-# worker/src/index.js.
+# Per-IP limit on /ping, the one route with no better key. NOT shared with
+# /guess (see GUESS_IP_LIMITER below) - a class of 30-40 students on one
+# campus-wifi IP would exhaust a shared budget on pings alone, before a
+# single /guess got through. The IP itself is only ever passed to this
+# binding's own ephemeral counter - see worker/src/index.js.
 [[ratelimits]]
 name = "PING_LIMITER"
 namespace_id = "1002"
 simple = { limit = 30, period = 60 }
+
+# /guess's OWN per-IP limit - generous enough that a full class sharing one
+# IP never trips it just by playing normally, while GUESS_LIMITER above
+# still catches a single id's flood. This is what closes the
+# fresh-random-id-per-request dodge now, not PING_LIMITER.
+[[ratelimits]]
+name = "GUESS_IP_LIMITER"
+namespace_id = "1003"
+simple = { limit = 300, period = 60 }

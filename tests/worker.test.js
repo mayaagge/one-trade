@@ -231,6 +231,7 @@ function baseEnv(overrides = {}) {
     ALLOWED_ORIGIN: ORIGIN,
     PING_LIMITER: stubLimiter(true),
     GUESS_LIMITER: stubLimiter(true),
+    GUESS_IP_LIMITER: stubLimiter(true),
     PINGS: stubDataset(),
     GUESSES: stubDataset(),
     GUESSES_PLAYTEST: stubDataset(),
@@ -274,29 +275,62 @@ test('an invalid body never reaches a limiter or a dataset', async () => {
 test('a fresh random id on every request still gets caught, by IP', async () => {
   // Simulates exactly the dodge this fix closes: the id-keyed limiter always
   // allows, because a script minting a new id per request never repeats one -
-  // but the shared IP-keyed limiter has seen this IP too many times.
-  const env = baseEnv({ PING_LIMITER: stubLimiter(false), GUESS_LIMITER: stubLimiter(true) });
+  // but GUESS_IP_LIMITER has seen this IP too many times.
+  const env = baseEnv({ GUESS_IP_LIMITER: stubLimiter(false), GUESS_LIMITER: stubLimiter(true) });
   const response = await worker.fetch(postRequest('/guess', goodGuess({ id: 'b'.repeat(32) })), env);
   assert.equal(response.status, 429);
   assert.equal(env.GUESSES.points.length, 0, 'a rate-limited request must not be written');
 });
 
 test('one id reused from many different IPs is still caught, by id', async () => {
-  // The IP-keyed limiter is fine with any single one of many IPs; the
-  // id-keyed one has seen this exact id too many times regardless of which
-  // IP it arrived from.
-  const env = baseEnv({ PING_LIMITER: stubLimiter(true), GUESS_LIMITER: stubLimiter(false) });
+  // GUESS_IP_LIMITER is fine with any single one of many IPs; the id-keyed
+  // one has seen this exact id too many times regardless of which IP it
+  // arrived from.
+  const env = baseEnv({ GUESS_IP_LIMITER: stubLimiter(true), GUESS_LIMITER: stubLimiter(false) });
   const response = await worker.fetch(postRequest('/guess', goodGuess()), env);
   assert.equal(response.status, 429);
   assert.equal(env.GUESSES.points.length, 0);
 });
 
-test('/guess and /ping draw on the exact same IP-keyed limiter binding', async () => {
+test('/guess and /ping do NOT share an IP-keyed limiter', async () => {
+  // The opposite property of what this binding layout used to have, and on
+  // purpose: a class's pings sharing one IP must never be able to exhaust a
+  // budget /guess also depends on.
   const env = baseEnv();
   await worker.fetch(postRequest('/guess', goodGuess(), { ip: '198.51.100.9' }), env);
   await worker.fetch(postRequest('/ping', { level: 3 }, { ip: '198.51.100.9' }), env);
-  assert.deepEqual(env.PING_LIMITER.calls, ['198.51.100.9', '198.51.100.9'],
-    'both routes should have called the one shared binding with the same key');
+  assert.deepEqual(env.GUESS_IP_LIMITER.calls, ['198.51.100.9'], 'only /guess should call this one');
+  assert.deepEqual(env.PING_LIMITER.calls, ['198.51.100.9'], 'only /ping should call this one');
+});
+
+test('a class hammering /ping on one shared IP cannot starve /guess', async () => {
+  // The exact scenario that was missed: PING_LIMITER exhausted (30-40
+  // students on one campus-wifi IP pinging at once) must not block a /guess
+  // from that same IP, because they are different bindings now.
+  const env = baseEnv({ PING_LIMITER: stubLimiter(false) });
+  const pingResponse = await worker.fetch(postRequest('/ping', { level: 2 }, { ip: '198.51.100.50' }), env);
+  assert.equal(pingResponse.status, 429, 'the ping should still be the one that is limited');
+  const guessResponse = await worker.fetch(postRequest('/guess', goodGuess(), { ip: '198.51.100.50' }), env);
+  assert.equal(guessResponse.status, 204, 'a guess from the same IP must not be caught by the ping limiter');
+  assert.equal(env.GUESSES.points.length, 1);
+});
+
+test('a full class-sized burst of guesses from one IP all succeed', async () => {
+  // Not a stub this time: the real rateLimited() against a counting stand-in
+  // for GUESS_IP_LIMITER, so the 300/60s configured in wrangler.toml is
+  // actually exercised, not just assumed generous enough.
+  let count = 0;
+  const env = baseEnv({ GUESS_IP_LIMITER: { limit: async () => ({ success: (count += 1) <= 300 }) } });
+  for (let i = 0; i < 40; i += 1) {
+    const id = `${i}`.padStart(32, '0');
+    // eslint-disable-next-line no-await-in-loop
+    const response = await worker.fetch(
+      postRequest('/guess', goodGuess({ id }), { ip: '198.51.100.77' }),
+      env,
+    );
+    assert.equal(response.status, 204, `request ${i} from a full class on one IP should not be limited`);
+  }
+  assert.equal(env.GUESSES.points.length, 40);
 });
 
 test('a rate-limited /ping is rejected and writes nothing', async () => {

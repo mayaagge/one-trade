@@ -56,17 +56,20 @@ async function handleGuess(request, env, url, headers) {
   // TWO LIMITERS, BECAUSE THE ID ALONE CAN BE DODGED. Nothing about the id
   // is issued or checked by this server - a script can mint a fresh random
   // one on every request and the id-keyed limiter would never see a
-  // repeat. The IP-keyed check closes that gap. It shares PING_LIMITER with
-  // handlePing rather than a limiter of its own: one IP-keyed budget, used
-  // by both routes. The IP itself is passed straight to the binding's own
-  // ephemeral counter and never written to a blob, an index, or a log
-  // anywhere in this file.
+  // repeat. GUESS_IP_LIMITER closes that gap - its OWN binding, generous
+  // enough that a full class sharing one campus-wifi IP never trips it by
+  // playing normally. It is NOT PING_LIMITER: sharing one IP-keyed budget
+  // between the two routes meant a class's pings alone could exhaust it
+  // before a single real guess got through. The IP itself is passed
+  // straight to the binding's own ephemeral counter and never written to a
+  // blob, an index, or a log anywhere in this file.
   const ip = request.headers.get('CF-Connecting-IP');
-  if (await rateLimited(env.PING_LIMITER, ip)) {
+  if (await rateLimited(env.GUESS_IP_LIMITER, ip)) {
     return new Response('rate limited', { status: 429, headers });
   }
-  // Kept alongside the IP check, not replaced by it: this one still catches
-  // a flood that reuses a single id from many different IPs.
+  // Kept alongside the IP check, not replaced by it, and deliberately
+  // tighter: this one still catches a flood that reuses a single id from
+  // many different IPs.
   if (await rateLimited(env.GUESS_LIMITER, body.id)) {
     return new Response('rate limited', { status: 429, headers });
   }
@@ -93,10 +96,11 @@ async function handlePing(request, env, url, headers) {
   }
 
   // No participant id ever rides along on a ping (by design - PRD's "What
-  // leaves the browser"), so there is no better key than the IP here. Same
-  // PING_LIMITER handleGuess shares for its own IP check - one budget, two
-  // routes. The IP itself is never written to a blob, an index, or a log
-  // anywhere in this file.
+  // leaves the browser"), so there is no better key than the IP here. Its
+  // own binding, PING_LIMITER - not GUESS_IP_LIMITER, and not shared with
+  // /guess: a class's pings sharing one campus-wifi IP must never be able
+  // to exhaust the budget /guess needs. The IP itself is never written to
+  // a blob, an index, or a log anywhere in this file.
   const ip = request.headers.get('CF-Connecting-IP');
   if (await rateLimited(env.PING_LIMITER, ip)) {
     return new Response('rate limited', { status: 429, headers });

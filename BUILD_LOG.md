@@ -4776,4 +4776,42 @@ so it is still testing the genuine code, not a copy kept in sync by hand.
 1,171 tests pass, in Node. `wrangler dev` is the next check, against the
 real runtime this bug could only show up in.
 
+### `wrangler dev`, for real: two bindings caught, two burst tests confirmed live
+
+Started cleanly against the split module. Fired real HTTP requests at it
+from here rather than trusting the unit tests alone: a valid `/guess`, the
+same with `?src=playtest`, an invalid level, a disallowed origin, a wrong
+method, a valid `/ping`, and an `OPTIONS` preflight - all seven matched
+exactly. Then two deliberate bursts, against the real local binding
+simulation rather than a stub: 21 `/guess` requests sharing one id (the
+20/60s `GUESS_LIMITER` let exactly 20 through, 429 on the 21st), and 31
+`/guess` requests each with a freshly-minted random id but one IP (the
+shared `PING_LIMITER`, 30/60s, let exactly 30 through, 429 on the 31st) -
+the id-dodge fix from earlier this session, now proven against the real
+runtime, not only the mocked logic in `tests/worker.test.js`.
+
+**That second burst is also what exposed the next bug, on review rather
+than in a test.** `PING_LIMITER` was shared between `/ping` and `/guess` on
+purpose, to close the id-dodge cheaply with no new binding. What that
+missed: a class of 30-40 students on one campus-wifi IP shares exactly one
+IP address, and pings alone - one per level reached, up to 7 per student -
+could exhaust a 30-request-a-minute shared budget before a single real
+`/guess` got through. The fix meant to stop abuse would have rate-limited
+an ordinary classroom session.
+
+**`/guess` now has its own IP-keyed binding, `GUESS_IP_LIMITER`, at
+300/60s** - generous enough that a full class playing normally never comes
+close, while `GUESS_LIMITER`'s 20/60s per-id cap stays tight, since nothing
+about a real player ever needs to send that many guesses from one id in a
+minute. `PING_LIMITER` goes back to being `/ping`'s alone. Two new tests:
+one confirms the two routes call different bindings now, not the same one;
+another runs `PING_LIMITER` empty (simulating the exhausted-by-pings case)
+and confirms a `/guess` from that same IP still succeeds - the literal
+scenario that was missed. A third sends 40 distinct ids from one IP through
+a real counting stand-in for `GUESS_IP_LIMITER` (not a stub that always says
+yes) and confirms a full class-sized burst never trips the 300 limit
+configured in `wrangler.toml`.
+
+1,173 tests pass.
+
 Educational, not investment advice.
