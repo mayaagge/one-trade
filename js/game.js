@@ -157,6 +157,20 @@ export function starText(count) {
   return `${'★'.repeat(count)}${'☆'.repeat(3 - count)}`;
 }
 
+/**
+ * The same stars, for a level list that also has to say "and this one has been
+ * played".
+ *
+ * THREE EMPTY STARS ON THEIR OWN ARE AMBIGUOUS. ☆☆☆ is what a level scores when
+ * it is played and missed, and it is also what a level that was never opened
+ * would look like if the list drew stars for it - so the zero case says so in
+ * words and the rest are left as the stars they are. The words are only on the
+ * zero: "★☆☆ one star" would be the same news twice.
+ */
+export function starsLabel(count) {
+  return count === 0 ? `${starText(0)} no stars yet` : starText(count);
+}
+
 // ------------------------------------------------------------- the session
 
 /**
@@ -223,8 +237,22 @@ export function seenPoolIds(session) {
  * game is playable without storage, and says so on the menu.
  */
 export function recordResult(session, levelId, result) {
-  const best = Math.max(session.stars.get(levelId) ?? 0, result.stars);
-  session.stars.set(levelId, best);
+  // A LEVEL IS IN THIS MAP ONCE IT HAS BEEN PLAYED, which is what the level
+  // list reads to tell "played and missed" from "never opened" - a 0 is a
+  // score, not an absence. So the key has to go in even when the score is 0.
+  //
+  // A SERIES PART IS NOT A FINISHED LEVEL. Level 7's parts each come through
+  // here - they have a drawn portfolio to remember below - and their stars are
+  // null, because three guesses decide the level and one of them decides
+  // nothing (js/round.js). Writing a key for a part would put level 7 on the
+  // list as played the moment its first portfolio was revealed, and then take
+  // it off again on the next reload, since saveResult() does not write a part
+  // either. The guard keeps this map and the saved record agreeing about what
+  // counts as played; finishSeries() writes level 7 once, from the verdict.
+  if (Number.isInteger(result.stars)) {
+    const best = Math.max(session.stars.get(levelId) ?? 0, result.stars);
+    session.stars.set(levelId, best);
+  }
   if (result.drawnId) {
     session.drawnPoolIds.add(`${result.drawnPool ?? 'guessPool'}:${result.drawnId}`);
     // A failed write changes nothing on screen, same as every other save in
@@ -255,9 +283,17 @@ function levelCard(ctx, level, { continueId, allPassed }) {
   const card = h('article', 'level-card');
   const head = h('header', 'level-card-head');
   head.append(h('h2', null, `${level.id}. ${level.title}`));
-  const stars = ctx.session.stars.get(level.id);
+  // PLAYED IS NOT THE SAME QUESTION AS SCORED, and reading one off the other
+  // is what this card used to do: `stars ? starText(stars) : 'not played'`
+  // treated a 0 as nothing at all, so a level played and missed was shown
+  // exactly as a level never opened. A player who had just failed level 4
+  // three times was told on the list that they had never tried it. The map
+  // answers both questions - has() for whether it was played, get() for what
+  // it scored - and recordResult() puts the key in on a 0 for that reason.
+  const played = ctx.session.stars.has(level.id);
+  const stars = ctx.session.stars.get(level.id) ?? 0;
   head.append(h('span', stars ? 'level-stars' : 'level-stars level-stars-none',
-    stars ? starText(stars) : 'not played'));
+    played ? starsLabel(stars) : 'not played'));
   card.append(head);
   card.append(h('p', 'level-concept', level.concept));
 
@@ -290,7 +326,7 @@ function levelCard(ctx, level, { continueId, allPassed }) {
   if (isContinue) card.classList.add('level-card-continue');
   // The gate is HERE and not only on the button: a disabled button stops a
   // click, never a caller. js/round.js refuses the same kinds of thing.
-  card.append(button(isContinue ? 'Continue' : (stars ? 'Play again' : 'Play'), 'btn btn-primary btn-wide',
+  card.append(button(isContinue ? 'Continue' : (played ? 'Play again' : 'Play'), 'btn btn-primary btn-wide',
     () => { if (isUnlocked(ctx.progress, level.id, ids)) ctx.startRound(level.id); },
     { disabled: !unlocked, aria: unlocked ? null : `Level ${level.id} unlocks when level ${before} is passed` }));
   return card;

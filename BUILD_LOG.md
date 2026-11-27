@@ -5489,3 +5489,62 @@ that the PRD now says out loud what the analyst is supposed to do.
 1,196 tests pass, unchanged - none of this is code.
 
 Educational, not investment advice.
+
+## Player feedback 1: a played level said it had never been played, 27 November 2026 (session 2.37)
+
+**From the playtest.** First of sixteen changes Maya brought back from watching
+people play. The level list showed "not played" against a level that had just
+been played and missed, so a player who had failed level 4 three times was told
+on the menu that they had never tried it.
+
+The cause is one falsy check. `levelCard()` asked
+`stars ? starText(stars) : 'not played'`, and `starsOf()` returns **0** for a
+level that was played and failed. Zero is falsy, so a score of none and a
+record of nothing rendered identically. The saved record always knew better -
+`recordLevel()` writes `played: true` and a `tries` count - and nothing was
+reading it.
+
+So the card now asks the two questions separately: `session.stars.has(id)` for
+whether the level was played, `get(id)` for what it scored. A level with a
+record and no stars reads **"☆☆☆ no stars yet"**, and its button says "Play
+again" rather than offering a first play. Three empty stars on their own would
+have been as ambiguous as the bug - that is also what a never-opened level
+would look like if the list drew stars for it - so the zero case carries the
+words and no other case does: "★☆☆ one star" is the same news twice.
+
+### The same bug one screen over, in the capstone
+
+Fixing the list meant `session.stars.has()` became the answer to "was this
+played", and that exposed a second case. `recordResult()` is called for every
+finished round **including each of level 7's three parts**, whose `stars` is
+`null` by design: three guesses decide that level and one of them decides
+nothing. `Math.max(0, null)` is 0, so revealing level 7's first portfolio wrote
+a key - and under the new reading, the list would have shown level 7 as played
+from that moment. Then a reload would have taken it off again, because
+`saveResult()` does not write a part either. A card that says "played" before a
+refresh and "not played" after is the bug that was just reported, wearing a
+different hat.
+
+The star write is now guarded by `Number.isInteger(result.stars)`, which is the
+same condition `finish()` already uses to decide whether to save. The map and
+the saved record now agree about what counts as played, before and after a
+reload. **The drawn-portfolio write is deliberately left unguarded**: a part's
+portfolio must still be remembered, or level 7's draw could deal a player the
+same portfolio twice, and that exclusion is what PREREG_AMENDMENT_3.md section
+2 rests on. A test asserts both halves of that call - no star for a part, the
+portfolio remembered anyway.
+
+### Checked, not assumed
+
+Seven new tests, 1,196 to **1,203 passing**. The screenshot was taken rather
+than reasoned about: `learn-02-menu-stars` already seeds levels 4 to 7 at zero
+stars, so it is a picture of exactly this bug, and at 375px "☆☆☆ no stars yet"
+sits on one line beside every title including "4. Hidden AI" and "6. Crash
+test" - no title wraps. `node scripts/dev_a11y.mjs` reports an empty contrast
+table; the two tap-target entries it lists are the skip link and a text link,
+both there before this change.
+
+No PRD change: the level list's wording is not in the specification, and the
+unlock rule is untouched here - that is the next session.
+
+Educational, not investment advice.

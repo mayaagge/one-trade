@@ -263,6 +263,33 @@ test('the best score for a level stands, and a worse replay does not undo it', (
   assert.equal(session.stars.get(3), 3);
 });
 
+test('a level played and missed is remembered as played, on a score of 0', () => {
+  // The level list tells "played and missed" from "never opened" by asking
+  // whether the key is here at all, so a 0 has to put one in. See
+  // tests/learnProgress.test.js for the screen that reads it.
+  const session = newSession();
+  recordResult(session, 4, { stars: 0, drawnId: null });
+  assert.equal(session.stars.has(4), true, 'a finished level left no record of being played');
+  assert.equal(session.stars.get(4), 0);
+  assert.equal(session.stars.has(5), false, 'an untouched level is in the map anyway');
+});
+
+test('a capstone part is not a finished level, and does not register level 7 as played', () => {
+  // A series part has no stars of its own - level 7 turns on all three guesses
+  // - and nothing is saved until the verdict. A key written here would put
+  // level 7 on the list as played until the next reload took it off again.
+  const session = newSession();
+  recordResult(session, 7, { stars: null, drawnId: 'p02', drawnPool: 'guessPool' });
+  assert.equal(session.stars.has(7), false, 'a half-finished capstone counted as played');
+  // The part's portfolio is still remembered: that is the other half of this
+  // call, and level 7's draw depends on it.
+  assert.deepEqual(seenPoolIds(session), ['p02']);
+
+  // The verdict, when it comes, does write one.
+  recordResult(session, 7, { stars: 2, drawnId: null });
+  assert.equal(session.stars.get(7), 2);
+});
+
 test('the pool portfolio drawn on level 2 is remembered, so level 7 can avoid it', () => {
   const session = newSession();
   recordResult(session, 2, { stars: 2, drawnId: 'p11', drawnPool: 'guessPool' });

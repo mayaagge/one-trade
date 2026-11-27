@@ -15,7 +15,9 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { StubNode, textOf, withDocument } from './stubDom.js';
-import { HINT_AFTER_TRIES, levelHint, renderMenu, newSession } from '../js/game.js';
+import {
+  HINT_AFTER_TRIES, levelHint, recordResult, renderMenu, newSession,
+} from '../js/game.js';
 import {
   PROGRESS_KEY, emptyProgress, recordLevel, loadProgress, saveProgress, triesOf,
 } from '../js/progress.js';
@@ -142,6 +144,83 @@ test('once every level is passed, the progress line says so and nothing offers t
         `level ${id} still offered Continue after every level was passed`);
       assert.equal(playButton(cardFor(view, id))._text, 'Play again');
     }
+  } finally { restore(); }
+});
+
+test('a level played and missed says so, instead of reading as never opened', () => {
+  // THE BUG THIS IS HERE FOR. The card asked `stars ? starText(stars) : 'not
+  // played'`, and a level played and failed scores 0 - which is falsy - so the
+  // list told a player who had just failed level 1 three times that they had
+  // never tried it. A 0 is a score, not an absence.
+  const { restore } = screen();
+  try {
+    const progress = recordLevel(emptyProgress(), 1, { stars: 0, error: 2.0 });
+    const card = cardFor(renderMenu(context(progress)), 1);
+    const text = textOf(card);
+    assert.ok(!/not played/.test(text), `a played level still reads as unplayed: ${text}`);
+    assert.match(text, /no stars yet/);
+    // "Continue" rather than "Play again", and that is right: under
+    // pass-to-unlock a level that was missed is still the next one to play, so
+    // the continue treatment wins over the replay wording. "Play again" is
+    // asserted above, on a level that was passed and left behind.
+    assert.equal(playButton(card)._text, 'Continue');
+  } finally { restore(); }
+});
+
+test('three failed tries still read as played, and the hint does not change that', () => {
+  const { restore } = screen();
+  try {
+    let progress = emptyProgress();
+    for (let i = 0; i < HINT_AFTER_TRIES; i += 1) {
+      progress = recordLevel(progress, 1, { stars: 0, error: 1.5 });
+    }
+    assert.equal(triesOf(progress, 1), HINT_AFTER_TRIES, 'the tries were not counted');
+    assert.ok(!/not played/.test(textOf(cardFor(renderMenu(context(progress)), 1))));
+  } finally { restore(); }
+});
+
+test('the best stars stand on the list, and a worse replay does not take them off it', () => {
+  const { restore } = screen();
+  try {
+    let progress = recordLevel(emptyProgress(), 1, { stars: 3, error: 0.02 });
+    progress = recordLevel(progress, 1, { stars: 1, error: 0.9 });
+    assert.match(textOf(cardFor(renderMenu(context(progress)), 1)), /\u2605\u2605\u2605/);
+  } finally { restore(); }
+});
+
+test("a finished round is on the list on the next draw, without a reload", () => {
+  // "Updated as soon as a round ends" - through the same two calls js/game.js's
+  // finish() makes, on one context, with no reload in between.
+  const { restore } = screen();
+  try {
+    const ctx = context(emptyProgress());
+    assert.match(textOf(cardFor(renderMenu(ctx), 1)), /not played/);
+
+    recordResult(ctx.session, 1, { stars: 2, drawnId: null });
+    ctx.progress = recordLevel(ctx.progress, 1, { stars: 2, error: 0.4 });
+
+    const card = cardFor(renderMenu(ctx), 1);
+    assert.match(textOf(card), /\u2605\u2605\u2606/, 'the stars just earned are not on the list');
+    assert.equal(playButton(card)._text, 'Play again');
+  } finally { restore(); }
+});
+
+test('a half-finished capstone is not on the list as played', () => {
+  // Level 7's parts carry no stars of their own - three guesses decide the
+  // level - and nothing is saved until the verdict. If the list drew the first
+  // part as "played", a reload would take it off again, which is the same bug
+  // this file's first case is about, one screen over.
+  const { restore } = screen();
+  try {
+    let progress = emptyProgress();
+    for (const id of IDS.slice(0, 6)) progress = recordLevel(progress, id, { stars: 1, error: 0.3 });
+    const ctx = context(progress);
+
+    recordResult(ctx.session, 7, { stars: null, drawnId: 'p03', drawnPool: 'guessPool' });
+
+    assert.match(textOf(cardFor(renderMenu(ctx), 7)), /not played/);
+    assert.deepEqual([...ctx.session.drawnPoolIds], ['guessPool:p03'],
+      'the part\'s portfolio was forgotten, so level 7 could deal it twice');
   } finally { restore(); }
 });
 
