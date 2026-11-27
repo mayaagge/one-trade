@@ -5184,3 +5184,74 @@ wording change.
 1,189 tests pass.
 
 Educational, not investment advice.
+
+## The mid-range phone estimate, 27 November 2026 (session 2.33)
+
+Launch item 7 - "Levels 1 to 3 can be played in under 10 minutes on a mid-range
+phone" - was reported as unmeasured in the launch review and then left there,
+which is half a job. `scripts/dev_phone.mjs` now estimates it.
+
+**The profile is Lighthouse's own mobile profile**, so the figure is comparable
+to something rather than invented: 4x CPU slowdown, Slow 4G at 1.6 Mbit/s down,
+750 kbit/s up, 150ms round trip. It plays levels 1 to 3 as a first-time player
+would - no seeded progress, so level 1 is the only level open - passing level 1
+on VOO and VTI, taking level 2's dealt portfolio, and building level 3 on a
+design `scripts/check_levels.mjs` already lists as winning.
+
+### 7m 31s against 10m 00s
+
+| Term | Time |
+| --- | --- |
+| Machine, 4x CPU and Slow 4G | 0m 12s |
+| Reading, ~1,340 words at 200 wpm | 6m 42s |
+| Taps, 17 at 1.5s plus 3 slider drags at 4s | 0m 38s |
+| **Estimated total** | **7m 31s** |
+| Under the launch item's 10 minutes by | 2m 29s |
+
+**The launch item is not a performance question. It is a word count.** Reading
+is 89% of the estimate and the machine is 3% - and 8.3 of those 12 seconds are
+the one cold page load. Throttling the CPU fourfold and the network to Slow 4G
+barely moves it, because the game is static files with every calculation in the
+browser. The Learn menu alone is 277 words, read before level 1 starts.
+
+### The margin is thinner than 2m 29s makes it look
+
+200 words a minute is an average for ORDINARY prose, and these screens are full
+of terms a first-time player has never met - "effective bets", "share of risk",
+"correlation". The script prints the sensitivity for that reason:
+
+| Reading speed | Total | Against 10 minutes |
+| --- | --- | --- |
+| 250 wpm | 6m 11s | under by 3m 49s |
+| 200 wpm | 7m 31s | under by 2m 29s |
+| 175 wpm | 8m 29s | under by 1m 31s |
+| 150 wpm | 9m 45s | **under by 15s** |
+| 125 wpm | 11m 33s | **OVER by 1m 33s** |
+
+At 150 wpm - entirely plausible for unfamiliar financial language - the margin
+is fifteen seconds. At 125 it fails. So the honest reading is **plausible, not
+comfortable**, and the thing that would buy margin is cutting words, not
+optimising anything.
+
+### What this estimate is not
+
+It adds machine time, reading time and tap time rather than overlapping them, so
+it is an upper bound on those three - a real player reads while the page works.
+But it models no thinking at all: no pausing to work out what a number means, no
+re-reading the task, no hunting for a ticker they recognise. A first-time player
+does all three, and none of it is in the 7m 31s. The two errors point opposite
+ways and there is no claim here about which is larger.
+
+The word count also moves a little between runs, because level 2's portfolio is
+dealt from the pool of 20 and the "Why?" card picks its template from the
+result: 1,340 and 1,358 words on two runs of the same script.
+
+**Launch item 7 is marked ESTIMATED, not done.** docs/PRD.md says so, with the
+figure and the pending real-phone run. An estimate from a desktop browser
+pretending to be a phone is evidence that 10 minutes is the right order of
+magnitude; it is not somebody playing on a phone, which is what the item asks
+for and what Maya will do.
+
+1,189 tests pass.
+
+Educational, not investment advice.

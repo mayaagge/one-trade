@@ -404,7 +404,7 @@ Written down on 27 November 2026, because "60 days after launch" and "day 80" ar
 
 - ☑ The known-answer math tests and the weekly level-solvability test pass in CI.
 
-- ☐ Levels 1 to 3 can be played in under 10 minutes on a mid-range phone.
+- ◐ Levels 1 to 3 can be played in under 10 minutes on a mid-range phone. **Estimated at 7m 31s, pending a real-phone run** (27 November 2026, `node scripts/dev_phone.mjs`, BUILD_LOG.md session 2.33). Lighthouse's mobile profile — 4× CPU slowdown, Slow 4G — gives 0m 12s of machine time, 0m 38s of taps, and 6m 42s of reading ~1,340 words at 200 wpm. **It is a word count, not a performance question:** reading is 89% of it and the machine 3%. The margin is thinner than it looks — at 150 wpm, plausible for unfamiliar financial language, the total is 9m 45s, and at 125 wpm it fails. An estimate is not the item: it needs a person, a phone and a stopwatch.
 
 - ☑ The daily puzzle shows the same pairs on two different devices (it's seeded by the date, which needs no Worker).
 

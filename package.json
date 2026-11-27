@@ -11,7 +11,8 @@
     "shots": "node scripts/shots.mjs",
     "checks": "node scripts/dev_checks.mjs",
     "a11y": "node scripts/dev_a11y.mjs",
-    "mockups": "node scripts/make_mockups.mjs"
+    "mockups": "node scripts/make_mockups.mjs",
+    "phone": "node scripts/dev_phone.mjs"
   },
   "devDependencies": {
     "playwright": "^1.65.1"

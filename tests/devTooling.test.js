@@ -84,5 +84,6 @@ test('the dev scripts are the only place playwright is imported', () => {
     if (!name.endsWith('.mjs') && !name.endsWith('.js')) return false;
     return read(join('scripts', name)).includes("from 'playwright'");
   });
-  assert.deepEqual(importers.sort(), ['dev_a11y.mjs', 'dev_checks.mjs', 'shots.mjs']);
+  assert.deepEqual(importers.sort(),
+    ['dev_a11y.mjs', 'dev_checks.mjs', 'dev_phone.mjs', 'shots.mjs']);
 });
