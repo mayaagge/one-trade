@@ -27,6 +27,14 @@ I am a first-year at UChicago. I know Python, JavaScript, web pages, Github, and
 9. Do not add features that are not in the PRD. Suggest them instead.
 10. Every screen that shows a number must say
     "Educational, not investment advice."
+11. Deploy the Worker BEFORE pushing a client change that depends on it.
+    Anything under worker/ is live only when `cd worker && npx wrangler
+    deploy` has run; GitHub Pages deploys the browser code on push and
+    knows nothing about the Worker. On 27 Nov 2026 a `passed` field was
+    added to /ping, the client shipped at 18:18 UTC and the Worker was
+    still the 01:23 build, so every ping was rejected with a 400 for two
+    hours and nothing recorded it - a rejected ping writes no row. Say at
+    the end of any session that touched worker/ whether it was deployed.
 
 ## Project layout
 - index.html: the page

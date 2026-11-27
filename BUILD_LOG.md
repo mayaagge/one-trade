@@ -6688,3 +6688,67 @@ levels.json, still the daily puzzle's.
 1,273 to **1,274 passing**.
 
 Educational, not investment advice.
+
+## The Worker is deployed, and the launch tag exists, 27 November 2026 (session 2.49)
+
+### The Worker had been two hours behind the client
+
+Session 2.38 added a `passed` field to `/ping` and pushed it. **Only the
+browser half shipped.** GitHub Pages deploys on push and knows nothing about
+Cloudflare, so from **18:18:49 UTC**, when Pages served the new client, until
+**22:18:19 UTC**, when the Worker was finally deployed, the page sent
+`{level, passed}` and the live Worker - still the 01:23 build - rejected every
+one of them with a 400.
+
+Checked rather than assumed, three ways. `npx wrangler deployments list` put
+the live version at 01:23:20 UTC; `git log` put the validator's change at
+17:45 UTC; and the deployed validator, checked out from the commit before the
+change and run against the body the live client sends, rejects it:
+
+```
+THE DEPLOYED validator            THE REPO's validator
+  ACCEPT  {level:4}                 ACCEPT  {level:4}
+  REJECT  {level:4, passed:true}    ACCEPT  {level:4, passed:true}
+```
+
+**What it cost, as far as the data can say.** Nothing that can be found, and
+the limit of that is worth stating: a rejected ping writes no row, so a lost
+one leaves no trace anywhere. What the dataset does say is that **every ping
+it has ever held is ours** - 24 from `?src=playtest`, 2 from a smoke test -
+and that none landed after 17:59:34, twenty minutes before the new client went
+live. No real visitor has ever pinged this game. If nobody arrived in those
+two hours, nothing was lost; nobody can prove it from here.
+
+`/guess` was untouched by the change, so no guess record and nothing
+Hypothesis 3 reads was affected.
+
+**Deployed and confirmed end to end.** Version `2a899434`, 100% of traffic, at
+22:18:19 UTC. Then level 1 was played on the live site with `?src=playtest`
+through a real browser: the page posted `{"level":1,"passed":true,"src":"playtest"}`
+and got **204**, and the row appeared in the dataset thirty seconds later as
+`22:18:52 src=playtest level=1 passed=1` - the first row in the game's history
+with `passed` set.
+
+**CLAUDE.md gains rule 11:** deploy the Worker before pushing a client change
+that depends on it, and say at the end of any session that touched `worker/`
+whether it was deployed. The failure mode is what makes it worth a rule rather
+than a note - a rejected ping is silent on both ends, so nothing goes red.
+
+### The launch tag
+
+```
+launch   2026-11-27T17:20:16-05:00 (22:20:16 UTC)   "Public launch"   -> 0898342
+```
+
+Annotated and pushed to GitHub, so its timestamp is public and fixed.
+**Hypothesis 3's collection window starts here**: docs/PRD.md's test design,
+point 5, registers that the analysis reads only rows timestamped at or after
+this tag, and until now the rule had no tag to point at. Rows before it - the
+26 pings and 8 guess records above, all ours - are outside the window by
+construction rather than by anybody deciding afterwards which ones were real.
+
+The second guard is unchanged and independent: PREREG_AMENDMENT_3.md section 3
+keeps every `?src=playtest` guess in `GUESSES_PLAYTEST`, which the analysis
+never reads.
+
+Educational, not investment advice.
