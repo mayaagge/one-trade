@@ -146,16 +146,23 @@ Level 6 is why this is written down. A portfolio that fell 20% while the index f
 
 **Level 1's reveal draws the pair.** Added 27 November 2026 on playtest feedback (BUILD_LOG.md, player feedback 6). A correlation is the one answer in this game that does not look like anything — 0.996 and 0.228 are both just numbers — so the reveal shows the two holdings as two lines, each starting at 100 on the window's first day. A same-bet pair leaves that point together and stays there; an unrelated pair wanders apart, and that picture is the lesson the number is standing in for. **Indexed, never priced:** both lines start at the same place, so the chart reads as "up 40%" rather than inviting a player to compare two share prices, which is not what a correlation is about. The same chart component Crash replay and Research use, and the same compounding a replay does.
 
+**No level offers a hint.** Changed 27 November 2026 on playtest feedback (BUILD_LOG.md, player feedback 7). A level used to show a hint after three failed tries. They are gone, and their ideas moved to the two places a player reads after trying or by choice: that level's "Why?" card, which appears after the reveal, and the About tab's "What each level teaches". A hint arrives while a player is still guessing, which is the moment the game is supposed to leave alone; the same sentence after the reveal is a correction rather than a nudge. This was only safe once a level unlocked by being played rather than passed — before that the hint was the only thing between a stuck player and a dead end.
+
+**Plain words, on every level, in the same place.** Each level shows one line above its question saying what that question is about: correlation on level 1, a bet on levels 2, 3 and 7, beta on level 4, share of risk on level 5, and the fall against the index on level 6. **The three bets levels carry the identical sentence, word for word.** Repeating it is the point rather than a slip: level 2 and the first of level 7's mystery portfolios are the pair Hypothesis 3 compares, and the two screens have to ask the same thing the same way. A first draft defined each term only where it first appeared, which gave level 2 a sentence level 7 did not have — a difference in the instrument between two guesses that are supposed to be equally hard. tests/levels.test.js holds every level to having exactly one definition, and tests/series.test.js renders both screens and holds them to being identical.
+
+The fuller version of every term is in the About tab, which is where depth goes so that a level can say one thing in one sentence.
+
 **The guess comes first.** Every level asks the player to predict the answer before the reveal. Predicting and then being corrected is the main learning moment.
 
 ## Game modes
 
 | Mode | What the player does | When |
 | --- | --- | --- |
-| **Learn** | Levels 1 to 7 in order, each unlocked by *playing* the one before it — finishing a level is enough, passed or not, and level 1 is always open. A level that has been failed three times offers a hint. Progress saved in the browser | Launch |
+| **Learn** | Levels 1 to 7 in order, each unlocked by *playing* the one before it — finishing a level is enough, passed or not, and level 1 is always open. Progress saved in the browser | Launch |
 | **Sandbox** | Build any portfolio from the full ticker list and see every measure | Launch |
 | **Crash replay** | Watch a pretend portfolio through the 2020 crash, the 2022 bear market or the January 2025 AI selloff, next to the S&P 500. The three windows are fixed below | Launch |
 | **Research** | Read the three pre-registered hypotheses and their verdicts, and see the rolling correlation chart continue past the freeze date on live data | Launch |
+| **About** | What the game is and what every word in it means, in plain language: a bet, correlation, effective bets, share of risk, beta, how to build the intuition, and what each level teaches. Nothing in it is needed to play | Added 27 November 2026 |
 | **Classroom link** | An instructor picks levels and shares one link; a one-page lesson plan goes with it | Launch |
 | **Feedback** | Three-question form after level 3 | Launch |
 | **My real portfolio** | Enter real holdings in dollars; nothing is stored or sent | Launch, secondary |

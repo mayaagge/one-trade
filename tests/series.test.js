@@ -560,10 +560,21 @@ test("level 2 and level 7's first portfolio ask the question the same way", () =
       assert.ok(!words.some((w) => /Back to the build/.test(w ?? '')), words.join(' | '));
     }
 
-    // And the rest of the screen matches too. Two things are set aside: the
-    // step line, which says "Portfolio 1 of 3" on the capstone and must, and
-    // the holding rows, whose COUNT is the portfolios differing rather than
-    // the screens - their shape is checked above.
+    // THE DEFINITION IS WORD FOR WORD THE SAME, which is the whole reason
+    // every level has one. The first version put a definition only where a
+    // term first appeared, which gave level 2 a sentence level 7 did not
+    // have - a difference in the instrument between the two guesses
+    // Hypothesis 3 pairs. Making it universal removes it.
+    const defineOf = (view) => view.querySelectorAll('guess-define').map((n) => n._text);
+    assert.equal(defineOf(twoView).length, 1, 'level 2 shows no definition');
+    assert.equal(defineOf(sevenView).length, 1, 'level 7 shows no definition');
+    assert.deepEqual(defineOf(twoView), defineOf(sevenView),
+      'the two levels define "bet" differently');
+
+    // And the rest of the screen matches, with two things set aside and each
+    // named rather than filtered quietly: the step line, which says
+    // "Portfolio 1 of 3" on the capstone and must, and the holding rows,
+    // whose COUNT is the portfolios differing rather than the screens.
     const strip = (view) => skeleton(view)
       .filter((entry) => !entry.startsWith('P.round-step'))
       .filter((entry) => !/\.(holding|alloc-ticker|alloc-amount|alloc-share)$/.test(entry)

@@ -7,6 +7,7 @@ import { mountDaily } from './dailyView.js';
 import { mountWeekly } from './weeklyView.js';
 import { mountSandbox } from './sandbox.js';
 import { mountMyPortfolio } from './myPortfolio.js';
+import { mountAbout } from './about.js';
 
 /**
  * The mode a visitor lands on.
@@ -19,7 +20,7 @@ import { mountMyPortfolio } from './myPortfolio.js';
  * away in the nav, and is still where a professor should be sent.
  */
 const DEFAULT_MODE = 'learn';
-const MODES = ['learn', 'daily', 'weekly', 'crash', 'sandbox', 'mine', 'research'];
+const MODES = ['learn', 'daily', 'weekly', 'crash', 'sandbox', 'mine', 'research', 'about'];
 
 /** The mode named by a hash such as "#research", or the default. */
 export function modeFromHash(hash) {
@@ -40,6 +41,10 @@ function render() {
 
   if (mode === 'research') {
     mountResearch(root);
+    return;
+  }
+  if (mode === 'about') {
+    mountAbout(root);
     return;
   }
   if (mode === 'learn') {

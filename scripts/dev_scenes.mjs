@@ -52,6 +52,23 @@ export const scenes = [
     },
   },
 
+  {
+    id: 'chrome-05-about',
+    note: 'The About tab: what every word in the game means',
+    async run(page) {
+      await open(page, '#about');
+    },
+  },
+  {
+    id: 'chrome-06-about-levels',
+    note: 'About, scrolled to "What each level teaches"',
+    dark: true,
+    async run(page) {
+      await open(page, '#about');
+      await page.locator('#about-levels').scrollIntoViewIfNeeded();
+    },
+  },
+
   // ----------------------------------------------------------------- learn
   {
     id: 'learn-01-menu-fresh',

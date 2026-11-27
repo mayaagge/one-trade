@@ -15,13 +15,12 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { StubNode, textOf, withDocument } from './stubDom.js';
-import {
-  HINT_AFTER_TRIES, levelHint, recordResult, renderMenu, newSession,
-} from '../js/game.js';
+import { recordResult, renderMenu, newSession } from '../js/game.js';
 import {
   PROGRESS_KEY, emptyProgress, recordLevel, loadProgress, saveProgress, triesOf,
 } from '../js/progress.js';
 import { validateLevels } from '../js/levels.js';
+import * as game from '../js/game.js';
 
 const root = new URL('..', import.meta.url);
 const readJson = (name) => JSON.parse(readFileSync(fileURLToPath(new URL(name, root)), 'utf8'));
@@ -182,14 +181,17 @@ test('a level played and missed says so, instead of reading as never opened', ()
   } finally { restore(); }
 });
 
-test('three failed tries still read as played, and the hint does not change that', () => {
+test('three failed tries still read as played, and nothing offers help', () => {
   const { restore } = screen();
   try {
     let progress = emptyProgress();
-    for (let i = 0; i < HINT_AFTER_TRIES; i += 1) {
+    // Three, which is what the retired hint used to wait for. The count is
+    // still kept - it costs nothing and a later feature may want it - but
+    // nothing reads it now.
+    for (let i = 0; i < 3; i += 1) {
       progress = recordLevel(progress, 1, { stars: 0, error: 1.5 });
     }
-    assert.equal(triesOf(progress, 1), HINT_AFTER_TRIES, 'the tries were not counted');
+    assert.equal(triesOf(progress, 1), 3, 'the tries were not counted');
     assert.ok(!/not played/.test(textOf(cardFor(renderMenu(context(progress)), 1))));
   } finally { restore(); }
 });
@@ -342,105 +344,38 @@ test('without storage the list still plays, and says progress is not kept', () =
   }
 });
 
-// ------------------------------------------------------------- the hint
-
-test('a level offers its hint on the fourth attempt, not before', () => {
-  const { restore } = screen();
-  try {
-    const level = LEVELS.levels.find((one) => one.id === 5);
-    let progress = emptyProgress();
-    const ctx = () => context(progress);
-
-    assert.equal(levelHint(ctx(), level), null, 'a hint before anything was tried');
-    for (const expected of [1, 2]) {
-      progress = recordLevel(progress, 5, { stars: 0, error: 0.9 });
-      assert.equal(triesOf(progress, 5), expected);
-      assert.equal(levelHint(ctx(), level), null, `a hint after only ${expected} tries`);
-    }
-    progress = recordLevel(progress, 5, { stars: 0, error: 0.8 });
-    assert.equal(triesOf(progress, 5), HINT_AFTER_TRIES);
-    assert.equal(levelHint(ctx(), level), level.hint, 'no hint after three failed tries');
-  } finally { restore(); }
-});
-
-test('level 1 carries no hint at all, and the build screen offers none', () => {
-  // THE FIRST OF THE HINTS TO GO. No level will have one - the decision is in
-  // BUILD_LOG.md, and sessions 9 and 10 take the other six out and fold their
-  // ideas into the About tab and the Why? cards. Level 1's went first because
-  // it told a player to "look for a pair from the same heading", and this
-  // session removed the headings.
-  const level = LEVELS.levels.find((one) => one.id === 1);
-  assert.equal(level.hint, undefined, 'level 1 has a hint again');
-  const failedThrice = [1, 2, 3].reduce(
-    (record) => recordLevel(record, 1, { stars: 0, error: 0.9 }), emptyProgress(),
-  );
-  assert.equal(triesOf(failedThrice, 1), 3, 'the tries were not counted');
-  assert.equal(levelHint(context(failedThrice), level), null,
-    'level 1 offered a hint after three failed tries');
-});
-
-test('a hint that still exists names no winning portfolio', () => {
-  // A HINT THAT NAMES A PORTFOLIO IS AN ANSWER KEY. The rule is checkable: a
-  // hint may not contain a ticker this game carries, because a list of tickers
-  // is what a winning design IS. It may talk about groups, headings and what
-  // moves differently, which is the thinking the level is for.
-  //
-  // QQQ is the one exception, on level 4, and it is not a leak: the level's own
-  // challenge line already says "Keep at least 30% in QQQ" and the build screen
-  // deals it locked. Naming the holding the level forces gives nothing away
-  // about the other three, which are the whole puzzle.
-  //
-  // THE RULE OUTLIVES THE HINTS. When session 10 folds these ideas into the
-  // Why? cards, this check moves there with them - the card knows the player's
-  // own holdings, so the risk is larger, not smaller.
-  const universe = readJson('tickers.json').groups
-    .flatMap((group) => group.tickers.map((t) => (typeof t === 'string' ? t : t.ticker)));
-  const allowed = { 4: ['QQQ'] };
-
-  const withHints = LEVELS.levels.filter((level) => level.hint !== undefined);
-  assert.deepEqual(withHints.map((level) => level.id), [2, 3, 4, 5, 6, 7],
-    'the set of levels still carrying a hint has changed');
-
-  for (const level of withHints) {
-    assert.equal(typeof level.hint, 'string', `level ${level.id} has no hint`);
-    assert.ok(level.hint.length > 40, `level ${level.id}'s hint is too short to help`);
-    const named = universe.filter((ticker) => new RegExp(`\\b${ticker}\\b`).test(level.hint));
-    assert.deepEqual(
-      named, allowed[level.id] ?? [],
-      `level ${level.id}'s hint names ${named.join(', ')}, which is a portfolio rather than a direction`,
-    );
-  }
-});
-
-test('the hint reaches the build screen, and only once it is earned', () => {
-  const { restore } = screen();
-  try {
-    const level = LEVELS.levels.find((one) => one.id === 3);
-    const failedThrice = [1, 2, 3].reduce(
-      (record) => recordLevel(record, 3, { stars: 0, error: 0.9 }), emptyProgress(),
-    );
-    assert.equal(levelHint(context(failedThrice), level), level.hint);
-    // And a player who passed first time never sees it.
-    const passed = recordLevel(emptyProgress(), 3, { stars: 3, error: 0.05 });
-    assert.equal(levelHint(context(passed), level), null);
-  } finally { restore(); }
-});
-
-// -------------------------------------------- what a locked card gives away
-//
-// READING IS 89% OF THE TIME TO FINISH LEVELS 1 TO 3 (BUILD_LOG.md session
-// 2.33), and on a first visit six of the seven cards are locked - so the menu
-// was handing a new player the full challenge text of six levels they are not
-// allowed to start. The title and the one-word concept stay; the challenge
-// waits until the level is unlocked.
-//
-// levels.json is NOT touched by this: both fields stay exactly as the PRD's
-// level table states them, and tests/prdLevels.test.js still checks them.
-
+/** The text of every node in a card carrying a class, joined. */
 const classText = (card, className) => card.all()
   .filter((n) => n.classList?.contains?.(className))
   .map((n) => n._text ?? '')
   .join(' ');
+
+// ------------------------------------------------------- no hints, anywhere
+
+test('no level carries a hint, and no build screen offers one', () => {
+  // EVERY LEVEL'S HINT IS GONE, by decision (BUILD_LOG.md, player feedback
+  // 6-and-the-hint-note). The ideas they carried moved to the two places a
+  // player reads after trying or by choice: the "Why?" cards after a reveal,
+  // and the About tab's "What each level teaches".
+  for (const level of LEVELS.levels) {
+    assert.equal(level.hint, undefined, `level ${level.id} still carries a hint`);
+  }
+  // And nothing in the game reads one any more.
+  assert.equal(typeof game.levelHint, 'undefined', 'levelHint() is still exported');
+  assert.equal(typeof game.HINT_AFTER_TRIES, 'undefined', 'HINT_AFTER_TRIES is still exported');
+});
+
+test('a level failed many times still shows no hint on its build screen', () => {
+  const { restore } = screen();
+  try {
+    let progress = emptyProgress();
+    for (let i = 0; i < 6; i += 1) progress = recordLevel(progress, 3, { stars: 0, error: 1.5 });
+    assert.equal(triesOf(progress, 3), 6, 'the tries were not counted');
+    const view = renderMenu(context(progress));
+    const text = textOf(view);
+    assert.ok(!/hint/i.test(text), `the word "hint" is on the menu: ${text}`);
+  } finally { restore(); }
+});
 
 test('a locked card shows its concept but not its challenge', () => {
   const { restore } = screen();

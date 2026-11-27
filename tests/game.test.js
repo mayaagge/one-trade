@@ -160,7 +160,10 @@ test('no value is set before the player interacts with the slider', () => {
   assert.equal(state.revealDisabled, true, 'Reveal stays disabled');
   assert.match(state.className, /guess-slider-blank/, 'the thumb and the track fill are hidden');
   assert.equal(state.valueText, 'no guess yet - tap the line to guess');
-  assert.match(state.hint, /Tap anywhere on the line/);
+  // SHORT, AND NO LONGER A QUIET NOTE. The old version ran to 17 words under
+  // the scale; a player who has not worked out what to do is not reading 17
+  // words. See the class it is drawn with in renderGuess.
+  assert.equal(state.hint, 'Tap the line to place your guess.');
 });
 
 test('the control rests at the midpoint, but nothing on the screen says so', () => {

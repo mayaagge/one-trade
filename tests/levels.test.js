@@ -66,12 +66,26 @@ test('levels.json is valid, and holds levels 1 to 7', () => {
   assert.equal(LEVELS.disclaimer, DISCLAIMER);
 });
 
-test('every level asks for a guess before the reveal, and explains itself', () => {
+test('every level asks for a guess, and explains itself in exactly one line', () => {
   for (const level of LEVELS.levels) {
     assert.ok(level.guess.measure, `level ${level.id} asks for no guess`);
     assert.ok(level.guess.prompt.length > 10, `level ${level.id} has no prompt`);
-    assert.ok(level.explain.length > 40, `level ${level.id} explains nothing`);
-    assert.ok(level.why.length > 40, `level ${level.id} has no "why"`);
+    assert.ok(level.guess.define.length > 30, `level ${level.id} explains nothing`);
+  }
+});
+
+test('a level carries no explanatory text beyond its one line', () => {
+  // 27 November 2026, playtest feedback: a level says ONE explanatory thing,
+  // the definition above its question. The general explanation that used to
+  // sit on every reveal under "The idea" is in the About tab, where somebody
+  // reads it on purpose; what happened in a PARTICULAR portfolio is the
+  // "Why?" card, which is specific rather than general. A level that grows
+  // one of these fields back has undone that.
+  for (const level of LEVELS.levels) {
+    for (const field of ['explain', 'why', 'whyMore', 'hint']) {
+      assert.equal(level[field], undefined,
+        `level ${level.id} has grown a "${field}" back; the About tab is where that goes`);
+    }
   }
 });
 
@@ -381,6 +395,38 @@ test('the star bands for levels 4 and 5 are the ones the PRD scoring table fixes
   assert.equal(level5.stars.three.of, 0.05, '5 points of the real share');
   // The buckets outlived the star: still three of them, still on the reveal.
   for (const level of [level4, level5]) assert.equal(level.buckets.length, 3);
+});
+
+test('every level defines the term its question is about, exactly once', () => {
+  // ONE LINE, EVERY LEVEL, SAME PLACE. The first version only defined a term
+  // where it first appeared, which left level 2 carrying a sentence level 7
+  // did not - and those two screens are the pair Hypothesis 3 compares. A
+  // level without a definition has quietly brought that difference back.
+  for (const level of LEVELS.levels) {
+    const define = level.guess.define;
+    assert.equal(typeof define, 'string', `level ${level.id} has no definition line`);
+    assert.ok(define.length > 30, `level ${level.id}'s definition is too short to say anything`);
+    // One line, not a paragraph: depth lives in the About tab.
+    assert.ok(!define.includes('\n'), `level ${level.id}'s definition is more than one line`);
+    assert.ok(define.split('. ').length <= 2,
+      `level ${level.id}'s definition runs to more than two sentences: ${define}`);
+  }
+});
+
+test('the three bets levels define a bet in exactly the same words', () => {
+  // Levels 2, 3 and 7 all ask for a number of bets. Repeating the sentence is
+  // the point rather than a slip: level 2 and the first of level 7's
+  // portfolios have to ask the same thing the same way.
+  const bets = [2, 3, 7].map((id) => levelById(LEVELS, id).guess.define);
+  assert.equal(new Set(bets).size, 1, `the three bets levels disagree: ${JSON.stringify(bets)}`);
+  assert.match(bets[0], /^A "bet" is something that rises or falls on its own\./);
+
+  // And a level asking a different question says something different.
+  const others = [1, 4, 5, 6].map((id) => levelById(LEVELS, id).guess.define);
+  for (const define of others) {
+    assert.notEqual(define, bets[0], 'a level reused the bets definition for another measure');
+  }
+  assert.equal(new Set(others).size, 4, 'two levels measuring different things share a definition');
 });
 
 test('the bucket edges are each level’s own threshold and one plain anchor', () => {

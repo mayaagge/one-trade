@@ -796,6 +796,28 @@ label.lede { display: block; }
 
 /* --- the guess ----------------------------------------------------------- */
 
+/* What the level's word means, above the question that uses it. Quieter than
+   the question and louder than a note: it is context, not an instruction. */
+.guess-define {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--accent-soft);
+  background: var(--surface-1);
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  max-width: 46rem;
+}
+
+/* "Tap the line to place your guess." It was a grey note under the scale and
+   is now the loudest thing between the slider and the button, because a
+   player who has not worked out what to do is not reading a grey note. */
+.guess-prompt-tap {
+  margin: 10px 0 4px;
+  text-align: center;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
 .guess-readout {
   margin: 18px 0 4px;
   text-align: center;
@@ -1043,6 +1065,25 @@ label.lede { display: block; }
 .reset-row { margin: 1.4rem 0 0.4rem; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
 .reset-ask { font-size: 0.9rem; margin: 0; flex: 1 1 100%; }
 
+/* --- About ---------------------------------------------------------------
+
+   One long page somebody opens on purpose, so it reads like a page rather
+   than like a screen in a game: a contents list at the top, generous spacing
+   between sections, and a measure that does not run the full width of a
+   laptop. */
+
+.view-about { max-width: 42rem; }
+.about-contents { margin: 0 0 1.6rem; }
+.about-contents ul { margin: 0; padding-left: 1.1rem; }
+.about-contents li { margin: 0.2rem 0; }
+.about-section { margin: 0 0 1.8rem; scroll-margin-top: 1rem; }
+.about-heading { margin: 0 0 0.5rem; font-size: 1.15rem; }
+.about-text { margin: 0 0 0.7rem; }
+.about-levels { margin: 0.6rem 0 0; padding-left: 1.3rem; }
+.about-level { margin: 0 0 0.6rem; }
+.about-level-title { display: block; font-weight: 600; }
+.about-level-teaches { color: var(--text-secondary); }
+
 /* ---- Sandbox: the measures panels --------------------------------------
 
    docs/PRD.md's phone-first rule forbids sideways scrolling, so the shares
@@ -1216,24 +1257,6 @@ label.lede { display: block; }
 .money-left strong { color: var(--misses); font-variant-numeric: tabular-nums; }
 .money-left-done strong { color: var(--clears); }
 .btn-even { margin: 0 0 12px; }
-
-/* A hint, after three tries. Paper rather than a warning: it is help, not a
-   problem with what the player did. */
-.level-hint {
-  border-left: 4px solid var(--accent);
-  background: var(--surface-1);
-  border-radius: 0 8px 8px 0;
-  padding: 10px 12px;
-  margin: 0 0 14px;
-}
-.level-hint-head {
-  margin: 0 0 4px;
-  font-size: 0.875rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-}
-.level-hint-body { margin: 0; }
 
 /* The note under a holdings list whose rounded shares do not reach 100%. */
 .holding-rounding { margin: 6px 0 0; }

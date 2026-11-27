@@ -1,0 +1,134 @@
+{
+  "version": 1,
+  "decided": "2026-11-27",
+  "why": "Playtest feedback: the levels did not explain enough, and the screens that tried to explain more got long. This is where the depth goes - a page somebody opens on purpose - so a level can say one thing in one sentence and point here.",
+  "rule": "Plain words. No jargon a first-year has not met, and any term the game uses is defined the first time it appears here. Nothing on this page is needed to play; a player who never opens it misses no rule.",
+  "title": "About One Trade",
+  "lede": "What this game is, and the handful of ideas it is built on. Nothing here is needed to play \u2014 it is here for when you want to know what a word means.",
+  "sections": [
+    {
+      "id": "what-it-is",
+      "heading": "What One Trade is",
+      "paragraphs": [
+        "A free game about one idea: two things you own can turn out to be the same bet.",
+        "You build a portfolio with $10,000 of pretend money. You guess how many separate bets it makes. Then the game works out the real answer from real market prices.",
+        "The guess is the point. Committing to a number and then being shown the answer is how the idea sticks. Nothing here scores you on returns, and there is no leaderboard."
+      ]
+    },
+    {
+      "id": "a-bet",
+      "heading": "What a \"bet\" means here",
+      "paragraphs": [
+        "A bet is a thing that can go wrong on its own.",
+        "If you hold an S&P 500 fund and a total US market fund, you hold two things \u2014 but they own almost the same companies. When one falls, the other falls. That is one bet wearing two names.",
+        "Hold a stock fund, a bond fund and gold instead and you have three things that can go wrong for three different reasons. That is closer to three bets.",
+        "So counting bets is not counting holdings. It is counting the different reasons your money could move."
+      ]
+    },
+    {
+      "id": "correlation",
+      "heading": "Correlation: do two things move together?",
+      "paragraphs": [
+        "Correlation is one number, between \u22121 and 1, for how closely two holdings move day to day.",
+        "1 means they move together every single day. 0 means knowing what one did tells you nothing about the other. \u22121 means they move in opposite directions.",
+        "Real pairs sit in between. Two S&P 500 funds are around 0.99. A stock fund and gold are often near 0. Nothing in markets is exactly 1 or exactly 0 for long.",
+        "The game calls 0.7 and above \"the same bet\", 0.3 to 0.7 \"partly\", and below 0.3 \"different bets\". Those are the same three buckets the daily puzzle uses."
+      ]
+    },
+    {
+      "id": "effective-bets",
+      "heading": "Effective bets: how many bets you really made",
+      "paragraphs": [
+        "Effective bets is the game's main number. It asks: how many genuinely different things is this money riding on?",
+        "Five holdings that all move together score about 1. Five holdings that move for five unrelated reasons score about 5. Most real portfolios land somewhere in between, and usually lower than people expect.",
+        "It counts risk, not money. A bond fund can hold a third of your money and barely move the number, because it hardly moves at all. What moves the number is what moves your portfolio.",
+        "The measure comes from a 2009 paper by Attilio Meucci. The Research tab has the formula and what it cannot do."
+      ]
+    },
+    {
+      "id": "share-of-risk",
+      "heading": "Share of risk: where the trouble actually comes from",
+      "paragraphs": [
+        "Share of risk asks which holding is responsible for your portfolio moving. The shares add up to 100%, so you can read them straight against how the money is split.",
+        "They are usually not the same. Put a quarter of your money in each of four holdings and you have not split the risk four ways: the one that swings hardest takes more than its quarter, sometimes far more.",
+        "A single volatile stock at 20% of the money can easily be 60% of the risk. On paper the portfolio looks balanced. In practice one holding is driving it."
+      ]
+    },
+    {
+      "id": "beta",
+      "heading": "Beta: how much you move when something else moves",
+      "paragraphs": [
+        "Beta answers one question: when a particular thing moves 1%, how much does your portfolio move?",
+        "A beta of 1 to the AI stocks means you move with them, one for one. 0.5 means you move half as much. 0 means they tell you nothing about you.",
+        "It is useful because exposure hides inside funds. You can own no AI stocks at all and still have a high beta to them, because the index fund you hold has them near the top. Counting what you bought directly will not find that; beta will.",
+        "A worked number from level 4: over the window that level is checked against, QQQ on its own had a beta of about 0.56 to the AI stocks. You can hold nothing but that one fund and already be more than half an AI bet."
+      ]
+    },
+    {
+      "id": "intuition",
+      "heading": "How to build the intuition",
+      "paragraphs": [
+        "Four habits do most of the work.",
+        "**Ask what drives it, not what it is called.** Two funds with different names and the same companies inside are one bet. A name tells you nothing.",
+        "**Guess before you look.** Every level makes you commit first, on purpose. Being wrong and seeing by how much is what moves your sense of the number; reading the answer does not.",
+        "**Expect fewer bets than holdings.** People reliably guess high. Eight holdings are rarely eight bets, and often closer to two.",
+        "**Every lesson here comes from one stretch of the past.** If it sounds like \"always hold X,\" it has been learned wrong. In the 2020 crash long government bonds were what cushioned a portfolio: TLT rose 14.23% while the S&P 500 lost 33.99%. In the 2022 bear market the same fund fell 29.33%, more than the index's own 24.52% - rates rose, and bonds fell alongside shares instead of steadying them. You can watch both in Crash replay. What protects a portfolio depends on what the crash is made of, and nobody knows that in advance."
+      ]
+    },
+    {
+      "id": "levels",
+      "heading": "What each level teaches",
+      "paragraphs": [
+        "Seven levels, each one idea. They unlock in order \u2014 finish one to unlock the next, whether or not you pass it."
+      ],
+      "levels": [
+        {
+          "id": 1,
+          "title": "Two of a kind",
+          "teaches": "Two different names can be the same bet. Funds that hold the same companies move almost as one, however different their tickers look."
+        },
+        {
+          "id": 2,
+          "title": "How many bets?",
+          "teaches": "Counting bets is not counting holdings. A portfolio is handed to you; the only job is to guess, and most people guess high."
+        },
+        {
+          "id": 3,
+          "title": "Three real bets",
+          "teaches": "Holdings of the same kind collapse into one bet. Three real bets needs three things that move for different reasons, not three names."
+        },
+        {
+          "id": 4,
+          "title": "Hidden AI",
+          "teaches": "Exposure hides inside funds. An index fund already holds the AI names near the top, so buying them again stacks the same bet twice."
+        },
+        {
+          "id": 5,
+          "title": "Where's the risk?",
+          "teaches": "Equal money is not equal risk. The holding that swings hardest takes more than its share, and the split on paper hides it."
+        },
+        {
+          "id": 6,
+          "title": "Crash test",
+          "teaches": "What protects a portfolio depends on the crash. The thing that cushioned 2020 made 2022 worse, and that is the lesson rather than the bonds."
+        },
+        {
+          "id": 7,
+          "title": "One trade",
+          "teaches": "All of it at once, three times. One number cannot be right about three different portfolios, which is what makes it a test."
+        }
+      ]
+    },
+    {
+      "id": "data",
+      "heading": "Where the numbers come from",
+      "paragraphs": [
+        "Real daily closing prices for about 40 holdings, refreshed every weekday evening. The money is pretend; the prices are not.",
+        "Every number is worked out in your browser. Nothing about what you build leaves it.",
+        "Because the prices update, the answers move. The same portfolio can be 2.3 bets this week and 2.4 next week. That is markets, not a bug, and it is worth noticing.",
+        "The Research tab has the sources, the method and the three questions this game was built to test.",
+        "Levels 2 and 7 do not let you build: they deal you a portfolio from a fixed pool of 20. The first of level 7's three comes from that same pool, so your guess there and your guess on level 2 are about equally hard - which is how the Research tab measures whether players get better. It is never the same portfolio twice."
+      ]
+    }
+  ]
+}

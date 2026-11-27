@@ -103,6 +103,7 @@
       "guess": {
         "measure": "correlation",
         "prompt": "Before the reveal: how closely do these two move together, from -1 to 1?",
+        "define": "Correlation is how closely two holdings move day to day. 1 means they move together every day; 0 means one tells you nothing about the other.",
         "min": -1,
         "max": 1,
         "step": 0.01,
@@ -146,8 +147,6 @@
           "says": "within 0.10 of the real correlation"
         }
       },
-      "explain": "Two holdings with different names can be the same bet. Correlation measures how closely their daily moves line up: 1 means they move together every day, 0 means their moves are unrelated.",
-      "why": "An S&P 500 fund and a total-market fund hold almost the same companies in almost the same proportions, so they rise and fall together. The names differ; the bet does not.",
       "share": {
         "headline": "I found two holdings with a correlation of {value}. Can you beat it?"
       },
@@ -161,7 +160,6 @@
       "title": "How many bets?",
       "concept": "Effective bets",
       "challenge": "Here is a starter portfolio. Guess how many separate bets it really makes, then see the answer.",
-      "hint": "This level cannot be failed - its pass condition is \"make a guess\" - so the hint has no way of appearing. It is written down so that every level has one and a reader is not left wondering which is missing.",
       "hintNote": "Unreachable by design - see hint. Every other level's hint is shown on the build screen once that level has been finished three times without earning a star.",
       "holdings": {
         "fixed": true,
@@ -170,6 +168,7 @@
       "guess": {
         "measure": "effectiveBets",
         "prompt": "Before the reveal: how many separate bets does this portfolio make?",
+        "define": "A \"bet\" is something that rises or falls on its own. Two holdings that always move together count as one bet, not two.",
         "min": 1,
         "max": 6,
         "step": 0.1,
@@ -194,12 +193,6 @@
           "says": "within half a bet"
         }
       },
-      "explain": "Effective bets counts independent sources of risk, not holdings: five that move together are closer to one bet. It measures risk, not money: a bond fund can hold much of the money yet add little to the count.",
-      "why": "Drawn from a pool of 20 that level 7 also uses, so the two are equally hard on average.",
-      "whyMore": {
-        "text": "How Hypothesis 3 uses this pool",
-        "href": "#research"
-      },
       "poolRef": "guessPool",
       "share": {
         "headline": "I guessed the bets in a mystery portfolio \u2014 {band}. {ending}",
@@ -222,7 +215,6 @@
       "title": "Three real bets",
       "concept": "Diversifying across groups",
       "challenge": "Build a 5-holding portfolio that makes at least 3 separate bets.",
-      "hint": "Five names from under one heading is still close to one bet. Count the headings you have picked from, not the holdings, and try spreading the five across more of them.",
       "holdings": {
         "exactly": 5
       },
@@ -231,6 +223,7 @@
       "guess": {
         "measure": "effectiveBets",
         "prompt": "Before the reveal: how many separate bets does your portfolio make?",
+        "define": "A \"bet\" is something that rises or falls on its own. Two holdings that always move together count as one bet, not two.",
         "min": 1,
         "max": 5,
         "step": 0.1,
@@ -256,8 +249,6 @@
           "says": "within half a bet"
         }
       },
-      "explain": "Holdings from the same group tend to move together, so they collapse into one bet. Three real bets needs three groups that behave differently, not three names.",
-      "why": "Five AI stocks are nearly one bet. A fund, a bond fund, gold, an energy name and a staples name are closer to five, because what drives each of them differs.",
       "share": {
         "headline": "I found {value} bets in {holdings} holdings. Can you beat it?",
         "note": "docs/PRD.md's own example sentence. The portfolio is the player's own build off the whole ticker list, so the number gives nothing away to anybody else."
@@ -269,7 +260,6 @@
       "title": "Hidden AI",
       "concept": "Index concentration",
       "challenge": "Keep at least 30% in QQQ, and still move less than half as much as the AI basket.",
-      "hint": "QQQ already carries a good deal of AI, so the other three need to move for reasons that have little to do with AI.",
       "holdings": {
         "exactly": 4,
         "required": [
@@ -290,6 +280,7 @@
       "guess": {
         "measure": "beta",
         "prompt": "Before the reveal: when the AI basket moves 1%, how far does your portfolio move?",
+        "define": "Beta is how far you move when something else moves. A beta of 1 to the AI stocks means you move with them, one for one.",
         "min": 0,
         "max": 1.5,
         "step": 0.05,
@@ -338,16 +329,13 @@
         "headlineBelowZero": "My portfolio moves against the AI basket, not with it. Can you do the same?",
         "note": "A beta of 0.38 is 0.38% of movement per 1% of the basket's, which is why the headline carries the percent sign the reveal's number does not. bucketNote above records that a portfolio can move slightly AGAINST the basket; \"moves -0.05% for every 1%\" is a sentence a reader has to stop and decode, so a negative beta gets its own line."
       },
-      "revealLabel": "How far your portfolio moves with the AI basket",
-      "explain": "Beta says how far your portfolio moves when the AI basket moves: 1 means it moves with the basket one for one, 0 means the basket tells you nothing about it. QQQ holds the AI names near the top of the Nasdaq-100, so 30% of it already buys some of that exposure before you pick anything else. Buying AI stocks on top stacks the same bet twice.",
-      "why": "On the window this level was checked against, QQQ on its own had a beta of about 0.56 to the AI basket - more than this level allows. So the fund alone is already more than half an AI bet, and leaning harder on it is not the way out. What gets the beta under 0.50 is holding things the AI trade does not drive."
+      "revealLabel": "How far your portfolio moves with the AI basket"
     },
     {
       "id": 5,
       "title": "Where's the risk?",
       "concept": "Risk share vs dollar share",
       "challenge": "Build any 4-holding portfolio where no holding carries more than 35% of the risk.",
-      "hint": "Equal money isn't equal risk: the holding that swings hardest takes more than its quarter. Holdings that swing by similar amounts share the risk more evenly.",
       "holdings": {
         "exactly": 4
       },
@@ -356,6 +344,7 @@
       "guess": {
         "measure": "maxRiskShare",
         "prompt": "Before the reveal: what share of your portfolio's risk does its biggest holding carry?",
+        "define": "Share of risk is how much of your portfolio's movement comes from one holding. The four shares add up to 100%.",
         "min": 0.25,
         "max": 1,
         "step": 0.01,
@@ -403,16 +392,13 @@
         "headline": "No holding carries more than {value} of my risk. Can you spread it thinner?",
         "note": "True whether the level was passed or failed: maxRiskShare is the biggest share, so nothing carries more than it either way."
       },
-      "revealLabel": "Share of the risk in your biggest holding",
-      "explain": "Share of risk is not share of dollars. Each holding's share is its part of what makes the portfolio move, and the four shares add up to 100%, so they can be read straight against the money. A quarter of the money in the holding that swings hardest can be most of the risk.",
-      "why": "Spreading the risk evenly is not the same as making several bets. Four funds that all move together can each carry about a quarter of the risk and still be barely more than one bet, so a portfolio can pass this level and fail level 3. This level asks where the risk sits; level 3 asks how many different things it rides on."
+      "revealLabel": "Share of the risk in your biggest holding"
     },
     {
       "id": 6,
       "title": "Crash test",
       "concept": "Behaviour under stress",
       "challenge": "Build a 4-holding portfolio with at least 60% in stocks, then hold it through the February to March 2020 crash. Fall less than half as much as the S&P 500.",
-      "hint": "Sixty percent has to sit in stocks, so the question is which stocks. Through February and March 2020 the companies people kept paying for fell far less than the ones they stopped paying for.",
       "holdings": {
         "exactly": 4,
         "minShareIn": {
@@ -431,6 +417,7 @@
       "guess": {
         "measure": "fallShare",
         "prompt": "Before the reveal: for every 1% the S&P 500 fell, how much did your portfolio fall?",
+        "define": "This is your fall divided by the index's fall. 0.50 means you fell half as far; 1.00 means you fell with it.",
         "min": 0,
         "max": 2,
         "step": 0.05,
@@ -481,8 +468,6 @@
         "note": "\"Times as far\" is how this level's own explain reads the number: \"0.50 means you fell half as far\". guessNote above records that a legal build reaches -0.117 - a portfolio that ROSE while the index fell - and \"fell -0.12 times as far\" is not clumsy but false, so zero and below get their own line."
       },
       "revealLabel": "How much of the index's fall your portfolio took",
-      "explain": "This level asks a different question from the others: not how many bets you made, but what happened when everything fell at once. The S&P 500 fell 33.99% in five weeks. Your answer is your own fall as a share of that one: 0.50 means you fell half as far, 1.00 means you fell with it, and above 1.00 means you fell harder. The 60% in stocks is there so the answer cannot be bought by simply holding less of the market.",
-      "why": "What cushioned this crash was long government bonds: TLT rose 14.23% while the index lost 33.99%, and most of the portfolios that pass hold something like it. That is this crash, not a rule about bonds. In the 2022 bear market TLT fell 29.33%, MORE than the S&P 500's own 24.52% - rates rose, and bonds fell alongside shares instead of cushioning them. You can watch that happen in Crash replay's 2022 window. So the lesson is not 'hold bonds': it is that what protects a portfolio depends on what the crash is made of, and you cannot know that in advance.",
       "crashNote": "Both TLT numbers are read from data/crashes.json, bought and held over each window's own dates, the same way the level measures a portfolio."
     },
     {
@@ -490,7 +475,6 @@
       "title": "One trade",
       "concept": "Everything",
       "challenge": "Three mystery portfolios, one after another. Guess how many separate bets each one makes. Every guess has to land within 1.",
-      "hint": "Holdings under one heading count as roughly one bet, and even different headings of stocks partly move together, so the answer is usually well below the number of holdings.",
       "holdings": {
         "fixed": true,
         "from": "series"
@@ -522,6 +506,7 @@
       "guess": {
         "measure": "effectiveBets",
         "prompt": "Before the reveal: how many separate bets does this portfolio make?",
+        "define": "A \"bet\" is something that rises or falls on its own. Two holdings that always move together count as one bet, not two.",
         "min": 1,
         "max": 6,
         "step": 0.1,
@@ -550,8 +535,6 @@
           "says": "all three within half a bet"
         }
       },
-      "explain": "This is every level at once. A portfolio can hold eight things and make one bet, or hold six and make four: what decides it is whether the holdings move together, not how many there are or how the money is split. Guessing three in a row is the test of that, because one number cannot be right about all three.",
-      "why": "The first of these three portfolios comes from the same pool of 20 that dealt your level 2 portfolio, so the two are equally hard on average - that pair of guesses is how Hypothesis 3 measures whether players improve. It is never the same portfolio you saw on level 2.",
       "share": {
         "headline": "Three mystery portfolios \u2014 {band}. {ending}",
         "bands": {
@@ -1363,5 +1346,7 @@
         "expectedBets": 4.551160538526574
       }
     ]
-  }
+  },
+  "defineNote": "guess.define is one plain sentence saying what the level's question is about, shown in the same place and the same format directly above the question, on EVERY level. Levels 2, 3 and 7 all ask for a number of bets and carry the identical sentence, word for word - repeating it is the point rather than a slip, because level 2 and the first of level 7's portfolios are the pair PREREG.md's Hypothesis 3 compares and the two screens have to ask the same thing the same way. tests/levels.test.js holds all of that. Added 27 November 2026 on playtest feedback; the fuller version of every term is in the About tab.",
+  "explainNote": "There is no explain, why or whyMore on a level, by decision on 27 November 2026 (playtest feedback). A level says ONE explanatory thing: guess.define, one line above its question. Everything longer - what a concept means, the intuition, the worked numbers - is in the About tab, which a player opens on purpose. What happened in THIS portfolio is the \"Why?\" card from why.json, which is specific rather than general. A level that grows a second explanatory field has undone this."
 }

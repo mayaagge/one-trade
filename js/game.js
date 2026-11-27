@@ -91,14 +91,6 @@ export const BASKET_URL = 'basket.json';
  */
 export const RECORDING_LEVELS = [2, 7];
 
-/**
- * How many failed tries a level takes before it offers its hint.
- *
- * Three, from your brief. It is a constant rather than a literal because the
- * number is a judgement about how long somebody should be left to work it out,
- * and a reviewer should be able to find it without reading renderBuild().
- */
-export const HINT_AFTER_TRIES = 3;
 
 /**
  * How fine the guess slider is, from levels.json.
@@ -386,7 +378,17 @@ function resetRow(ctx) {
 export function renderMenu(ctx) {
   const view = h('div', 'view');
   view.append(h('h1', null, 'Learn'));
-  view.append(h('p', 'lede', 'Build a portfolio with $10,000 of pretend money, guess how many separate bets you made, then see the answer worked out from real prices.'));
+  // ONE LINE, AND A WAY TO READ MORE. The old lede described the loop a
+  // player is about to do anyway, in a sentence they had to read before every
+  // visit. The About tab explains what a bet is, what every word means and
+  // what each level teaches - for anybody who wants it, once, on purpose.
+  const lede = h('p', 'lede');
+  lede.append(document.createTextNode('New to this? '));
+  const aboutLink = h('a', null, 'Start with About');
+  aboutLink.setAttribute('href', '#about');
+  lede.append(aboutLink);
+  lede.append(document.createTextNode('.'));
+  view.append(lede);
 
   const ids = ctx.levels.levels.map((l) => l.id);
   const passedCount = passedLevels(ctx.progress).filter((id) => ids.includes(id)).length;
@@ -479,23 +481,6 @@ export function buildHint(round) {
   return 'Split the money between your holdings to carry on.';
 }
 
-/**
- * The level's own hint, once it has been failed enough times, or null.
- *
- * TRIES, NOT REVEALS. js/progress.js counts a try as a finished attempt that
- * earned no star, so level 7 - three portfolios and one verdict - adds one
- * rather than three, and a player cannot be shown a hint halfway through a
- * series it has not finished.
- *
- * It is a separate question from buildHint(), which says what is still missing
- * from THIS build. This one says what to think about on this level.
- */
-export function levelHint(ctx, level, { after = HINT_AFTER_TRIES } = {}) {
-  const hint = level.hint;
-  if (typeof hint !== 'string' || hint.length === 0) return null;
-  return triesOf(ctx.progress, level.id) >= after ? hint : null;
-}
-
 function renderBuild(ctx, round) {
   const view = h('div', 'view view-round');
   view.append(roundHead(ctx, round, 'Build'));
@@ -511,18 +496,6 @@ function renderBuild(ctx, round) {
     if (ctx.carried.card.leadIn) card.append(h('p', 'why-card-lead', ctx.carried.card.leadIn));
     card.append(h('p', 'why-card-text', ctx.carried.card.text));
     view.append(card);
-  }
-
-  // THE HINT, after three finished attempts that earned nothing. It points at
-  // what to think about and never at a portfolio: levels.json carries the words
-  // so they can be edited without touching code, and scripts/check_levels.mjs
-  // still has to find at least 3 winning designs that the hint does not name.
-  const levelsHint = levelHint(ctx, round.level);
-  if (levelsHint) {
-    const box = h('aside', 'level-hint');
-    box.append(h('p', 'level-hint-head', 'A hint'));
-    box.append(h('p', 'level-hint-body', levelsHint));
-    view.append(box);
   }
 
   if (round.fixed) {
@@ -619,7 +592,11 @@ export function guessSliderState(round) {
     // Screen readers get the same message the blank thumb gives everyone else.
     valueText: guessed ? null : 'no guess yet - tap the line to guess',
     revealDisabled: !round.canReveal(),
-    hint: guessed ? null : 'Tap anywhere on the line, or drag, to make your guess. The answer stays hidden until you do.',
+    // SHORT AND PROMINENT. It was a quiet grey note under the scale running
+    // to 17 words; a player who has not worked out what to do is not reading
+    // 17 words. The second sentence said something nothing on the screen
+    // contradicted, so it went.
+    hint: guessed ? null : 'Tap the line to place your guess.',
   };
 }
 
@@ -635,6 +612,12 @@ export function renderGuess(ctx, round) {
   const level = round.level;
   const view = h('div', 'view view-round');
   view.append(roundHead(ctx, round, 'Guess'));
+  // WHAT THE QUESTION IS ABOUT, one line, in the same place on every level.
+  // levels.json carries the sentence; validateDefine() refuses a level
+  // without one, because levels 2 and 7 asking differently is a difference in
+  // what Hypothesis 3 measures.
+  view.append(h('p', 'guess-define', level.guess.define));
+
   const prompt = h('label', 'lede', level.guess.prompt);
   prompt.setAttribute('for', 'guess-slider-input');
   view.append(prompt);
@@ -673,7 +656,7 @@ export function renderGuess(ctx, round) {
     ctx.finish(round);
   }, { disabled: state.revealDisabled });
 
-  const hint = h('p', 'note', state.hint ?? '');
+  const hint = h('p', 'guess-prompt-tap', state.hint ?? '');
   if (!state.hint) hint.hidden = true;
 
   slider.addEventListener('input', () => {
@@ -883,15 +866,6 @@ export function gapSentence(round, line) {
   return `Out by ${shown}.`;
 }
 
-/** The "there is more about this on the Research page" link, when a level has one. */
-function whyMoreLink(more) {
-  const wrap = h('p', 'explain explain-more');
-  const link = h('a', null, more.text);
-  link.setAttribute('href', more.href);
-  wrap.append(link);
-  return wrap;
-}
-
 /**
  * The reveal.
  *
@@ -1041,6 +1015,7 @@ export function renderReveal(ctx, round) {
     view.append(h('p', 'note', result.tickers
       .map((ticker) => `${ticker} ${money(result.dollars[ticker])}`).join(' · ')));
     view.append(h('p', 'note', `Measured over ${windowDays(result)} trading days, ${longDate(result.startDate)} to ${longDate(result.endDate)}.`));
+  view.append(h('p', 'note', 'Prices update every weekday, so this number moves a little over time.'));
     view.append(h('p', 'note', last
       ? 'That is the third. Next you will see all three together.'
       : `Portfolio ${series.at + 1} of ${series.count} answered. The next one comes with no hints from this one.`));
@@ -1078,21 +1053,19 @@ export function renderReveal(ctx, round) {
     view.append(card);
   }
 
-  // Headed "The idea" rather than "Why", which the card above now carries.
-  view.append(h('h2', 'section-head', 'The idea'));
-  view.append(h('p', 'explain', level.explain));
-  view.append(h('p', 'explain', level.why));
-  // A level whose "why" points somewhere fuller says so with a link rather than
-  // by printing the whole thing. Level 2's pool explanation is research method,
-  // not teaching: the short line is what a player needs mid-round, and Research
-  // mode carries the rest (BUILD_LOG.md session 2.35).
-  if (level.whyMore) view.append(whyMoreLink(level.whyMore));
+  // NO "THE IDEA" BLOCK. A reveal used to carry the level's general
+  // explanation under that heading, in two paragraphs, on top of the "Why?"
+  // card above it that says what happened in THIS portfolio. The general
+  // version is in the About tab now, where somebody reads it on purpose, and
+  // the level says its one line above the question instead. 27 November 2026,
+  // playtest feedback.
 
   const holdings = h('p', 'note', result.tickers
     .map((t) => (round.usesMoney ? `${t} ${money(result.dollars[t])}` : t))
     .join(' · '));
   view.append(holdings);
   view.append(h('p', 'note', `Measured over ${windowDays(result)} trading days, ${longDate(result.startDate)} to ${longDate(result.endDate)}.`));
+  view.append(h('p', 'note', 'Prices update every weekday, so this number moves a little over time.'));
 
   // The card. Below the level, above the buttons that leave it: a player reads
   // what happened, then decides whether to post it.
@@ -1352,14 +1325,12 @@ export function renderSeriesSummary(ctx, series) {
     view.append(card);
   }
 
-  view.append(h('h2', 'section-head', 'The idea'));
-  view.append(h('p', 'explain', level.explain));
-  view.append(h('p', 'explain', level.why));
-  // A level whose "why" points somewhere fuller says so with a link rather than
-  // by printing the whole thing. Level 2's pool explanation is research method,
-  // not teaching: the short line is what a player needs mid-round, and Research
-  // mode carries the rest (BUILD_LOG.md session 2.35).
-  if (level.whyMore) view.append(whyMoreLink(level.whyMore));
+  // NO "THE IDEA" BLOCK. A reveal used to carry the level's general
+  // explanation under that heading, in two paragraphs, on top of the "Why?"
+  // card above it that says what happened in THIS portfolio. The general
+  // version is in the About tab now, where somebody reads it on purpose, and
+  // the level says its one line above the question instead. 27 November 2026,
+  // playtest feedback.
 
   const days = series.rounds[0].result.days;
   const first = series.rounds[0].result;

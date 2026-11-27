@@ -93,7 +93,9 @@ export function validateLevels(data) {
     if (ids.has(level.id)) throw new Error(`levels: duplicate id ${level.id}`);
     ids.add(level.id);
 
-    for (const field of ['title', 'concept', 'challenge', 'explain']) {
+    // NO 'explain': a level's only explanatory text is guess.define, one line
+    // above its question. See levels.json's explainNote and validateDefine().
+    for (const field of ['title', 'concept', 'challenge']) {
       if (typeof level[field] !== 'string' || level[field].length === 0) {
         throw new Error(`${where}: ${field} is missing`);
       }
@@ -121,6 +123,7 @@ export function validateLevels(data) {
       }
     }
     validateGuess(level);
+    validateDefine(level);
     validatePicker(level);
     validateHoldings(level, data);
     validateBuckets(level);
@@ -260,6 +263,25 @@ function validateWindow(level) {
  * says how it is shown. A beta and a share of risk need a step and a display of
  * their own, and those live here rather than in js/game.js.
  */
+/**
+ * The one-line definition every level shows above its question.
+ *
+ * REQUIRED ON EVERY LEVEL, not optional. It started as three lines on the
+ * three levels where a term first appeared, which made level 2 and the first
+ * of level 7's portfolios ask the same question differently - and those two
+ * are the pair PREREG.md's Hypothesis 3 compares. Making it universal is what
+ * removes that difference, so a level without one is a level that has quietly
+ * reintroduced it.
+ */
+function validateDefine(level) {
+  const where = `level ${level.id}`;
+  const define = level.guess?.define;
+  if (typeof define !== 'string' || define.length === 0) {
+    throw new Error(`${where}: guess.define is missing - every level defines the term its question is about`);
+  }
+  if (define.trim() !== define) throw new Error(`${where}: guess.define has stray whitespace`);
+}
+
 function validateGuess(level) {
   const where = `level ${level.id}`;
   const guess = level.guess;

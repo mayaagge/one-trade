@@ -6460,3 +6460,118 @@ docs/PRD.md's levels section gains a paragraph on what the reveal draws and
 why it is indexed rather than priced.
 
 Educational, not investment advice.
+
+## Player feedback 3, 8, 9, 10, 11 and 12: one line in the level, the depth in About, 27 November 2026 (session 2.47)
+
+**The session that answers "the screens do not explain enough" without making
+the screens longer.** New in the repo: `about.json`, `js/about.js`, and an
+About tab in the nav.
+
+### A level says exactly one explanatory thing
+
+Every level now shows one line above its question saying what that question is
+about, in the same place and the same format:
+
+| Level | The line |
+| --- | --- |
+| 1 | Correlation is how closely two holdings move day to day. 1 means they move together every day; 0 means one tells you nothing about the other. |
+| 2, 3, 7 | A "bet" is something that rises or falls on its own. Two holdings that always move together count as one bet, not two. |
+| 4 | Beta is how far you move when something else moves. A beta of 1 to the AI stocks means you move with them, one for one. |
+| 5 | Share of risk is how much of your portfolio's movement comes from one holding. The four shares add up to 100%. |
+| 6 | This is your fall divided by the index's fall. 0.50 means you fell half as far; 1.00 means you fell with it. |
+
+**Levels 2, 3 and 7 carry the identical sentence, word for word, and that is
+the point rather than a slip.** The first draft defined each term only where it
+first appeared - "bet" on 2, "beta" on 4, "share of risk" on 5 - which gave
+level 2 a sentence level 7 did not have. Those two screens are the pair
+PREREG.md's Hypothesis 3 compares, and a difference between them is a
+difference in the instrument, not a nicer screen. Maya's call was to make it
+universal, which removes the question rather than documenting it: the PRD's
+"known asymmetry" note, written an hour earlier, is deleted.
+
+`validateDefine()` refuses a level without a line. tests/levels.test.js holds
+every level to exactly one and the three bets levels to the same string;
+tests/series.test.js renders level 2 and level 7's first portfolio and holds
+them to being **identical**, where an hour ago it was asserting they differed
+in one known way.
+
+### And nothing else. "The idea" is gone from the reveal
+
+Every level's `explain`, `why` and `whyMore` are deleted, and with them the
+two-paragraph "The idea" block that sat on every reveal underneath a "Why?"
+card already explaining that particular portfolio. A level now carries its
+title, its concept, its challenge and its one line.
+
+**Nothing was thrown away.** The three places those fields held something the
+About tab did not were moved rather than dropped: QQQ's beta of about 0.56 to
+the AI basket into About's Beta section, TLT's +14.23% in 2020 against
+-29.33% in 2022 into How to build the intuition, and the pool-of-20 note into
+Where the numbers come from.
+
+A test now asserts that no level has an `explain`, `why`, `whyMore` or `hint`,
+so the fields cannot grow back one at a time.
+
+### The About tab
+
+Nine sections: what the game is, what a bet means, correlation, effective
+bets, share of risk, beta, how to build the intuition, what each level
+teaches, and where the numbers come from. A contents list at the top, because
+this is the one screen somebody arrives at with a question rather than a task.
+
+The words are in `about.json` for the same reason the level text is in
+levels.json: they can be rewritten without touching code, and a reviewer can
+read everything the game says in one file. The renderer interprets exactly one
+piece of markup, `**bold**`, and nothing else - no links, no lists, no raw
+HTML - so a sentence in the content file cannot put an element on the page.
+
+**Nothing in it is needed to play.** That is a rule rather than an accident: it
+defines words, it carries no instruction and no rule, and a player who never
+opens it misses nothing.
+
+### The rest of the list
+
+- **Every hint is gone** (levels 2 to 7; level 1's went in session 2.41),
+  along with `levelHint()`, `HINT_AFTER_TRIES` and 18 lines of dead CSS. Level
+  2's hint was never reachable - it said so itself.
+- **The Learn menu's description** is one line: "New to this? Start with
+  About." The old one described the loop a player was about to do anyway.
+- **"Tap the line to place your guess."** was a grey note running to 17 words
+  under the scale. It is bold and centred now, and the second sentence - which
+  nothing on the screen contradicted - went.
+- **Both reveals** say "Prices update every weekday, so this number moves a
+  little over time." docs/PRD.md's known weakness 3 promises the player is
+  told that results change; the live-prices chip in the footer says when the
+  prices are from, which is not the same thing.
+
+### A regex ate 842 lines, and the check caught it
+
+Worth recording because the recovery was the interesting part. Removing a dead
+helper with `/\*\*.*?\*/\nfunction whyMoreLink/s` matched from a docblock far
+earlier in the file and deleted most of js/game.js. `node --check` and the
+suite both failed immediately - a syntax error, not a subtle one - and the
+file was restored from HEAD and the session's six edits re-applied as exact
+string replacements. **No regex was used to delete code after that.** The
+lesson is not "be careful with regexes": it is that a lazy quantifier across a
+whole file has no business being load-bearing when the exact text is known.
+
+### For session 10, from Maya
+
+**Every level's "Why?" cards must carry that level's core lesson**, now that
+"The idea" is gone from the reveal. The card is the only general thing left on
+a reveal, so a level whose cards never say what it was about has lost its
+lesson rather than relocated it. The side-by-side review will show each
+level's lesson beside its cards, so a missing one is visible rather than
+inferred.
+
+### Checked, not assumed
+
+1,268 to **1,269 passing**. Contrast table empty, no heading out of order,
+`dev_checks` 24 clear and 0 overlaps. Two new scenes for About. Screenshotted
+at 375px: the level 2 reveal now runs number, stars, "Why?" card, holdings,
+the two notes, share and buttons, with no general explanation between them.
+
+docs/PRD.md: the About tab is in the modes table, the Learn row no longer
+mentions a hint, and the plain-words rule and the no-hints rule are written
+into the levels section.
+
+Educational, not investment advice.
