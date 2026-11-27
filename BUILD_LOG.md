@@ -4747,6 +4747,33 @@ running it on a week nothing new arrived are all free. docs/PRD.md's
 Milestone 4 note and this script's own header comment both say "weekly"
 now, not "once."
 
-1,171 tests pass.
+### The first `wrangler dev` found a bug node --test could not
+
+Everything passed in Node and then the real Workers runtime refused to
+start: `Uncaught TypeError: Incorrect type for map entry 'MAX_BODY_BYTES':
+the provided value is not of type 'function or ExportedHandler'`.
+`worker/src/index.js` exported `MAX_BODY_BYTES`, `GUESS_RANGE`,
+`ACTUAL_RANGE` and the two `Set`s directly, for `tests/worker.test.js` to
+import - exactly the pattern every other module in this project uses for
+testability, and exactly what the Workers runtime does not allow from its
+entrypoint module. It inspects every named export of the file it loads and
+requires each one to be a function or a class; a plain number or object
+breaks the whole Worker before a single request is served.
+
+This is the gap session 2.26's design review already named in general
+terms - "the things a design review asks about are the things a node test
+cannot see" - showing up again in a new shape: a node test cannot see what
+a *different runtime's own module loader* requires, no matter how correct
+the logic inside the function is.
+
+**Fix: a new file, not a smaller one.** `worker/src/validate.js` now holds
+every pure constant, validator and helper; `worker/src/index.js` imports
+from it and exports nothing but `export default { fetch }`, the one shape
+the runtime actually wants. `tests/worker.test.js` imports the pure pieces
+from `validate.js` and the real handler's default export from `index.js`,
+so it is still testing the genuine code, not a copy kept in sync by hand.
+
+1,171 tests pass, in Node. `wrangler dev` is the next check, against the
+real runtime this bug could only show up in.
 
 Educational, not investment advice.

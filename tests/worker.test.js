@@ -20,7 +20,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import worker, {
+import worker from '../worker/src/index.js';
+import {
   GUESS_RANGE,
   ACTUAL_RANGE,
   MAX_BODY_BYTES,
@@ -29,7 +30,7 @@ import worker, {
   rateLimited,
   validateGuessBody,
   validatePingBody,
-} from '../worker/src/index.js';
+} from '../worker/src/validate.js';
 
 const root = new URL('..', import.meta.url);
 const readJson = (name) => JSON.parse(readFileSync(fileURLToPath(new URL(name, root)), 'utf8'));
