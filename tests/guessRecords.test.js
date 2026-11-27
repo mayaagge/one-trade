@@ -42,6 +42,7 @@ import { mountWeekly } from '../js/weeklyView.js';
 import { mountSandbox } from '../js/sandbox.js';
 import { mountMyPortfolio } from '../js/myPortfolio.js';
 import { PARTICIPANT_KEY, newId, participantId } from '../js/participant.js';
+import { SEEN_POOL_KEY } from '../js/seenPool.js';
 import { validateLevels } from '../js/levels.js';
 import { PROGRESS_KEY } from '../js/progress.js';
 
@@ -349,6 +350,26 @@ test('resetting progress does not make the player a new participant', async () =
   } finally { b.restore(); }
 });
 
+test('resetting progress does not re-deal a pool portfolio this browser has already seen', async () => {
+  const b = browser();
+  try {
+    const ctx = await mountLearn(b.root);
+    const round = play(ctx, 2, 2.5);
+    const drawnId = round.drawnId;
+    assert.ok(drawnId, 'level 2 did not draw a pool portfolio');
+    assert.ok(b.store[SEEN_POOL_KEY], 'nothing was stored for the seen pool');
+
+    ctx.toMenu();
+    b.root.querySelector('reset-progress').click();
+    b.root.querySelector('reset-confirm').click();
+    assert.equal(b.store[PROGRESS_KEY], undefined, 'the stars were not cleared');
+    assert.notEqual(b.store[SEEN_POOL_KEY], undefined,
+      'Reset progress cleared the seen pool, which would hand back a portfolio whose answer is already known');
+    assert.match(b.store[SEEN_POOL_KEY], new RegExp(drawnId),
+      'the specific portfolio level 2 drew is no longer remembered');
+  } finally { b.restore(); }
+});
+
 test('a browser that cannot store still plays, and still pairs within the visit', async () => {
   const b = browser();
   try {
@@ -430,7 +451,7 @@ test('the records never reach the browser\'s storage either', async () => {
     // either, and the progress record is validated field by field.
     assert.ok(!stored.includes('"actual"'), 'a record was written to storage');
     assert.deepEqual(
-      Object.keys(b.store).sort(), [PARTICIPANT_KEY, PROGRESS_KEY].sort(),
+      Object.keys(b.store).sort(), [PARTICIPANT_KEY, PROGRESS_KEY, SEEN_POOL_KEY].sort(),
       `the game wrote keys it should not: ${Object.keys(b.store).join(', ')}`,
     );
   } finally { b.restore(); }

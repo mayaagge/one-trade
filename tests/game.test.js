@@ -39,6 +39,30 @@ import { validateCrashes } from '../js/crash.js';
 // The picker, the allocator and the money they are written in now live in
 // js/build.js, shared with Crash replay.
 import { floorNotes, money } from '../js/build.js';
+import { SEEN_POOL_KEY } from '../js/seenPool.js';
+
+/** A localStorage for one test, and the teardown that takes it away again. Same pattern as tests/progress.test.js. */
+function withStorage(store = {}) {
+  const had = Object.prototype.hasOwnProperty.call(globalThis, 'localStorage');
+  const previous = globalThis.localStorage;
+  globalThis.localStorage = {
+    getItem: (key) => (key in store ? store[key] : null),
+    setItem: (key, value) => { store[key] = String(value); },
+    removeItem: (key) => { delete store[key]; },
+  };
+  return () => {
+    if (had) globalThis.localStorage = previous;
+    else delete globalThis.localStorage;
+  };
+}
+
+/** No localStorage at all, which is what some browsers do in private windows. */
+function withoutStorage() {
+  const had = Object.prototype.hasOwnProperty.call(globalThis, 'localStorage');
+  const previous = globalThis.localStorage;
+  delete globalThis.localStorage;
+  return () => { if (had) globalThis.localStorage = previous; };
+}
 
 const root = new URL('..', import.meta.url);
 const readJson = (name) => JSON.parse(readFileSync(fileURLToPath(new URL(name, root)), 'utf8'));
@@ -278,6 +302,61 @@ test('every id the session could remember is a real pool portfolio', () => {
   for (const id of seenPoolIds(session)) assert.ok(ids.has(id), `${id} is not in the pool`);
   assert.equal(session.drawnPoolIds.size, 20);
   assert.equal(seenPoolIds(session).length, 20);
+});
+
+// ---------------------------------------------- persisting the seen pool
+
+test('a pool portfolio survives into a new session, under its own key', () => {
+  const restore = withStorage();
+  try {
+    const first = newSession();
+    recordResult(first, 2, { stars: 2, drawnId: 'p11', drawnPool: 'guessPool' });
+
+    // A new session is what a reload builds - nothing is passed by hand.
+    const second = newSession();
+    assert.deepEqual(seenPoolIds(second), ['p11'], 'the reload forgot what level 2 showed');
+  } finally { restore(); }
+});
+
+test('the seen pool is stored under its own key, separate from progress', () => {
+  const store = {};
+  const restore = withStorage(store);
+  try {
+    const session = newSession();
+    recordResult(session, 2, { stars: 2, drawnId: 'p11', drawnPool: 'guessPool' });
+    assert.ok(store[SEEN_POOL_KEY], 'nothing was stored');
+    assert.notEqual(SEEN_POOL_KEY, 'oneTrade.learn');
+  } finally { restore(); }
+});
+
+test('a browser with no storage still plays, remembering nothing across reload', () => {
+  const restore = withoutStorage();
+  try {
+    const first = newSession();
+    recordResult(first, 2, { stars: 2, drawnId: 'p11', drawnPool: 'guessPool' });
+    assert.deepEqual(seenPoolIds(first), ['p11'], 'this visit still excludes it');
+
+    const second = newSession();
+    assert.deepEqual(seenPoolIds(second), [], 'a browser with no storage cannot carry it to a new session');
+  } finally { restore(); }
+});
+
+test('a save that cannot be written still excludes the portfolio for the rest of this visit', () => {
+  const had = Object.prototype.hasOwnProperty.call(globalThis, 'localStorage');
+  const previous = globalThis.localStorage;
+  globalThis.localStorage = {
+    getItem() { throw new Error('storage is blocked'); },
+    setItem() { throw new Error('storage is blocked'); },
+    removeItem() { throw new Error('storage is blocked'); },
+  };
+  try {
+    const session = newSession();
+    recordResult(session, 2, { stars: 2, drawnId: 'p11', drawnPool: 'guessPool' });
+    assert.deepEqual(seenPoolIds(session), ['p11']);
+  } finally {
+    if (had) globalThis.localStorage = previous;
+    else delete globalThis.localStorage;
+  }
 });
 
 // --------------------------------------------------------------- the money

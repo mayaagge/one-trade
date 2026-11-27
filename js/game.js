@@ -46,6 +46,7 @@ import {
 // The anonymous per-browser ID the records carry. Its own storage key, and
 // Reset progress does not clear it - see the note at the top of the file.
 import { participantId } from './participant.js';
+import { loadSeenPool, saveSeenPool } from './seenPool.js';
 // The share card: its words are decided by js/shareCard.js, which is pure, and
 // carried out of the browser by js/share.js, which the daily puzzle shares.
 import {
@@ -174,12 +175,12 @@ export function newSession(progress = null) {
     // asking a player the portfolio they already saw on level 2 would measure
     // their memory of that reveal rather than what they learned.
     //
-    // STILL IN MEMORY ONLY, and deliberately so even now that the stars are
-    // saved: a reload starts it empty and the draw is uniform over all 20
-    // again. Persisting it would change how a REGISTERED draw behaves, which is
-    // a PREREG decision and not a side effect of adding a save file. See the
-    // open question for the Worker session in BUILD_LOG.md.
-    drawnPoolIds: new Set(),
+    // SEEDED FROM STORAGE, under its own key (js/seenPool.js), so the
+    // exclusion survives a reload. PREREG_AMENDMENT_3.md section 2 registers
+    // that this only extends the registered draw rather than changing it. A
+    // browser with no storage gets an empty set here, the same as before this
+    // was persisted at all.
+    drawnPoolIds: new Set(loadSeenPool()),
   };
 }
 
@@ -210,6 +211,10 @@ export function recordResult(session, levelId, result) {
   session.stars.set(levelId, best);
   if (result.drawnId) {
     session.drawnPoolIds.add(`${result.drawnPool ?? 'guessPool'}:${result.drawnId}`);
+    // A failed write changes nothing on screen, same as every other save in
+    // this game: the exclusion still holds for the rest of this tab's life
+    // either way, and only a future visit notices.
+    saveSeenPool(session.drawnPoolIds);
   }
   return session;
 }
