@@ -260,11 +260,13 @@ If the headline and registered verdicts disagree, the page says so in plain word
 
 **Claim:** after a few levels, players estimate a portfolio's number of bets more accurately.
 
+Amended on 26 November 2026 by PREREG_AMENDMENT_3.md, before any real guess record exists: it registers which row counts as "the" level-2 and level-7 record for a player who sends more than one, and that Hypothesis 3's analysis reads only the `GUESSES` dataset, never rows the Worker routed to `GUESSES_PLAYTEST`. PREREG.md keeps the original wording; this section carries the amended rule.
+
 **Test design:**
 
 1. Level 2's portfolio and the first of level 7's mystery portfolios are both drawn at random from one pool of 20, so on average they are equally hard.
 
-2. For each player who reaches level 7, the error is the gap between their guess and the actual number of bets, on level 2 and again on level 7.
+2. For each player who reaches level 7, the error is the gap between their guess and the actual number of bets, on level 2 and again on level 7. **Which record counts, added by amendment 3:** for each player ID, the analysis reads the earliest level-2 row and the earliest level-7 row, by the timestamp Workers Analytics Engine puts on every row. A player's first-ever level-7 attempt is the earliest, whatever they do on a replay afterwards.
 
 3. Each guess sends one anonymous record: a random per-browser ID, level, guess, actual value and date. No tickers, amounts or personal data.
 
@@ -348,16 +350,22 @@ There is no server-side math, no database and no user accounts. Prices come in; 
 **Architecture:**
 
 ```
-Yahoo Finance ──► Cloudflare Worker (allowlist, cache) ──► Browser (all math runs here)
-                                                     ▲
-                     data/ snapshot (fallback) ──────┘
+GitHub Actions, weekday evening ──► Yahoo Finance ──► data/game.json (committed) ──► Browser (all math runs here)
 
-Weekday evening ──► fetch live prices ──► data/game.json (committed) ──► Browser
-
-Browser ──► Worker: anonymous count pings and guess records only
+Browser ──► Cloudflare Worker: anonymous count pings and guess records only
 ```
 
-The Worker exists because browsers cannot call Yahoo directly. The snapshot keeps the page working if Yahoo rate-limits or changes.
+**There is no live price proxy, and there never was one built.** An earlier
+draft of this section had the Worker standing between Yahoo and the browser
+on every page load, with the committed snapshot as its fallback. That is not
+what got built: `scripts/fetch_data.py` and `.github/workflows/refresh.yml`
+call Yahoo on a schedule, never per visitor, and commit the result straight
+into the repo as `data/game.json`. Every page read (`js/game.js`,
+`js/sandbox.js`, `js/myPortfolio.js`, `js/research.js`) fetches that file
+like any other static asset — none of them call a Worker, and none of them
+need to. The Worker's only job is the two anonymous analytics routes below.
+Practically, this also means breaking the Worker can never affect prices:
+see milestone 3 step 5.
 
 **Two price files, and they are not interchangeable.** `data/prices.json` is the frozen research snapshot: 10 years ending on the freeze date, the exact bytes every published verdict was computed from, written once and then left alone. `data/game.json` is what the game plays on: the most recent 756 trading days of daily returns for every ticker, rebuilt every weekday evening by a scheduled workflow and committed only when it changed. The returns in it are built by `js/returns.js`, the same code that produced the verdicts, so the game and the research apply one rule for date alignment, gaps and window slicing. The raw live download is never committed. If a fetch fails the previous `data/game.json` is kept; a file that goes more than 5 weekdays stale fails the job, as does any gap or missing ticker, so a broken file never replaces a good one. `data/game.json` records "Live prices through [date]", which is what the status chip reads.
 
@@ -368,7 +376,7 @@ The Worker exists because browsers cannot call Yahoo directly. The snapshot keep
 | SEC Form N-PORT | Fund holdings | Later, optional | Official and free. Quarterly, public about 60 days after quarter end |
 | OpenFIGI | CUSIP/ISIN to ticker | Later, optional | Free, rate-limited, server-side only |
 
-**Data terms:** the Worker sends Yahoo data to the public, which goes beyond personal use. To limit that, it serves only the allowlisted tickers, caches responses for at least an hour, and rejects requests from other sites. The Methods tab says this openly. Before launch, test one fallback source's free tier and terms (for example Tiingo) so a switch is planned, not improvised.
+**Data terms:** committing `data/game.json` to a public repo and serving it from GitHub Pages sends Yahoo data to the public, which goes beyond personal use. There is no Worker in this path to put an allowlist or a cache in front of — the equivalent limits are in the fetch itself: `scripts/fetch_data.py` only ever requests the tickers named in `tickers.json`, and it runs once per weekday evening rather than once per visitor, so the game's many readers never turn into many calls to Yahoo. The Methods tab says this openly. Before launch, test one fallback source's free tier and terms (for example Tiingo) so a switch is planned, not improvised.
 
 **What leaves the browser:** two kinds of anonymous record go to the Worker, and nothing else. A count ping carries the level reached and a source code from the link. A guess record carries a random per-browser ID, the level, the guess, the actual value and the date. Neither carries tickers, amounts, names or emails. Progress, stars and portfolios stay in the browser's own storage, and the page works even if that storage is unavailable.
 
@@ -378,19 +386,19 @@ The project is done when students have played it, at least one instructor has us
 
 ### Launch is done when
 
-- ☐ The prereg tag exists, and its timestamp comes before the first commit containing real price data.
+- ☑ The prereg tag exists, and its timestamp comes before the first commit containing real price data.
 
-- ☐ The status chip on the deployed site reads "Live prices through [date]".
+- ☑ The status chip on the deployed site reads "Live prices through [date]".
 
-- ☐ Hypotheses 1 and 2 show verdicts from real data; Hypothesis 3 shows "collecting".
+- ☑ Hypotheses 1 and 2 show verdicts from real data; Hypothesis 3 shows "collecting".
 
-- ☐ The known-answer math tests and the weekly level-solvability test pass in CI.
+- ☑ The known-answer math tests and the weekly level-solvability test pass in CI.
 
 - ☐ Levels 1 to 3 can be played in under 10 minutes on a mid-range phone.
 
-- ☐ Five first-time players finish level 3 without help and can explain "different tickers can be the same bet" in their own words.
+- ☑ The daily puzzle shows the same pairs on two different devices (it's seeded by the date, which needs no Worker).
 
-- ☐ The classroom link, completion code, verify page and one-page lesson plan work end to end, and the daily puzzle shows the same pairs on two different devices.
+- ☐ The classroom link, completion code, verify page and one-page lesson plan work end to end. Deferred past this launch — see milestone 3's note above, 26 November 2026.
 
 - ☐ The README has a live link, a 60-second demo GIF and "How to run locally".
 
@@ -521,6 +529,7 @@ Each of these limits is also stated in the Research mode's methods notes.
 | 7 | **Correlation with the S&P 500 is partly arithmetic.** | Verdict uses the equal-weight S&P 500. |
 | 8 | **Stress estimates are noisy and look backward.** | Crash replay uses real history instead of a model; a beta range is shown, not one number. |
 | 9 | **The main metric comes from principal components**, not actual holdings. | Explained in plain words; minimum-torsion bets are a stretch goal. |
+| 10 | **A `/guess` record can be forged by a script**, not just sent by a browser playing the game. | The Worker validates the exact field set, the ID's shape, that the level is 2 or 7, that the guess and actual value sit in that level's registered range, and that the date is within a day of the Worker's own clock; a Cloudflare rate limit caps requests per visitor without the Worker ever reading or storing an IP. A determined forger with many IPs and well-formed payloads is not fully ruled out. |
 
 ## Build plan
 
@@ -572,21 +581,56 @@ There are five milestones, in order, and each ends with a check you can verify. 
 
 ### Milestone 3: launch (one weekend)
 
-1. Deploy the Cloudflare Worker with the ticker allowlist, caching, ALLOWED_ORIGIN, and three routes: /ping (level and source code) and /guess (ID, level, guess, actual, date), both anonymous and stored in Workers Analytics Engine, plus /code, which signs completion codes with a secret key kept in the Worker.
+**Narrowed on 26 November 2026 (BUILD_LOG.md session 2.27): this milestone ships
+only `/ping` and `/guess`.** The classroom link, the completion-code flow (and
+the `/code` route and its secret key that signed it), the instructor's verify
+page and the one-page lesson plan are deferred to a later session — none of
+them exist in the code yet. They stay unticked in "Launch is done when" below
+on purpose. One upside of the narrower scope: with `/code` deferred, this
+Worker never holds a secret.
 
-2. Set PROXY and ABOUT.url, deploy to GitHub Pages, add the refresh workflow's secret and run it once.
+1. Deploy the Cloudflare Worker with ALLOWED_ORIGIN, strict server-side
+   validation on `/guess` (exact fields, id shape, level 2 or 7 only, guess
+   and actual inside that level's registered guess range, a date within a day
+   of the Worker's own clock), a Cloudflare dashboard rate-limit rule on both
+   routes (per visitor, no IP read or stored by our code), and two routes:
+   `/ping` (level reached and source code) and `/guess` (per-browser ID,
+   level, guess, actual value, date). Both are anonymous and written to
+   Workers Analytics Engine — `/guess` rows carrying `?src=playtest` go to a
+   separate `GUESSES_PLAYTEST` dataset instead of `GUESSES`, so Maya's own
+   testing never enters Hypothesis 3 without adding a field to the registered
+   record. See PREREG_AMENDMENT_3.md.
 
-3. Build the classroom link (chosen levels stored in the URL, plus a QR code), the completion-code flow and the instructor's verify page. Write the one-page lesson plan.
+2. ABOUT.url and GitHub Pages are already live (done 26 November 2026) and
+   the refresh workflow's secret is already set and running on schedule. What
+   remains here is narrower: set PROXY in js/config.js to the deployed
+   Worker's URL once step 1 is done.
 
-4. Add the feedback form link after level 3.
+3. Deferred. See the note above.
 
-5. Break the proxy URL on purpose and confirm the snapshot takes over and the status chip says so. Then restore it.
+4. Deferred alongside step 3, pending whether a ready three-question form
+   exists to link to.
+
+5. Break the Worker URL on purpose and confirm gameplay is completely
+   unaffected — there is no price fallback to test for, since prices never
+   passed through the Worker (see "Architecture" above). Then restore it and
+   confirm Analytics Engine shows rows again for both routes.
 
 6. Write the README: live link, 60-second GIF, verdicts, "How to run locally".
 
 **Check:** every item in "Launch is done when" is ticked.
 
 ### Milestone 4: players and outreach (8 weeks)
+
+**Moved here from "Launch is done when" on 26 November 2026** (BUILD_LOG.md
+session 2.27): run 5 first-time players through level 3 with no help, and
+confirm each can explain "different tickers can be the same bet" in their own
+words. This is a post-launch step now, not a launch gate — the 8-week plan's
+own weeks 1 to 2 already call for exactly this playtest, so it was never
+really a pre-launch check to begin with. Every playtest session is opened
+with `?src=playtest`, which the Worker routes to a separate
+`GUESSES_PLAYTEST` dataset (see PREREG_AMENDMENT_3.md); none of those guesses
+enter Hypothesis 3.
 
 Follow the 8-week plan above. Log weekly: players by source code, levels reached, responses, top complaint, change shipped. Ship at least two changes that came from players.
 

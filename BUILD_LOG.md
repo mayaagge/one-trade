@@ -4476,3 +4476,101 @@ earns 44px without looking like one) rather than a one-line one - later.
 1,130 tests pass.
 
 Educational, not investment advice.
+
+## Milestone 3 begins: three scope decisions, two amendments, 26 November 2026 (session 2.27)
+
+Docs only, no code. Before touching Cloudflare at all, three things needed
+settling, because all three change what "done" means for this milestone or
+what the Worker is allowed to assume before it exists.
+
+### The architecture section was describing a Worker that was never built
+
+docs/PRD.md's "Architecture" diagram had Yahoo Finance flowing through
+`Cloudflare Worker (allowlist, cache)` into the browser on every page load,
+with the committed snapshot as its fallback. **Nothing in the code has ever
+called a Worker for prices.** `js/game.js`, `js/sandbox.js`,
+`js/myPortfolio.js` and `js/research.js` all `fetch()` `data/game.json`
+directly, the same as any other file in the repo; `scripts/fetch_data.py`
+and `.github/workflows/refresh.yml` call Yahoo on a schedule and commit the
+result, and that commit is the only thing that ever talks to Yahoo. The
+diagram was a leftover from an earlier design. Rewrote it, and the "Data
+terms" paragraph beside it, to say what is actually true: there is no live
+price proxy, the Worker's only job is `/ping` and `/guess`, and the
+"allowlist, cache, reject other sites" mitigations that paragraph described
+for a live proxy are really properties of the scheduled fetch instead (only
+the tickers in tickers.json, once per weekday evening, never per visitor).
+
+This also rewrites what milestone 3 step 5 ("break the proxy, confirm the
+snapshot takes over") was ever going to test. There is no price fallback
+behind the Worker to fall back to. The real test is narrower and, honestly,
+a better one: breaking `/ping`/`/guess` must leave gameplay completely
+unaffected, because nothing about prices was ever routed through them.
+
+### What ships this weekend, and what that leaves unticked
+
+Scoped this session to `/ping` and `/guess` only. The classroom link, the
+completion-code flow, the `/code` route that would have signed it, the
+instructor's verify page and the one-page lesson plan are deferred —
+`worker/` doesn't exist yet and none of those four has a line of code behind
+it. **Deferring `/code` means this Worker carries no secret at all**, which
+is the one part of CLAUDE.md rule 7 this milestone would otherwise have had
+to get right on a first-ever Cloudflare account.
+
+Checked every "Launch is done when" box against what the repo can already
+show, rather than assume: the prereg tag, the status chip, both hypothesis
+verdicts, the CI math and level-solvability tests, and the daily puzzle's
+cross-device determinism are all true today, independent of anything this
+milestone builds. Checked those off. What's left unticked after this
+weekend: classroom link / completion code / verify page / lesson plan
+(deferred, as above), and the README (milestone 3 step 6, not yet written).
+
+### The playtest moves to Milestone 4
+
+"Five first-time players finish level 3 ... and can explain 'different
+tickers can be the same bet'" is removed from "Launch is done when" and
+moved into Milestone 4, which already opens with exactly this playtest in
+its own 8-week plan — it was never really a pre-launch gate so much as the
+first thing Milestone 4 was always going to do anyway. Every playtest
+session opens with `?src=playtest`.
+
+**That source code needed an exclusion mechanism that doesn't touch the
+registered record.** PREREG.md's `/guess` record is five fields -
+id, level, guess, actual, date - and none of them says where a guess came
+from; adding a sixth would be exactly the kind of registered-design change
+session 2.10 already decided wasn't worth it for a lesser reason. Instead
+the Worker routes `?src=playtest` guesses to a second Analytics Engine
+dataset, `GUESSES_PLAYTEST`, and Hypothesis 3's analysis reads only
+`GUESSES`. A playtest row is excluded by which table it lands in, never by
+a field inside it.
+
+### Two things that had lived in this log only, now registered
+
+BUILD_LOG.md session 2.10 already worked out which of level 7's three
+guess records Hypothesis 3 should read - the earliest level-2 row and the
+earliest level-7 row per player, by the Analytics Engine row timestamp -
+and session 2.19 already worked out that persisting the level-7
+pool-exclusion across visits only extends the registered draw rather than
+changing it. Both were correct and both were sitting only in a log nobody
+registers against. **PREREG_AMENDMENT_3.md** writes both down, dated before
+any Worker exists to produce a real row, the same discipline the project
+already holds itself to for the hypotheses themselves. docs/PRD.md's
+Hypothesis 3 section now points to it, the same way Hypothesis 1's section
+already points to PREREG_AMENDMENT_2.md.
+
+### One more thing the review caught before any Worker code was written
+
+Origin checks stop another website's script from calling the Worker from a
+browser. They do nothing against a script that POSTs directly with no
+origin header at all, which could flood Hypothesis 3 with fabricated rows
+cheaper than any real player could produce them. Added to the plan, before
+`worker/src/index.js` exists to retrofit it into: strict validation on
+`/guess` (exact field set, the ID's 32-hex-character shape, level 2 or 7
+only, guess and actual inside that level's own registered range, a date
+within a day of the Worker's clock) and a Cloudflare dashboard rate-limit
+rule per visitor that never asks the Worker's own code to read or store an
+IP. Recorded as docs/PRD.md's known weaknesses row 10, because validation
+and a rate limit catch obvious abuse, not a determined one.
+
+1,130 tests pass - unchanged, since nothing here is code yet.
+
+Educational, not investment advice.
