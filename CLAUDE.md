@@ -43,3 +43,12 @@ I am a first-year at UChicago. I know Python, JavaScript, web pages, Github, and
 - Run the site locally: python3 -m http.server 8000
 - Run JavaScript tests: node --test "tests/**/*.test.js"
 - Make test fixtures: python tests/make_fixtures.py
+- npm run export: pulls the guess records out of Analytics Engine to
+  data/guess_exports/. Run it weekly once collection starts, with .env
+  filled in. Not from a terminal you deploy the Worker from.
+- npm run shots: screenshots every screen at phone width in both colour
+  schemes, into gitignored screenshots/. Needs Playwright.
+- npm run checks: drives a real browser to check scroll position, focus
+  and tap targets survive a redraw - the things a node test cannot see.
+- npm run a11y: contrast ratios, tap-target sizes and heading order, which
+  Lighthouse does not reach. Run it alongside Lighthouse, not instead.
