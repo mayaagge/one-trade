@@ -157,11 +157,15 @@ test('the PRD\'s launch date is the launch tag\'s own timestamp', () => {
     tagged = '';
   }
   if (tagged === '') {
-    // A clone without tags, which is what `git clone --no-tags` and a CI
-    // checkout without fetch-tags give. Not a failure - there is nothing to
-    // compare - but it is said out loud so a silent skip cannot be mistaken
-    // for a pass. .github/workflows/test.yml sets fetch-tags so that CI, the
-    // one place this must run, always has it.
+    // IN CI THIS IS A FAILURE, and that is the lesson of how this check was
+    // first shipped: the workflow used `fetch-depth: 2` with `fetch-tags`,
+    // the tag points at a commit outside that depth so the ref never
+    // arrived, and the check skipped silently in the one place it has to
+    // run. It was reported as working. A skip that cannot be seen is worse
+    // than no check, so the skip is now only available to a person.
+    assert.ok(!process.env.CI,
+      'the `launch` tag is missing in CI: the checkout needs fetch-depth 0, '
+      + 'because fetch-tags alone does not reach a tag outside the fetch depth');
     console.log('      (no `launch` tag in this clone; run `git fetch --tags` to check it)');
     return;
   }

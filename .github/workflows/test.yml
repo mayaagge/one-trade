@@ -12,14 +12,17 @@ jobs:
       # Two commits deep, so tests/puzzles.test.js can compare data/puzzles.json
       # against the parent of the commit being tested. Against HEAD alone it would
       # be comparing the file with itself, which no rewrite could ever fail.
-      # Tags too, because tests/launchWindow.test.js checks docs/PRD.md's
-      # launch date against the real `launch` tag. Without this the tag is
-      # absent in CI and that check would quietly skip in the one place it
-      # most needs to run.
+      # fetch-depth 0, so the whole history and every tag is here. Two things
+      # need more than a shallow checkout: tests/puzzles.test.js reads the
+      # parent commit, and tests/launchWindow.test.js checks docs/PRD.md's
+      # launch date against the `launch` tag. fetch-tags alone did NOT give
+      # the tag - it points at a commit outside a depth-2 fetch, so the ref
+      # never arrived and the check skipped silently in CI, which is the one
+      # place it has to run. The repo is about 5 MB packed; a full fetch costs
+      # a second or two.
       - uses: actions/checkout@v5
         with:
-          fetch-depth: 2
-          fetch-tags: true
+          fetch-depth: 0
       - uses: actions/setup-node@v5
         with:
           node-version: 24

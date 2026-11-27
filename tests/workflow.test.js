@@ -150,9 +150,15 @@ test('the pre-commit test run defers the two-fetch comparisons, and something ru
   );
 });
 
-test('both workflows check out deep enough for the puzzle freeze check', () => {
+test('both workflows check out deep enough for the puzzle freeze check and the launch tag', () => {
+  // It was `fetch-depth: 2`, which is the parent commit tests/puzzles.test.js
+  // needs. It is 0 since 27 November 2026, because tests/launchWindow.test.js
+  // also checks docs/PRD.md's launch date against the `launch` tag, and a tag
+  // pointing at a commit outside the fetch depth never arrives - `fetch-tags`
+  // did not help, and the check skipped in CI without saying so.
   for (const [name, text] of [['refresh.yml', REFRESH], ['test.yml', TESTS_WORKFLOW]]) {
-    assert.match(text, /fetch-depth: 2/, `${name} does not fetch the parent commit`);
+    assert.match(text, /fetch-depth: 0/, `${name} does not fetch the whole history`);
+    assert.ok(!/fetch-depth: [1-9]/.test(text), `${name} still has a shallow fetch-depth`);
   }
 });
 

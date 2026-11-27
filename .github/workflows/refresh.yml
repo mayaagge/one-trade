@@ -55,11 +55,17 @@ jobs:
     if: github.repository == 'mayaagge/one-trade'
     runs-on: ubuntu-latest
     steps:
-      # fetch-depth 2, so tests/puzzles.test.js can read the parent commit and
-      # check that no committed puzzle was rewritten after its date arrived.
+      # fetch-depth 0, so the whole history and every tag is here. Two things
+      # need more than a shallow checkout: tests/puzzles.test.js reads the
+      # parent commit, and tests/launchWindow.test.js checks docs/PRD.md's
+      # launch date against the `launch` tag. fetch-tags alone did NOT give
+      # the tag - it points at a commit outside a depth-2 fetch, so the ref
+      # never arrived and the check skipped silently in CI, which is the one
+      # place it has to run. The repo is about 5 MB packed; a full fetch costs
+      # a second or two.
       - uses: actions/checkout@v5
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
       - uses: actions/setup-node@v5
         with:

@@ -7036,3 +7036,40 @@ now, and says why.
 1,281 to **1,286 passing**.
 
 Educational, not investment advice.
+
+### The tag check was skipping in CI, and I had called it fixed (session 2.52)
+
+Worth writing down in full, because the mistake is the interesting part.
+
+The check that the PRD's launch date equals the `launch` tag's timestamp was
+written to skip, with a printed line, on a clone that has no tags. To make
+sure CI was not such a clone, `fetch-tags: true` was added to the checkout
+beside its existing `fetch-depth: 2`, and that was reported as handled.
+
+**It was not.** The CI log for that very commit reads:
+
+```
+(no `launch` tag in this clone; run `git fetch --tags` to check it)
+✔ the PRD's launch date is the launch tag's own timestamp
+```
+
+A tick, and underneath it the check not running. `fetch-tags` adds `--tags` to
+the fetch, but the tag points at a commit eight back, outside a depth-2 fetch,
+so the object is not there and the ref never arrives. Found by reading the CI
+log rather than the green tick, which is the only reason it was found at all.
+
+**Two fixes, because the depth was only half the problem.**
+
+`fetch-depth: 0` in both workflows. The repo is 5 MB packed over 114 commits;
+a full fetch costs a second or two and removes the whole class of question.
+tests/workflow.test.js held both workflows to `fetch-depth: 2` and now holds
+them to 0, with the reason.
+
+And **the skip is no longer available to CI.** If the tag is missing and
+`process.env.CI` is set, the test fails with what to do about it. A check that
+can silently not run is worse than no check: it reports a pass for work it did
+not do, which is exactly what happened here.
+
+1,286 tests pass.
+
+Educational, not investment advice.
