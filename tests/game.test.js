@@ -40,10 +40,13 @@ import {
 } from '../js/game.js';
 import { emptyProgress, recordLevel, starsOf } from '../js/progress.js';
 import { validateCrashes } from '../js/crash.js';
-import { withDocument } from './stubDom.js';
+import { textOf, withDocument } from './stubDom.js';
 // The picker, the allocator and the money they are written in now live in
 // js/build.js, shared with Crash replay.
-import { floorNotes, money, tickerPicker } from '../js/build.js';
+import {
+  floorNotes, money, tickerPicker, whatAreThese, pickedNames,
+} from '../js/build.js';
+import { describe as describeTicker, nameOf, validateNames } from '../js/names.js';
 import { SEEN_POOL_KEY } from '../js/seenPool.js';
 
 /** A localStorage for one test, and the teardown that takes it away again. Same pattern as tests/progress.test.js. */
@@ -417,6 +420,120 @@ test('only level 1 asks for a flat picker, and it says why in the file', () => {
     if (level.id === 1) continue;
     assert.equal(level.picker, undefined, `level ${level.id} now has a picker rule`);
   }
+});
+
+// --------------------------------------------------- what each ticker is
+
+const NAMES = validateNames(readJson('names.json'));
+
+test('"What are these?" lists the pool alphabetically, with no sector anywhere', () => {
+  // On level 1 this sits on the same screen as a picker whose group headings
+  // were deliberately removed. A list ordered or labelled by group would hand
+  // back exactly what the headings were hiding.
+  const restore = withDocument();
+  try {
+    const pool = levelById(LEVELS, 1).pool;
+    const node = whatAreThese(NAMES, pool);
+    const tickers = node.querySelectorAll('glossary-row').map((row) => row.all()
+      .find((n) => n.tagName === 'DT')._text);
+    assert.deepEqual(tickers, [...pool].sort((a, b) => a.localeCompare(b)));
+    const text = textOf(node);
+    for (const group of TICKERS.groups) {
+      assert.ok(!text.includes(group.label), `the glossary names the group "${group.label}"`);
+    }
+    // Closed by default: reading is 89% of the time to finish levels 1 to 3,
+    // and a player who knows what VOO is should pay nothing for one who does not.
+    assert.equal(node.tagName, 'DETAILS');
+    assert.equal(node.attributes.open, undefined);
+  } finally { restore(); }
+});
+
+test('"What are these?" describes only what this screen can offer', () => {
+  const restore = withDocument();
+  try {
+    const node = whatAreThese(NAMES, ['GLD', 'VOO']);
+    assert.equal(node.querySelectorAll('glossary-row').length, 2);
+    const text = textOf(node);
+    assert.ok(text.includes('SPDR Gold Shares'));
+    assert.ok(!text.includes('NVIDIA'), 'it described a holding this screen cannot offer');
+  } finally { restore(); }
+});
+
+test('the holdings a player has picked are named, in the order they hold them', () => {
+  const restore = withDocument();
+  try {
+    const build = stubBuild(['VOO', 'GLD', 'BND'], []);
+    build.picks = ['GLD', 'VOO'];
+    const node = pickedNames(build, NAMES);
+    const text = textOf(node);
+    assert.ok(text.includes('SPDR Gold Shares'));
+    assert.ok(text.includes('Vanguard S&P 500 ETF'));
+    assert.ok(text.includes('(gold)') && text.includes('(stock fund)'));
+    assert.equal(node.querySelectorAll('picked-name').length, 2);
+  } finally { restore(); }
+});
+
+test('nothing picked and no names file both come back as nothing to draw', () => {
+  const restore = withDocument();
+  try {
+    const empty = stubBuild(['VOO'], []);
+    empty.picks = [];
+    assert.equal(pickedNames(empty, NAMES), null, 'an empty heading helps nobody');
+    const held = stubBuild(['VOO'], []);
+    held.picks = ['VOO'];
+    // A file that would not load is not a reason to stop playing: the screen
+    // falls back to the bare symbols it showed before this file existed.
+    assert.equal(pickedNames(held, null), null);
+    assert.equal(whatAreThese(null, ['VOO']), null);
+    assert.equal(nameOf(null, 'VOO'), 'VOO', 'the fallback is the ticker itself');
+  } finally { restore(); }
+});
+
+test('a level whose rule is about kinds marks the four that are not stocks', () => {
+  // Level 6 asks for 60% of the money in stocks, and until this there was no
+  // way to know BND is not one except by knowing already.
+  const restore = withDocument();
+  try {
+    const pool = ['VOO', 'BND', 'GLD', 'NVDA'];
+    const marked = tickerPicker(stubBuild(pool), {
+      groups: GROUPS, redraw: () => {}, names: NAMES, markKinds: true,
+    });
+    const labels = marked.querySelectorAll('chip').map((chip) => chip._text).sort();
+    assert.deepEqual(labels, ['BND bond', 'GLD gold', 'NVDA', 'VOO']);
+
+    // THE WORD, NOT ONLY THE COLOUR. The class is there too, and the test
+    // holds both: colour alone would carry this for nobody who cannot see it.
+    const bnd = marked.querySelector('[id="chip-BND"]');
+    assert.ok(bnd.className.includes('chip-other-kind'));
+    const voo = marked.querySelector('[id="chip-VOO"]');
+    assert.ok(!voo.className.includes('chip-other-kind'), 'a stock fund is a stock here');
+
+    // And every other level leaves the chips alone.
+    const plain = tickerPicker(stubBuild(pool), {
+      groups: GROUPS, redraw: () => {}, names: NAMES,
+    });
+    assert.deepEqual(plain.querySelectorAll('chip').map((c) => c._text).sort(),
+      ['BND', 'GLD', 'NVDA', 'VOO']);
+  } finally { restore(); }
+});
+
+test('a chip says its full name to a screen reader, not three letters', () => {
+  const restore = withDocument();
+  try {
+    const node = tickerPicker(stubBuild(['BND']), {
+      groups: GROUPS, redraw: () => {}, names: NAMES,
+    });
+    assert.equal(node.querySelector('[id="chip-BND"]').getAttribute('aria-label'),
+      'Add BND, Vanguard Total Bond Market ETF');
+  } finally { restore(); }
+});
+
+test('describe() works out the article rather than the file carrying it', () => {
+  assert.equal(describeTicker(NAMES, 'GLD'), 'GLD - SPDR Gold Shares, a gold');
+  assert.equal(describeTicker(NAMES, 'VOO'), 'VOO - Vanguard S&P 500 ETF, a stock fund');
+  // The day a kind starts with a vowel, the screen must not read "a".
+  const made = { tickers: { XX: { name: 'Something', kind: 'equity fund' } } };
+  assert.equal(describeTicker(made, 'XX'), 'XX - Something, an equity fund');
 });
 
 // ------------------------------------------------- what a count ping carries

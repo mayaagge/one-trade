@@ -253,8 +253,12 @@ test('nothing is sent and nothing is saved, however much is built', async () => 
     pick(b.root, ['VOO', 'TLT']);
     buttonSaying(b.root, /See what this portfolio does/).click();
 
-    // The only requests are the four data files, each read once on the way in.
-    assert.deepEqual([...b.asked].sort(), ['basket.json', 'data/game.json', 'levels.json', 'tickers.json']);
+    // The only requests are the five data files, each read once on the way in.
+    // names.json joined them on 27 November 2026 - what each ticker IS, for
+    // the "What are these?" list - and like the rest it is read on the way in
+    // and never again, however much the player builds.
+    assert.deepEqual([...b.asked].sort(),
+      ['basket.json', 'data/game.json', 'levels.json', 'names.json', 'tickers.json']);
     assert.equal(b.sent.length, 0, `something was sent: ${b.sent.join(', ')}`);
     assert.deepEqual(b.stored, [], `storage was touched: ${b.stored.join(', ')}`);
   } finally { b.restore(); }

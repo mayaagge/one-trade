@@ -26,6 +26,7 @@ import { DOLLAR_STEP } from './round.js';
 // `from './build.js'` import keeps working unchanged.
 import { money } from './format.js';
 import { DISCLAIMER } from './levels.js';
+import { describePool, kindOf, nameOf } from './names.js';
 
 export { money };
 
@@ -97,7 +98,7 @@ export function errorView(title, detail) {
  *        headings, which is level 1 and nothing else. See the note below.
  */
 export function tickerPicker(build, {
-  groups, redraw, reasonFor = () => null, grouped = true,
+  groups, redraw, reasonFor = () => null, grouped = true, names = null, markKinds = false,
 }) {
   const wrap = h('div', 'picker');
   const inPool = new Set(build.pool);
@@ -122,24 +123,39 @@ export function tickerPicker(build, {
   }];
 
   for (const group of sections) {
-    const names = group.tickers
+    // NOT `names`: that is the parameter holding names.json, and a local of
+    // the same name shadowed it here - every chip's spoken label came out as
+    // "Add BND, BND" because nameOf() was handed this array instead. Caught by
+    // a test, not by reading.
+    const offered = group.tickers
       .map((t) => (typeof t === 'string' ? t : t.ticker))
       .filter((t) => inPool.has(t));
-    if (names.length === 0) continue;
+    if (offered.length === 0) continue;
 
     const section = h('section', 'picker-group');
     if (group.label) section.append(h('h2', 'picker-group-label', group.label));
     const row = h('div', 'picker-row');
-    for (const ticker of names) {
+    for (const ticker of offered) {
       const held = build.hasPick(ticker);
       // A holding the build deals and keeps - level 4's QQQ - is shown held and
       // locked rather than tappable and then refused. The round throws if it is
       // removed, and a button whose only outcome is an error is not a button.
       const locked = (build.required ?? []).includes(ticker);
       const unavailable = held ? null : reasonFor(ticker);
-      const node = button(ticker, [
+      // WHAT KIND OF THING IT IS, on a level whose rule is about kinds. Level
+      // 6 asks for 60% of the money in stocks, and until now the only way to
+      // know that BND is not one was to know it already. The four that are
+      // not stocks say so on the chip itself and are coloured.
+      //
+      // THE WORD, NOT ONLY THE COLOUR. Colour alone would carry this for
+      // nobody who cannot see the difference (WCAG 1.4.1), and the fix is not
+      // a legend a player has to find: "BND bond" needs no key.
+      const kind = markKinds ? kindOf(names, ticker) : null;
+      const otherKind = kind !== null && kind !== 'stock' && kind !== 'stock fund';
+      const label = otherKind ? `${ticker} ${kind === 'gold' ? 'gold' : 'bond'}` : ticker;
+      const node = button(label, [
         'chip', held ? 'chip-on' : null, locked ? 'chip-locked' : null,
-        unavailable ? 'chip-unavailable' : null,
+        unavailable ? 'chip-unavailable' : null, otherKind ? 'chip-other-kind' : null,
       ].filter(Boolean).join(' '), () => {
         build.togglePick(ticker);
         redraw();
@@ -150,9 +166,13 @@ export function tickerPicker(build, {
         // A full pool stays tappable for the names already held, so a player can
         // always swap one out; the rest go flat rather than vanishing.
         disabled: locked || Boolean(unavailable) || (!held && !build.canAddPick()),
+        // THE NAME IS IN THE SPOKEN LABEL, not only in the list below. A
+        // screen reader hears "Add BND, Vanguard Total Bond Market ETF"
+        // rather than three letters it will spell out.
         aria: locked
-          ? `${ticker} is required on this level`
-          : unavailable ?? `${held ? 'Remove' : 'Add'} ${ticker}`,
+          ? `${ticker} is required on this level${names ? `, ${nameOf(names, ticker)}` : ''}`
+          : unavailable ?? `${held ? 'Remove' : 'Add'} ${ticker}`
+            + (names ? `, ${nameOf(names, ticker)}` : ''),
       });
       node.setAttribute('aria-pressed', String(held));
       if (unavailable) node.title = unavailable;
@@ -160,6 +180,72 @@ export function tickerPicker(build, {
     }
     section.append(row);
     wrap.append(section);
+  }
+  return wrap;
+}
+
+/**
+ * "What are these?" - every holding this screen can offer, with its full name
+ * and what kind of thing it is.
+ *
+ * BEHIND A TAP, and that is the whole design. Playtest feedback was that a
+ * player cannot tell what a ticker is; the fix cannot be forty lines of text
+ * on a screen where reading is already 89% of the time to finish levels 1 to 3
+ * (BUILD_LOG.md session 2.34). A closed <details> costs one line until
+ * somebody wants it, and the player who already knows what VOO is never pays.
+ *
+ * ALPHABETICAL, NEVER GROUPED. This list appears on level 1 too, where the
+ * picker's group headings are deliberately hidden because they say which
+ * holdings move together. A list ordered or labelled by group would hand that
+ * back on the same screen.
+ *
+ * NATIVE <details>, no JavaScript: it keeps its open state across a redraw for
+ * free, works with the keyboard, and is announced as a disclosure without any
+ * aria of our own.
+ */
+export function whatAreThese(names, pool) {
+  if (!names || pool.length === 0) return null;
+  const box = h('details', 'what-are-these');
+  box.append(h('summary', null, 'What are these?'));
+  const list = h('dl', 'ticker-glossary');
+  for (const { ticker, name, kind } of describePool(names, pool)) {
+    const row = h('div', 'glossary-row');
+    row.append(h('dt', null, ticker));
+    const dd = h('dd', null, name);
+    if (kind) dd.append(h('span', 'glossary-kind', ` (${kind})`));
+    row.append(dd);
+    list.append(row);
+  }
+  box.append(list);
+  return box;
+}
+
+/**
+ * The holdings currently picked, each with its full name.
+ *
+ * WHY A LIST OF WHAT IS HELD, rather than a flash of the name on the chip that
+ * was just tapped. "Tapped" is a moment and this is a question a player asks
+ * later - they pick four things, then wonder what the third one was. A line
+ * per holding answers it without anything to re-trigger, survives a redraw,
+ * and is read in order by a screen reader. It is also the only place level 1
+ * can show a name at all, having no allocator rows to hang them off.
+ *
+ * Null when nothing is picked: an empty heading helps nobody.
+ */
+export function pickedNames(build, names) {
+  if (!names || build.picks.length === 0) return null;
+  const wrap = h('ul', 'picked-names');
+  for (const ticker of build.picks) {
+    const item = h('li', 'picked-name');
+    // ONE FLOWING LINE, not three boxes. Laid out as flex items these wrapped
+    // raggedly at 375px - "BOND FUND" dropping to its own line under a fund
+    // name that had already wrapped - and the parentheses make it read as a
+    // sentence that can break anywhere, which is what a narrow screen needs.
+    item.append(h('span', 'picked-ticker', ticker));
+    item.append(h('span', 'picked-full', ` ${nameOf(names, ticker)}`));
+    const kind = kindOf(names, ticker);
+    if (kind) item.append(h('span', 'picked-kind', ` (${kind})`));
+    wrap.append(item);
   }
   return wrap;
 }

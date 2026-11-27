@@ -68,7 +68,13 @@ export async function open(page, hash) {
 
 /** A chip in the picker, by its exact ticker. */
 export function chip(page, ticker) {
-  return page.locator('button.chip').filter({ hasText: new RegExp(`^${ticker}$`) });
+  // BY ID, NOT BY TEXT. The chip's words are not stable - level 6 labels a
+  // holding that is not a stock "BND bond" so the rule it has to satisfy is
+  // legible without colour - and an exact-text locator silently stopped
+  // finding four chips the day that shipped. The id is per ticker and is
+  // already load-bearing for keeping focus across a redraw (js/build.js), so
+  // it is the handle that cannot drift.
+  return page.locator(`button.chip#chip-${ticker}`);
 }
 
 /** A button by its exact visible words. */

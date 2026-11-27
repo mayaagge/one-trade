@@ -417,6 +417,7 @@ see milestone 3 step 5.
 | --- | --- | --- | --- |
 | Yahoo Finance | Daily adjusted closes, 10 years, about 40 tickers in 9 groups: AI stocks, other large tech, banks, energy, health care, consumer staples, international funds, bonds and gold, and core US funds; plus the S&P 500 and RSP | Launch | Unofficial endpoint, personal-use terms. Labeled as unofficial educational data |
 | Levels file | Level rules, thresholds, the pool of 20 guess portfolios, weekly challenge portfolios | Launch | Plain JSON in the repo, so instructors and reviewers can read every rule |
+| Names file | Each playable ticker's full name and what kind of thing it is: stock, stock fund, bond fund, gold | Added 27 November 2026 on playtest feedback | `names.json`, separate from the registered `tickers.json` so that display text never means editing a file fixed at the prereg tag. Shown in a closed "What are these?" list on every build screen, beside each holding a player picks, and in the chips' spoken labels. Deliberately carries no sector: level 1 hides the group headings because they say which holdings move together, and this list is on the same screen |
 | SEC Form N-PORT | Fund holdings | Later, optional | Official and free. Quarterly, public about 60 days after quarter end |
 | OpenFIGI | CUSIP/ISIN to ticker | Later, optional | Free, rate-limited, server-side only |
 

@@ -1,0 +1,172 @@
+{
+  "version": 1,
+  "decided": "2026-11-27",
+  "why": "Playtest feedback: players did not know what the tickers were. Every playable ticker gets its full name and what kind of thing it is, shown in a 'What are these?' list on every build screen and beside a holding when it is tapped.",
+  "rule": "One entry per playable ticker in tickers.json, and no others. The name is the company's or the fund's ordinary name, not its legal entity name: a player reading 'Alphabet (Google)' learns more than one reading 'Alphabet Inc. Class A'.",
+  "kindsNote": "Four kinds, which are the four Maya named: stock, stock fund, bond fund, gold. They are FINER than levels.json's two - a stock fund is a stock for the purpose of level 6's '60% in stocks' rule, because a share of a fund of shares is still shares - and tests/names.test.js holds the two files to each other so they cannot disagree about what a bond is.",
+  "noSectorNote": "Deliberately no sector, industry or group on this screen. Level 1 hides the group headings precisely because they say which holdings move together (levels.json, level 1's pickerNote), and a list that says 'NVDA - AI stock' beside the picker would hand back exactly what the headings were hiding. The kinds here do not: stock, stock fund, bond fund and gold say what a thing IS, not what it moves with.",
+  "benchmarksNote": "^GSPC and RSP are not here. They are benchmarks the game measures against, never holdings a player can pick, so they are not in the picker and need no description.",
+  "tickers": {
+    "AAPL": {
+      "name": "Apple",
+      "kind": "stock"
+    },
+    "ABBV": {
+      "name": "AbbVie",
+      "kind": "stock"
+    },
+    "ADBE": {
+      "name": "Adobe",
+      "kind": "stock"
+    },
+    "AMD": {
+      "name": "Advanced Micro Devices (AMD)",
+      "kind": "stock"
+    },
+    "AMZN": {
+      "name": "Amazon",
+      "kind": "stock"
+    },
+    "ANET": {
+      "name": "Arista Networks",
+      "kind": "stock"
+    },
+    "AVGO": {
+      "name": "Broadcom",
+      "kind": "stock"
+    },
+    "BAC": {
+      "name": "Bank of America",
+      "kind": "stock"
+    },
+    "BND": {
+      "name": "Vanguard Total Bond Market ETF",
+      "kind": "bond fund"
+    },
+    "COP": {
+      "name": "ConocoPhillips",
+      "kind": "stock"
+    },
+    "CRM": {
+      "name": "Salesforce",
+      "kind": "stock"
+    },
+    "CSCO": {
+      "name": "Cisco Systems",
+      "kind": "stock"
+    },
+    "CVX": {
+      "name": "Chevron",
+      "kind": "stock"
+    },
+    "GLD": {
+      "name": "SPDR Gold Shares",
+      "kind": "gold"
+    },
+    "GOOGL": {
+      "name": "Alphabet (Google)",
+      "kind": "stock"
+    },
+    "GS": {
+      "name": "Goldman Sachs",
+      "kind": "stock"
+    },
+    "INTC": {
+      "name": "Intel",
+      "kind": "stock"
+    },
+    "JNJ": {
+      "name": "Johnson & Johnson",
+      "kind": "stock"
+    },
+    "JPM": {
+      "name": "JPMorgan Chase",
+      "kind": "stock"
+    },
+    "KO": {
+      "name": "Coca-Cola",
+      "kind": "stock"
+    },
+    "LQD": {
+      "name": "iShares Investment Grade Corporate Bond ETF",
+      "kind": "bond fund"
+    },
+    "META": {
+      "name": "Meta Platforms (Facebook, Instagram)",
+      "kind": "stock"
+    },
+    "MRVL": {
+      "name": "Marvell Technology",
+      "kind": "stock"
+    },
+    "MSFT": {
+      "name": "Microsoft",
+      "kind": "stock"
+    },
+    "MU": {
+      "name": "Micron Technology",
+      "kind": "stock"
+    },
+    "NVDA": {
+      "name": "NVIDIA",
+      "kind": "stock"
+    },
+    "ORCL": {
+      "name": "Oracle",
+      "kind": "stock"
+    },
+    "PG": {
+      "name": "Procter & Gamble",
+      "kind": "stock"
+    },
+    "PLTR": {
+      "name": "Palantir Technologies",
+      "kind": "stock"
+    },
+    "QQQ": {
+      "name": "Invesco QQQ Trust (Nasdaq-100)",
+      "kind": "stock fund"
+    },
+    "TLT": {
+      "name": "iShares 20+ Year Treasury Bond ETF",
+      "kind": "bond fund"
+    },
+    "UNH": {
+      "name": "UnitedHealth Group",
+      "kind": "stock"
+    },
+    "VEA": {
+      "name": "Vanguard FTSE Developed Markets ETF",
+      "kind": "stock fund"
+    },
+    "VOO": {
+      "name": "Vanguard S&P 500 ETF",
+      "kind": "stock fund"
+    },
+    "VRT": {
+      "name": "Vertiv Holdings",
+      "kind": "stock"
+    },
+    "VTI": {
+      "name": "Vanguard Total Stock Market ETF",
+      "kind": "stock fund"
+    },
+    "VWO": {
+      "name": "Vanguard FTSE Emerging Markets ETF",
+      "kind": "stock fund"
+    },
+    "VXUS": {
+      "name": "Vanguard Total International Stock ETF",
+      "kind": "stock fund"
+    },
+    "WMT": {
+      "name": "Walmart",
+      "kind": "stock"
+    },
+    "XOM": {
+      "name": "Exxon Mobil",
+      "kind": "stock"
+    }
+  },
+  "checkedAgainst": "Maya's reference list, 27 November 2026: same 40 tickers, no kind differences, three names taken from it (AMD, META, QQQ) where this file had shortened them."
+}

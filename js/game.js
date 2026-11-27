@@ -39,7 +39,11 @@ import { renderLineChart, chartBox } from './chart.js';
 // portfolio when they arrive. See the note at the top of js/build.js.
 import {
   h, button, money, tickerPicker, allocator, floorNotes, errorView,
+  whatAreThese, pickedNames,
 } from './build.js';
+// What each ticker is, for the "What are these?" list and the names beside a
+// picked holding. Its own file, not tickers.json, which is registered.
+import { NAMES_URL, loadNames, nameOf } from './names.js';
 // Saved progress: the stars a player keeps, and which levels are open.
 import {
   clearProgress, guessError, isUnlocked, loadProgress, passedLevels, playedLevels,
@@ -524,6 +528,11 @@ function renderBuild(ctx, round) {
       list.append(item);
     }
     view.append(list);
+    // DEALT, BUT STILL UNNAMED WITHOUT THIS. Levels 2 and 7 hand a player a
+    // portfolio rather than letting them pick one, which makes "what is LQD?"
+    // more pressing here than anywhere, not less.
+    const dealtNames = whatAreThese(ctx.names, round.picks);
+    if (dealtNames) view.append(dealtNames);
     // The pool of 20 is named only where it IS the pool of 20. Level 7's second
     // and third portfolios come from the capstone pool, and saying "a pool of
     // 20" under all three would be telling a player something untrue about two
@@ -543,11 +552,20 @@ function renderBuild(ctx, round) {
       // because they give away which pairs move together, and its pickerNote
       // says so. Every other level, and every other mode, keeps them.
       grouped: round.level.picker?.grouped !== false,
+      names: ctx.names,
+      // Only a level whose rule is about kinds marks them. Level 6 asks for
+      // 60% of the money in stocks; everywhere else the distinction is not
+      // the lesson and the extra word on four chips would be noise.
+      markKinds: Boolean(round.kindFloor),
       // A holding this round's window cannot replay is shown disabled with its
       // reason - PLTR had not listed in February 2020 - rather than left out. A
       // level without a crash window has nothing to refuse.
       reasonFor: (ticker) => (round.crashWindow ? pickReason(round.crashWindow, ticker) : null),
     }));
+    const picked = pickedNames(round, ctx.names);
+    if (picked) view.append(picked);
+    const glossary = whatAreThese(ctx.names, round.pool);
+    if (glossary) view.append(glossary);
     if (round.usesMoney && round.picks.length > 0) {
       view.append(allocator(round, { redraw: ctx.draw }));
     }
@@ -1336,6 +1354,7 @@ export async function mountLearn(root, { session = null, progress = null } = {})
   let tickers;
   let why;
   let basket;
+  let names = null;
   let game;
   let crashes;
   try {
@@ -1353,6 +1372,15 @@ export async function mountLearn(root, { session = null, progress = null } = {})
     tickers = await tickersResponse.json();
     why = validateWhy(await whyResponse.json());
     basket = basketFrom(await basketResponse.json());
+    // WHAT EACH TICKER IS, and a failure here is not fatal. Every screen
+    // falls back to the bare symbol it showed before this file existed, which
+    // is worse but still playable - unlike a missing price, which makes the
+    // round meaningless. So this one is caught on its own.
+    try {
+      names = await loadNames();
+    } catch {
+      names = null;
+    }
     game = await loadGameData();
     // Level 6's prices, which are a different file from the rest of the game's:
     // a fixed stretch of 2020 that never moves. Loaded with everything else
@@ -1381,6 +1409,8 @@ export async function mountLearn(root, { session = null, progress = null } = {})
 
   const ctx = {
     progress: saved,
+    /** What each ticker is, or null if names.json could not be read. */
+    names,
     // Whether this browser saves at all, settled once by writing back the
     // record we just read - harmless, and the only honest way to find out.
     // The menu says so plainly when it is false.

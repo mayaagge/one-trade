@@ -60,6 +60,7 @@
   --clears: #15604a;           /* 7.4:1 */
   --misses: #8f3a12;           /* 7.4:1 */
   --reference: #8a8075;        /* the index line: 3.8:1 on a card */
+  --other-kind: #655c52;       /* a holding that is not a stock: 6.5:1 behind white text, 6.1:1 as text */
   --waiting: #7c5a12;          /* status: waiting on data */
 
   /* the old names, pointing at the new colours */
@@ -92,6 +93,7 @@
     --clears: #6fcf9f;
     --misses: #e8975a;
     --reference: #857b70;
+    --other-kind: #a79b8c;     /* 6.9:1 behind the dark ink, 6.3:1 as text on a card */
     --waiting: #e0b85a;
   }
 }
@@ -681,6 +683,61 @@ label.lede { display: block; }
    held colour at full strength and shows a lock instead. */
 .chip-locked:disabled { opacity: 1; cursor: default; }
 .chip-locked::after { content: ' \1F512'; font-size: 0.85em; }
+
+/* A holding that is not a stock, on the one level whose rule is about kinds.
+   The chip already says "BND bond" in words - the colour reinforces it and
+   never carries it alone, which is WCAG 1.4.1 and also just clearer. */
+/* NOT --reference, WHICH IS A CHART COLOUR. The first version filled the chip
+   with it and `node scripts/dev_a11y.mjs` failed three chips at 3.81:1 - fine
+   for a line on a chart, which needs 3:1, and short of the 4.5:1 that 16px
+   text needs. --other-kind is the same warm family, dark enough to carry
+   white text, and measured in its own comment. */
+.chip-other-kind {
+  border-color: var(--other-kind);
+  border-style: dashed;
+}
+.chip-other-kind.chip-on {
+  background: var(--other-kind);
+  border-color: var(--other-kind);
+  border-style: solid;
+  color: var(--accent-on);
+}
+
+/* --- what each ticker is -------------------------------------------------
+
+   Two surfaces, both from names.json. `picked-names` is a line per holding
+   the player has chosen; `what-are-these` is the closed list of everything
+   this screen could offer. The second is a <details> because reading is 89%
+   of the time to finish levels 1 to 3 and a player who knows what VOO is
+   should pay nothing for one who does not. */
+
+.picked-names { list-style: none; margin: 10px 0 0; padding: 0; }
+.picked-name { font-size: 0.9rem; margin-bottom: 3px; }
+.picked-ticker { font-weight: 600; font-variant-numeric: tabular-nums; }
+.picked-full,
+.picked-kind { color: var(--text-secondary); }
+
+.what-are-these { margin: 10px 0 0; font-size: 0.9rem; }
+.what-are-these > summary {
+  cursor: pointer;
+  /* A 44px tap target, as every other control on a phone has. */
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  color: var(--series-1);
+}
+.what-are-these > summary:focus-visible { outline: 2px solid var(--series-1); outline-offset: 2px; }
+.ticker-glossary { margin: 4px 0 0; }
+.glossary-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 8px;
+  align-items: baseline;
+  padding: 3px 0;
+  border-top: 1px solid var(--border);
+}
+.glossary-row dt { font-weight: 600; min-width: 4.5em; font-variant-numeric: tabular-nums; }
+.glossary-row dd { margin: 0; color: var(--text-secondary); }
 
 /* The floor under a holding, beside the - button that stops at it. */
 .note-floor { margin-top: 2px; }

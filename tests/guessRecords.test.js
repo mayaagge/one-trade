@@ -54,12 +54,14 @@ const BASKET = readJson('basket.json');
 const WHY = readJson('why.json');
 const GAME = readJson('data/game.json');
 const CRASHES = readJson('data/crashes.json');
+const NAMES = readJson('names.json');
 
 const FILES = {
   'levels.json': LEVELS,
   'tickers.json': TICKERS,
   'basket.json': BASKET,
   'why.json': WHY,
+  'names.json': NAMES,
   'data/game.json': GAME,
   'data/crashes.json': CRASHES,
 };

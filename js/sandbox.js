@@ -35,8 +35,10 @@
 
 import {
   h, button, money, tickerPicker, allocator, errorView,
+  whatAreThese, pickedNames,
 } from './build.js';
 import { createBuild } from './crash.js';
+import { loadNames } from './names.js';
 import { loadGameData } from './gameView.js';
 import { LEVELS_URL, validateLevels } from './levels.js';
 import { DISCLAIMER, measureAll } from './measures.js';
@@ -86,7 +88,12 @@ function renderBuild(ctx) {
     groups: ctx.tickers.groups,
     redraw: ctx.draw,
     reasonFor: (ticker) => ctx.reasonFor(ticker),
+    names: ctx.names,
   }));
+  const picked = pickedNames(build, ctx.names);
+  if (picked) view.append(picked);
+  const glossary = whatAreThese(ctx.names, build.pool);
+  if (glossary) view.append(glossary);
   if (build.picks.length > 0) view.append(allocator(build, { redraw: ctx.draw }));
 
   const ready = build.buildComplete() && build.picks.length >= LEAST_HOLDINGS;
@@ -172,6 +179,16 @@ export async function mountSandbox(root) {
     return null;
   }
 
+  // What each ticker is. Loaded on its own and never fatal: a screen without
+  // it shows the bare symbols it always showed, which is worse but playable,
+  // unlike a missing price.
+  let names = null;
+  try {
+    names = await loadNames();
+  } catch {
+    names = null;
+  }
+
   const universe = tickersDoc.groups
     .flatMap((group) => group.tickers.map((t) => (typeof t === 'string' ? t : t.ticker)));
   const groups = groupIndex(tickersDoc);
@@ -182,6 +199,7 @@ export async function mountSandbox(root) {
 
   const ctx = {
     tickers: tickersDoc,
+    names,
     levels,
     basket,
     game,

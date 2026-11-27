@@ -24,11 +24,13 @@
 
 import {
   h, button, money, tickerPicker, allocator, errorView,
+  whatAreThese, pickedNames,
 } from './build.js';
 import { renderLineChart, chartBox, niceStep, DEFAULT_PADDING } from './chart.js';
 // Putting a view on the page without losing the scroll position or the focused
 // control - see the long note at the top of js/screen.js.
 import { createScreen } from './screen.js';
+import { loadNames } from './names.js';
 import {
   DISCLAIMER,
   createBuild,
@@ -115,7 +117,12 @@ function renderBuild(ctx) {
     groups: ctx.tickers.groups,
     redraw: ctx.draw,
     reasonFor: (ticker) => pickReason(crashWindow, ticker),
+    names: ctx.names,
   }));
+  const picked = pickedNames(build, ctx.names);
+  if (picked) view.append(picked);
+  const glossary = whatAreThese(ctx.names, build.pool);
+  if (glossary) view.append(glossary);
   if (build.picks.length > 0) view.append(allocator(build, { redraw: ctx.draw }));
 
   const ready = build.buildComplete();
@@ -272,6 +279,16 @@ export async function mountCrash(root) {
     return null;
   }
 
+  // What each ticker is. Loaded on its own and never fatal: a screen without
+  // it shows the bare symbols it always showed, which is worse but playable,
+  // unlike a missing price.
+  let names = null;
+  try {
+    names = await loadNames();
+  } catch {
+    names = null;
+  }
+
   const universe = tickersDoc.groups.flatMap((g) => g.tickers.map((t) => (typeof t === 'string' ? t : t.ticker)));
 
   // One painter for this mode's whole lifetime - see js/screen.js.
@@ -280,6 +297,7 @@ export async function mountCrash(root) {
   const ctx = {
     crashes,
     tickers: tickersDoc,
+    names,
     crashWindow: null,
     build: null,
     result: null,

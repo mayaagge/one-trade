@@ -6051,3 +6051,104 @@ solvable. Four of level 1's reveal sentences printed and read. The a11y run
 reports an empty contrast table.
 
 Educational, not investment advice.
+
+## Player feedback 2 and 7: what each ticker is, 27 November 2026 (session 2.42)
+
+**From the playtest: players did not know what the tickers were.** New in the
+repo: `names.json` - every playable ticker's full name and what kind of thing
+it is - plus `js/names.js` and `tests/names.test.js`.
+
+### Three surfaces, and only one of them costs reading time
+
+1. **A closed "What are these?" list** on every build screen: Learn, Sandbox
+   and Crash replay, and on levels 2 and 7, where the portfolio is dealt and
+   "what is LQD?" is more pressing rather than less.
+2. **The holdings a player has picked, named**, in a line each under the
+   picker. Not a flash on the chip that was just tapped: "tapped" is a moment,
+   and this is a question asked later - you pick four things, then wonder what
+   the third one was. It is also the only way level 1 can show a name at all,
+   having no allocator rows to hang them off.
+3. **The spoken label on every chip.** A screen reader now hears "Add BND,
+   Vanguard Total Bond Market ETF" rather than spelling out three letters.
+
+**The list is a native `<details>`, closed.** Reading is 88% of the estimated
+time to finish levels 1 to 3 and the 10-minute launch item is tight, so forty
+descriptions cannot sit open on the screen. Measured rather than assumed:
+`node scripts/dev_phone.mjs` before and after this session is **1,190 words to
+1,192, and 10m 12s to 10m 17s at 125 wpm.** Two words and five seconds. The
+estimate was already over at that reading speed before this change - the PRD
+has said so since session 2.34 - and it is 1m 14s under at 150.
+
+### names.json is its own file, not a column in tickers.json
+
+tickers.json is registered: docs/PRD.md fixes "the 9 groups in tickers.json" at
+the prereg tag and both hypotheses draw their universe from it. Adding display
+text would mean editing a file whose whole point is that it does not change.
+tests/names.test.js holds the two together instead - exactly the 40 playable
+tickers, no benchmarks, nothing missing - so a new ticker cannot be half-added.
+
+**Checked against Maya's reference list before any of it was wired up**: same
+40 tickers, no kind differences, three names taken from hers where this file
+had shortened them (AMD, META, QQQ). The diff was run by script rather than by
+eye and `names.json` records that it happened.
+
+### The kinds are finer than level 6's, and a test maps them
+
+Four kinds - stock, stock fund, bond fund, gold - against levels.json's two
+lists. A stock fund IS a stock for level 6's 60%-in-stocks rule, because a
+share of a fund of shares is still shares. The mapping is checked ticker by
+ticker, so the game cannot say "GLD, gold" on the build screen while level 6
+counts it as something else. That is the same class of bug as a displayed
+number disagreeing with a pass check, and it gets the same treatment.
+
+### No sector anywhere, which is a rule and not an oversight
+
+Session 2.41 removed level 1's group headings because they say which holdings
+move together. A list reading "NVDA - AI stock" on that same screen would have
+handed it straight back. The four kinds say what a thing IS, never what it
+moves with, and a test fails on any kind containing a group's label or the
+words ai, tech, bank, energy, health, staples or international.
+
+### Level 6 colours the four that are not stocks - and says so in words
+
+The chips read **"BND bond"**, "TLT bond", "LQD bond" and "GLD gold", only on
+the level whose rule is about kinds, and only for the four that are not
+stocks. Colour reinforces and never carries it alone: WCAG 1.4.1, and also
+just clearer than a legend somebody has to find.
+
+### Three things found by running it rather than reading it
+
+**A shadowed variable, caught by a test.** `tickerPicker` had a local
+`const names` - the group's own ticker list - which shadowed the new `names`
+parameter, so every chip's spoken label came out as "Add BND, BND". The
+fallback in `nameOf()` is what made it look plausible rather than crash. The
+local is now `offered`.
+
+**A screenshot scene that stopped working.** `scripts/dev_browser.mjs` found
+chips by exact text, `^BND$`, and level 6's chips now read "BND bond" - so
+four of them became unfindable and `learn-25` timed out. It locates by
+`#chip-BND` now, which is the id that already exists for keeping focus across
+a redraw, and cannot drift when a label changes.
+
+**A contrast failure, caught by `node scripts/dev_a11y.mjs`.** The first
+version filled the selected chip with `--reference` and got **3.81:1** against
+white text on three chips. That token is a CHART colour, documented as "3.8:1
+on a card", which is fine for a line needing 3:1 and short for 16px text
+needing 4.5:1. New token `--other-kind`, measured in both schemes: 6.5:1
+behind white in light, 6.9:1 behind the dark ink in dark. The contrast table
+is empty again.
+
+### Checked, not assumed
+
+1,239 to **1,246 passing**. `node scripts/dev_a11y.mjs` clean; the two tap
+targets it still lists are the skip link and a text link, both pre-existing.
+`node scripts/dev_checks.mjs` 24 clear, 0 overlaps. Screenshotted at 375px
+twice - the first version's name lines wrapped raggedly as flex items, with
+"BOND FUND" dropping below a fund name that had already wrapped, so they are
+one flowing sentence with the kind in parentheses instead.
+
+docs/PRD.md's data table gains a row for the file. My real portfolio is
+untouched: it takes typed holdings rather than offering a picker, so it has no
+build screen of this shape.
+
+Educational, not investment advice.
