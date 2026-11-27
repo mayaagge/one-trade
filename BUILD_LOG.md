@@ -6231,3 +6231,59 @@ stylesheet - the rule it styled no longer exists, and a dead rule is a thing
 somebody later has to work out.
 
 Educational, not investment advice.
+
+## Player feedback 6: the ten-minute goal is retired, 27 November 2026 (session 2.44)
+
+**Maya's call, and it reverses the thing sessions 2.33 to 2.35 were built
+around.** "Levels 1 to 3 can be played in under 10 minutes on a mid-range
+phone" is gone from docs/PRD.md's launch checklist and from Milestone 2's
+check. What replaces it: **every screen is clear, concise and helpful to a
+beginner.**
+
+**Why it had to go, in the words of the thing that killed it.** The target was
+measured almost entirely by counting words - reading was about 88% of
+`dev_phone.mjs`'s estimate and the machine 3% - so it moved with an assumed
+reading speed and with nothing a player would ever notice. That made it an
+incentive to delete explanation. This whole round of sixteen changes came from
+a playtest saying the screens did not explain ENOUGH: players could not tell
+what a ticker was, could not see the money split while guessing, and could not
+follow the instructions. Three sessions in a row have reported the word count
+going up as if it were damage, when every one of those words was a thing a
+player had asked for.
+
+The budget was also tightened, twice, by deleting the kind of sentence that
+tells somebody what they are looking at. A measure that rewards that is
+measuring the wrong thing.
+
+**What is kept.** Concise, still - judged by whether it helps rather than by a
+clock. And the pattern that came out of trying to satisfy both at once is the
+right one on its own merits: explanation that does not fit goes behind a tap,
+a closed "What are these?" list or the About tab, so a player who already
+knows pays nothing for one who does not.
+
+**Where the stopwatch item was, since it was asked for by that name:** there
+was none in the playtest checklist. Searched rather than assumed - no
+"stopwatch", "timed" or "how long" anywhere in docs/PRD.md, README.md or
+docs/DESIGN_REVIEW.md. The timing criterion lived in exactly two places, the
+launch checklist and Milestone 2's check, and both are now the clarity goal.
+The 8-week plan's playtest paragraph gains the opposite instruction - **do not
+time them** - and a reason: a player who takes twelve minutes because the
+screens are interesting is not a problem, and one who takes six because they
+stopped reading is.
+
+Milestone 4's "to watch in the next playtest" gains the question that replaces
+the clock: did they read a screen twice, did they ask what a word meant, did
+they act on it or ignore it. A screen that is skipped is as much a problem as
+one that is slow, and the word count could not see either.
+
+**What is NOT changed.** The three places docs/PRD.md says the game "takes 10
+minutes" are positioning in the market table and the outreach copy, not a gate,
+and they stay. `scripts/dev_phone.mjs` and `npm run phone` stay too - the
+machine-time half still answers a real question about a slow connection - but
+CLAUDE.md's entry for it now says the goal is retired and that word counts are
+not to be reported as a pass or a fail. **Whether to delete the script is
+Maya's call and has not been taken.**
+
+No code and no tests changed; 1,248 passing, unchanged.
+
+Educational, not investment advice.

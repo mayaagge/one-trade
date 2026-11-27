@@ -53,5 +53,8 @@ I am a first-year at UChicago. I know Python, JavaScript, web pages, Github, and
   and tap targets survive a redraw - the things a node test cannot see.
 - npm run phone: estimates how long levels 1 to 3 take on a mid-range phone
   (4x CPU, Slow 4G) plus reading and tap time. An estimate, not a real phone.
+  THE TEN-MINUTE GOAL IT WAS BUILT FOR IS RETIRED (27 Nov 2026) - see the
+  clarity goal in docs/PRD.md. Do not report word counts or reading times as
+  a pass or fail; the question is whether a screen helps a beginner.
 - npm run a11y: contrast ratios, tap-target sizes and heading order, which
   Lighthouse does not reach. Run it alongside Lighthouse, not instead.

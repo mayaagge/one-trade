@@ -450,7 +450,13 @@ Written down on 27 November 2026, because "60 days after launch" and "day 80" ar
 
 - ☑ The known-answer math tests and the weekly level-solvability test pass in CI.
 
-- ☑ Levels 1 to 3 can be played in under 10 minutes on a mid-range phone — **met, but close to the limit.** A real-phone run on 27 November 2026 took **5 to 10 minutes depending on how carefully the text was read**, bracketing the 7m 31s estimate from `node scripts/dev_phone.mjs` (BUILD_LOG.md sessions 2.33 and 2.34). **Two cautions go with the tick.** The run was by someone who wrote the game, so none of a first-time player's wondering-what-this-means is in it, and a first-timer should be expected at or past the upper end. And it is a word count, not a performance question: reading is 89% of the estimate and the machine 3%, so the margin moves with reading speed alone — 9m 45s at 150 wpm, over 10 minutes at 125. BUILD_LOG.md session 2.34 lists the longest text on levels 1 to 3 as candidates to shorten after launch; the first playtest (Milestone 4) is what tests this properly, with people who have never seen it.
+- ☑ **Every screen is clear, concise and helpful to a beginner.** Replaced the ten-minute goal on 27 November 2026, on playtest feedback (BUILD_LOG.md, player feedback 6).
+
+  **What was here, and is retired:** "Levels 1 to 3 can be played in under 10 minutes on a mid-range phone", ticked but close to the limit — a real-phone run took 5 to 10 minutes depending on how carefully the text was read, and `node scripts/dev_phone.mjs` put it over ten minutes for a reader at 125 words a minute.
+
+  **Why it went.** The target was measured almost entirely by counting words: reading was about 88% of the estimate and the machine 3%, so the number moved with assumed reading speed and with nothing a player would notice. That made it an incentive to delete explanation, which is the opposite of what the playtest asked for — the feedback this whole round of changes comes from was that screens did not explain enough, not that they explained too slowly. A budget that is tightened by removing the sentence telling somebody what a ticker is was measuring the wrong thing.
+
+  **What replaces it.** Text stays concise, and concise is judged by whether it helps a beginner rather than by a clock. Where a screen needs more explanation than fits, the explanation goes behind a tap — a closed "What are these?" list, the About tab — so a player who already knows pays nothing for one who does not. Clarity is tested by watching five first-time players with no help (Milestone 4), not by a stopwatch and not by a word count.
 
 - ☑ The daily puzzle shows the same pairs on two different devices (it's seeded by the date, which needs no Worker).
 
@@ -518,7 +524,7 @@ Professors adopt tools that come with a ready assignment, so ship these together
 
 ### 8-week plan
 
-**Weeks 1 to 2: playtest.** Run 5 in-person tests with friends and floormates; most will have no account, which is now the point. Give no help; note where they stall. Fix the top 3 problems, then test 5 more. Pass mark: 4 of 5 finish level 3 and can explain the idea back.
+**Weeks 1 to 2: playtest.** Run 5 in-person tests with friends and floormates; most will have no account, which is now the point. Give no help; note where they stall, and note every screen they had to read twice. Fix the top 3 problems, then test 5 more. Pass mark: 4 of 5 finish level 3 and can explain the idea back. **Do not time them.** How long it takes is not the measure and never was a useful one — a player who takes twelve minutes because the screens are interesting is not a problem, and one who takes six because they gave up reading is.
 
 **Weeks 3 to 4: seed your campus.**
 
@@ -641,7 +647,7 @@ There are five milestones, in order, and each ends with a check you can verify. 
 
 9. Build the Sandbox and My real portfolio modes.
 
-**Check:** a first-time player finishes levels 1 to 3 on a phone in under 10 minutes.
+**Check:** a first-time player can get through levels 1 to 3 on a phone and say what each one was about. Until 27 November 2026 this read "in under 10 minutes"; see the clarity goal in "Launch is done when" above for why the clock went.
 
 ### Milestone 3: launch (one weekend)
 
@@ -702,6 +708,8 @@ Follow the 8-week plan above. Log weekly: players by source code, levels reached
 ### To watch in the next playtest
 
 Things measured but deliberately not acted on yet, because what they mean depends on watching somebody play. Added 27 November 2026.
+
+- **Is every screen clear?** The goal that replaced the ten-minute one, and the only way to answer it is five people and no help. For each screen: did they read it twice? Did they ask what a word meant? Did they act on it or ignore it? A screen that is skipped is as much a problem as one that is slow, and the word count could not see either.
 
 - **The ladder's difficulty is wildly uneven, and level 3 is the hard one.** On the live window, the share of randomly drawn designs that pass each level: level 3 **1.4%** (17 of 1,199), level 6 4.6%, level 1 8.8%, level 5 10.5%, **level 4 56.1%** (635 of 1,131). So level 3 — the third thing a new player meets, and the last one in the 15-minute classroom cut — is by some distance the hardest in the game, and level 4 passes more often than not. `node scripts/check_pass_bar.mjs` prints the table. **Nothing is being changed on this now**: a pass rate over random draws is not a pass rate over what a person builds, and a player who has just been taught to spread across groups is not drawing at random. Whether level 3 is actually a wall is a question for five people and no help, which is what this milestone is for. Watch where they stall, and how many reach level 4 without being told anything.
 
