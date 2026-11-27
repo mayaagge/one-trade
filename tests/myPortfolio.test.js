@@ -42,6 +42,7 @@ const root = new URL('..', import.meta.url);
 const readJson = (name) => JSON.parse(readFileSync(fileURLToPath(new URL(name, root)), 'utf8'));
 const LEVELS = validateLevels(readJson('levels.json'));
 const TICKERS = readJson('tickers.json');
+const NAMES = readJson('names.json');
 const BASKET = readJson('basket.json');
 const GAME = readJson('data/game.json');
 
@@ -115,10 +116,15 @@ function browser() {
       const name = String(url);
       asked.push(name);
       sent.push(`fetch ${name} ${options?.body ?? ''}`);
+      // names.json BY NAME, not by the fall-through. Handing it tickers.json
+      // made validateNames() throw, mountMyPortfolio()'s catch set names to
+      // null, and the "What are these?" list quietly did not render - a
+      // passing test over a screen that was missing a feature.
       const body = name.includes('levels.json') ? LEVELS
         : name.includes('basket.json') ? BASKET
           : name.includes('game.json') ? GAME
-            : TICKERS;
+            : name.includes('names.json') ? NAMES
+              : TICKERS;
       return { ok: true, status: 200, json: async () => body };
     },
   });
@@ -128,7 +134,12 @@ function browser() {
   };
 }
 
-const DATA_FILES = ['basket.json', 'data/game.json', 'levels.json', 'tickers.json'];
+// names.json joined these on 27 November 2026: what each ticker IS, for the
+// "What are these?" list. This screen has no picker - a player types a symbol
+// from memory - so it is the mode with the strongest claim on it.
+const DATA_FILES = [
+  'basket.json', 'data/game.json', 'levels.json', 'names.json', 'tickers.json',
+];
 
 const tagged = (view, tag) => view.all().filter((node) => node.tagName === tag);
 const boxNamed = (view, name) => tagged(view, 'INPUT')
@@ -235,8 +246,17 @@ test('the total and the shares follow every change', async () => {
     buttonSaying(b.root, /Remove GLD/).click();
     assert.equal(ctx.list.total(), 10000);
     assert.match(textOf(b.root), /50%/);
-    assert.ok(!/GLD/.test(textOf(b.root).replace(/GLD(?=<\/option>)/g, '')),
-      'a removed holding is still on the screen');
+    // SCOPED TO THE HOLDING ROWS, which is what "removed" means. Two other
+    // places on this screen name every ticker the game carries and always
+    // will: the datalist behind the ticker box, and the "What are these?"
+    // list added on 27 November 2026. Asserting over the whole screen used to
+    // need a regex that stripped datalist options out of the text, and would
+    // now need a second one for the glossary - at which point it is no longer
+    // testing what it says it tests.
+    const inRows = (view) => view.querySelectorAll('holding-row')
+      .map((row) => row.textContent).join(' ');
+    assert.ok(!/GLD/.test(inRows(b.root)), 'a removed holding is still in the list');
+    assert.match(inRows(b.root), /VOO/, 'the holdings that stayed are gone too');
   } finally { b.restore(); }
 });
 
@@ -530,6 +550,24 @@ test('the holdings can be changed after measuring, and cleared outright', async 
 });
 
 // --- nothing leaves ----------------------------------------------------------
+
+test('the entry screen says what every ticker is, closed until it is wanted', async () => {
+  // THE MODE WITH THE STRONGEST CLAIM ON IT. There is no picker here - a
+  // player types a symbol from memory into a box - so "what is LQD?" has
+  // nowhere else to be answered. Playtest feedback, 27 November 2026.
+  const b = browser();
+  try {
+    await mountMyPortfolio(b.root);
+    const box = b.root.querySelector('what-are-these');
+    assert.ok(box, 'the entry screen offers no "What are these?" list');
+    assert.equal(box.attributes.open, undefined, 'it is open by default');
+    assert.equal(box.querySelectorAll('glossary-row').length, UNIVERSE.length,
+      'the list does not cover every ticker the box will accept');
+    const text = textOf(box);
+    assert.ok(text.includes('Vanguard S&P 500 ETF'));
+    assert.ok(text.includes('SPDR Gold Shares'));
+  } finally { b.restore(); }
+});
 
 test('nothing is sent, by any route, once holdings are entered', async () => {
   const b = browser();

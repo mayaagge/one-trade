@@ -46,7 +46,9 @@ import {
   seriesFacts,
   validateWhy,
 } from '../js/why.js';
-import { seriesLine, seriesStarsExplanation } from '../js/game.js';
+import { renderGuess, seriesLine, seriesStarsExplanation } from '../js/game.js';
+
+import { withDocument } from './stubDom.js';
 import {
   REVEAL,
   createRound,
@@ -494,6 +496,81 @@ test('a series level refuses to improvise its own portfolio', () => {
     () => createRound({ levels: LEVELS, levelId: 7, game: GAME, universe: UNIVERSE }),
     /dealt by dealSeries/,
   );
+});
+
+/** The skeleton of a rendered view: every node's tag and class, in order. */
+function skeleton(node) {
+  return node.all().map((n) => `${n.tagName}.${n.className ?? ''}`);
+}
+
+/** How many holdings a rendered view lists. */
+function view0Rows(view) {
+  return view.querySelectorAll('holding').length;
+}
+
+test("level 2 and level 7's first portfolio ask the question the same way", () => {
+  // PREREG.md's Hypothesis 3 pairs a player's level-2 error with their error
+  // on the first of level 7's mystery portfolios, and reads the two as
+  // comparable. They are comparable only while the two screens ASK the same
+  // thing the same way. Both are dealt from the pool of 20, both use the same
+  // 1-to-6 slider (BUILD_LOG.md 2.10) - and since 27 November 2026 both show
+  // the money split while the guess is being made, which is the change this
+  // test exists to pin down. One of them gaining that and not the other would
+  // be a difference between the two measurements, not a nicer screen.
+  const restore = withDocument();
+  try {
+    const ctx = { series: null, game: GAME, finish() {}, draw() {} };
+    const two = createRound({ levels: LEVELS, levelId: 2, game: GAME, universe: UNIVERSE });
+    two.toGuess();
+    const twoView = renderGuess(ctx, two);
+
+    const s = series([0, 0.1, 0, 0]);
+    const seven = s.current();
+    if (seven.state !== 'guess') seven.toGuess();
+    // NEITHER HAS GUESSED YET, which is the state the comparison is about:
+    // what the screen asks, before it has been answered. Setting a guess on
+    // one and not the other is what made the first run of this test fail -
+    // the blank readout and the thumbless slider carry their own classes.
+    const sevenView = renderGuess({ ...ctx, series: s }, seven);
+
+    // THE PORTFOLIO, shown the same way on both: same list, same rows, same
+    // classes. The amounts differ because the portfolios differ.
+    //
+    // THE SHAPE OF A ROW, NOT THE NUMBER OF THEM. The two portfolios are
+    // different draws from the pool of 20 and hold different numbers of
+    // things - three against five here - which is the pool working as
+    // registered, not a difference between the screens.
+    const rowShapes = (view) => [...new Set(view.querySelectorAll('holding')
+      .map((row) => row.all().map((n) => n.className).filter(Boolean).join(',')))];
+    assert.deepEqual(rowShapes(twoView), rowShapes(sevenView),
+      'the two screens lay a dealt holding out differently');
+    assert.equal(rowShapes(twoView).length, 1, 'the rows on one screen are not all alike');
+    assert.ok(view0Rows(twoView) > 0 && view0Rows(sevenView) > 0,
+      'a screen shows no split at all');
+    for (const view of [twoView, sevenView]) {
+      const text = view.querySelectorAll('holding').map((row) => row.textContent).join(' ');
+      assert.match(text, /\$/, 'a dealt portfolio is shown without its money');
+      assert.match(text, /%/, 'a dealt portfolio is shown without its shares');
+    }
+
+    // NEITHER OFFERS A WAY BACK TO THE BUILD, which is why the split had to
+    // be on this screen: a dealt portfolio has nothing to change.
+    for (const view of [twoView, sevenView]) {
+      const words = view.querySelectorAll('btn').map((b) => b._text);
+      assert.ok(!words.some((w) => /Back to the build/.test(w ?? '')), words.join(' | '));
+    }
+
+    // And the rest of the screen matches too. Two things are set aside: the
+    // step line, which says "Portfolio 1 of 3" on the capstone and must, and
+    // the holding rows, whose COUNT is the portfolios differing rather than
+    // the screens - their shape is checked above.
+    const strip = (view) => skeleton(view)
+      .filter((entry) => !entry.startsWith('P.round-step'))
+      .filter((entry) => !/\.(holding|alloc-ticker|alloc-amount|alloc-share)$/.test(entry)
+        && !entry.startsWith('STRONG.'));
+    assert.deepEqual(strip(twoView), strip(sevenView),
+      'the two guess screens are built differently');
+  } finally { restore(); }
 });
 
 test('createSeries refuses a level that asks one question', () => {

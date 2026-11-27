@@ -250,6 +250,50 @@ export function pickedNames(build, names) {
   return wrap;
 }
 
+/**
+ * A portfolio's holdings and where the money sits, as a plain list.
+ *
+ * ONE COMPONENT, TWO SCREENS, AND THAT IS THE POINT. The build screen shows a
+ * dealt portfolio and the guess screen shows the same portfolio again, and
+ * playtest feedback was that a player guessing on level 2 could not look back
+ * at the split - the build screen is behind them and a dealt round has no
+ * "Back to the build" button, by design, because there is nothing to change.
+ *
+ * WHY THIS MATTERS BEYOND CONVENIENCE: PREREG.md's Hypothesis 3 pairs a
+ * player's level-2 error with their level-7 error, and the two are comparable
+ * only while the two screens ask the same question the same way. Rendering
+ * both from the same function off the same round makes that true by
+ * construction rather than by two call sites being kept in step.
+ *
+ * NO MONEY ON A LEVEL THAT SPLITS NONE. Level 1's answer is a correlation,
+ * which is the same number whatever the split, so the round carries no
+ * dollars and the list is just the two names.
+ */
+export function holdingList(build, { dollars = null, total = null } = {}) {
+  const amounts = dollars ?? build.dollars ?? null;
+  const sum = total ?? build.total ?? null;
+  const list = h('ul', 'holding-list');
+  for (const ticker of build.picks ?? build.tickers ?? []) {
+    const item = h('li', 'holding');
+    item.append(h('span', 'alloc-ticker', ticker));
+    const amount = amounts?.[ticker];
+    if (Number.isFinite(amount)) {
+      // THE SHARE NESTS INSIDE THE AMOUNT, which is how the allocator builds
+      // the same pair: `.holding` is a flex row with space-between, so three
+      // siblings would spread across the width instead of pinning the ticker
+      // left and the money right. Same markup, same stylesheet, no new rule.
+      const cell = h('span', 'alloc-amount');
+      cell.append(h('strong', null, money(amount)));
+      if (Number.isFinite(sum) && sum > 0) {
+        cell.append(h('span', 'alloc-share', `${Math.round((amount / sum) * 100)}%`));
+      }
+      item.append(cell);
+    }
+    list.append(item);
+  }
+  return list;
+}
+
 // ----------------------------------------------------------- the allocator
 
 /**

@@ -39,7 +39,7 @@ import { renderLineChart, chartBox } from './chart.js';
 // portfolio when they arrive. See the note at the top of js/build.js.
 import {
   h, button, money, tickerPicker, allocator, floorNotes, errorView,
-  whatAreThese, pickedNames,
+  whatAreThese, pickedNames, holdingList,
 } from './build.js';
 // What each ticker is, for the "What are these?" list and the names beside a
 // picked holding. Its own file, not tickers.json, which is registered.
@@ -520,14 +520,9 @@ function renderBuild(ctx, round) {
     view.append(h('h2', 'allocator-head', ctx.series
       ? `Mystery portfolio ${ctx.series.at + 1} of ${ctx.series.count}`
       : 'Your starter portfolio'));
-    const list = h('ul', 'holding-list');
-    for (const ticker of round.picks) {
-      const item = h('li', 'holding');
-      item.append(h('span', 'alloc-ticker', ticker));
-      item.append(h('span', 'alloc-amount', money(round.dollars[ticker])));
-      list.append(item);
-    }
-    view.append(list);
+    // The same component the guess screen draws, off the same round, so the
+    // two screens cannot come to show a dealt portfolio differently.
+    view.append(holdingList(round));
     // DEALT, BUT STILL UNNAMED WITHOUT THIS. Levels 2 and 7 hand a player a
     // portfolio rather than letting them pick one, which makes "what is LQD?"
     // more pressing here than anywhere, not less.
@@ -632,7 +627,12 @@ export function renderGuess(ctx, round) {
   prompt.setAttribute('for', 'guess-slider-input');
   view.append(prompt);
 
-  view.append(h('p', 'guess-holdings', round.picks.join(' · ')));
+  // THE PORTFOLIO, AND WHERE ITS MONEY SITS, while the guess is being made.
+  // Playtest feedback: on level 2 the split was on the screen before and a
+  // dealt round has no way back to it. The same list the build screen draws,
+  // from the same round - which is also what keeps level 2 and level 7's
+  // first portfolio asking the question identically, as Hypothesis 3 needs.
+  view.append(holdingList(round));
 
   const state = guessSliderState(round);
 

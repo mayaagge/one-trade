@@ -31,7 +31,7 @@
 // Educational, not investment advice.
 
 import {
-  h, button, money, errorView,
+  h, button, money, errorView, whatAreThese,
 } from './build.js';
 import { loadGameData } from './gameView.js';
 import { LEVELS_URL, validateLevels } from './levels.js';
@@ -44,6 +44,7 @@ import { groupIndex, percent } from './why.js';
 // Putting a view on the page without losing the scroll position or the focused
 // control - see the long note at the top of js/screen.js.
 import { createScreen } from './screen.js';
+import { loadNames } from './names.js';
 
 export const TICKERS_URL = 'tickers.json';
 export const BASKET_URL = 'basket.json';
@@ -301,6 +302,13 @@ function renderEnter(ctx) {
       + `tickers this game carries - ${LEAST_HOLDINGS} to ${MOST_HOLDINGS} of them.`));
   }
 
+  // WHAT EACH TICKER IS, and this screen has the strongest claim on it of
+  // any: there is no picker here, so a player types a symbol from memory into
+  // a box. The datalist above suggests the forty; this says what they are.
+  // Closed, like everywhere else, so it costs one line until it is wanted.
+  const glossary = whatAreThese(ctx.names, ctx.universe);
+  if (glossary) view.append(glossary);
+
   const ready = ctx.list.canMeasure();
   view.append(button('See what this portfolio does', 'btn btn-primary btn-wide',
     () => ctx.measure(), { disabled: !ready }));
@@ -384,6 +392,15 @@ export async function mountMyPortfolio(root) {
     return null;
   }
 
+  // What each ticker is. Never fatal: without it the screen shows the bare
+  // symbols it always showed.
+  let names = null;
+  try {
+    names = await loadNames();
+  } catch {
+    names = null;
+  }
+
   const universe = tickersDoc.groups
     .flatMap((group) => group.tickers.map((t) => (typeof t === 'string' ? t : t.ticker)));
   const groups = groupIndex(tickersDoc);
@@ -394,6 +411,7 @@ export async function mountMyPortfolio(root) {
 
   const ctx = {
     levels,
+    names,
     basket,
     game,
     groups,

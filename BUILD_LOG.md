@@ -6152,3 +6152,82 @@ untouched: it takes typed holdings rather than offering a picker, so it has no
 build screen of this shape.
 
 Educational, not investment advice.
+
+## Player feedback 5 and 2 again: the money split while guessing, 27 November 2026 (session 2.43)
+
+**From the playtest: a player guessing on level 2 could not look back at the
+split.** The build screen is behind them, and a dealt round has no "Back to
+the build" button - by design, because there is nothing to change.
+
+The guess screen now shows the portfolio and where its money sits: ticker,
+dollars and share, one row each. Level 1 shows the two holdings and no money,
+because its answer is a correlation and the round splits none.
+
+### Rendered by one component, which is the Hypothesis 3 part
+
+`holdingList()` is new in js/build.js and is drawn by **both** the build screen
+and the guess screen, off the same round. The build screen's version had been
+inline and is now this one, so the two cannot drift.
+
+That is not tidiness. PREREG.md's Hypothesis 3 pairs a player's level-2 error
+with their error on the first of level 7's mystery portfolios and reads the two
+as comparable, which holds only while the two screens ASK the same thing the
+same way. Both are dealt from the pool of 20 and both use the same 1-to-6
+slider (session 2.10); now both show the split. One gaining it and not the
+other would have been a difference between two measurements rather than a
+nicer screen.
+
+A test renders both and compares them: the shape of a holding row, the absence
+of a "Back to the build" button on either, and the whole view skeleton with two
+things set aside - the step line, which says "Portfolio 1 of 3" on the capstone
+and must, and the NUMBER of rows, because the two portfolios are different
+draws from the pool and hold different numbers of things. Both of those were
+mistakes in the first draft of the test, found by running it.
+
+### "What are these?" reaches My real portfolio
+
+Maya's addition, and the mode with the strongest claim on it: there is no
+picker here, so a player types a symbol from memory into a box. The list sits
+under the note about the ticker box and covers all 40.
+
+**Its test file was serving the wrong bytes.** The fetch stub fell through to
+tickers.json for any name it did not recognise, so `names.json` arrived as
+tickers.json, `validateNames()` threw, `mountMyPortfolio`'s catch set names to
+null, and the list quietly did not render. Every test still passed, over a
+screen that was missing the feature. The stub names the file now, and a test
+asserts the list is there, closed, and covers the whole universe.
+
+**And one existing test had to be rescoped rather than patched.** "A removed
+holding is still on the screen" asserted over the whole screen's text, with a
+regex stripping the datalist's options back out. The glossary names every
+ticker too, so it would have needed a second strip - at which point the test no
+longer tests what it says. It reads the holding rows now, which is what
+"removed" means.
+
+### The word budget moved the wrong way, and the number is here
+
+`node scripts/dev_phone.mjs`, before and after: **1,192 words to 1,217**, and
+**10m 17s to 10m 34s at 125 wpm** against a 10-minute launch item. Where it
+went: level 3's guess screen 59 to 69, level 2's guess screen 54 to 62. Level
+2's figures carry some noise because its portfolio is drawn at random on each
+run - the reveal moved by -7 on a screen this session did not touch.
+
+**Two honest things about that.** The estimate models reading as words over
+words-per-minute, which is a PROSE model, and "$3,300 33%" in a table is a
+glance rather than a sentence - so the tool overstates this particular cost.
+And the overage is not new: it was 12s over at 125 wpm before session 2.42 and
+is 34s over now. 150 wpm is still 1m 10s under.
+
+**What follows from it:** session 9 is the text session, and it has to be a net
+REDUCTION rather than a hold. Three of the sixteen items left add words. The
+PRD already says a real phone is what settles this item, not the estimate.
+
+### Checked, not assumed
+
+1,246 to **1,248 passing**. Screenshotted at 375px: level 2's guess screen
+shows KO $3,300 33%, GS $2,000 20%, VEA $2,500 25%, BND $2,200 22% above the
+slider. The a11y contrast table is empty. `.guess-holdings` is gone from the
+stylesheet - the rule it styled no longer exists, and a dead rule is a thing
+somebody later has to work out.
+
+Educational, not investment advice.
