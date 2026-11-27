@@ -340,6 +340,31 @@ test('a rate-limited /ping is rejected and writes nothing', async () => {
   assert.equal(env.PINGS.points.length, 0);
 });
 
+test('a full class-sized burst of pings from one IP all succeed, too', async () => {
+  // PING_LIMITER started at 30/60s and was raised to 300/60s on 27 November
+  // 2026 (BUILD_LOG.md) - that original limit was itself tight enough for
+  // one class session's worth of level-reached pings to undercount. A real
+  // counting stand-in, not a stub, so the configured 300 is actually
+  // exercised: up to 7 pings per student (one per level reached) times a
+  // 40-student class is 280, under the limit with room to spare.
+  let count = 0;
+  const env = baseEnv({ PING_LIMITER: { limit: async () => ({ success: (count += 1) <= 300 }) } });
+  let sent = 0;
+  for (let student = 0; student < 40; student += 1) {
+    for (let level = 1; level <= 7; level += 1) {
+      sent += 1;
+      // eslint-disable-next-line no-await-in-loop
+      const response = await worker.fetch(
+        postRequest('/ping', { level, src: 'classroom' }, { ip: '198.51.100.88' }),
+        env,
+      );
+      assert.equal(response.status, 204, `ping ${sent} from a full class on one IP should not be limited`);
+    }
+  }
+  assert.equal(sent, 280);
+  assert.equal(env.PINGS.points.length, 280);
+});
+
 test('the real visitor IP is never written to any dataset, any blob, or any index', async () => {
   const markedIp = '203.0.113.123';
   const env = baseEnv();

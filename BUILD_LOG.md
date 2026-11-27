@@ -4812,6 +4812,18 @@ a real counting stand-in for `GUESS_IP_LIMITER` (not a stub that always says
 yes) and confirms a full class-sized burst never trips the 300 limit
 configured in `wrangler.toml`.
 
-1,173 tests pass.
+### `PING_LIMITER`'s own 30/60s was the same mistake one binding smaller
+
+Separating `/guess` from `/ping`'s rate limit fixed the shared-budget
+collision, but 30 requests a minute was never generous to begin with: a
+full class pings once per level reached, up to 7 per student, so a
+40-student session can produce up to 280 pings - undercounting the real
+count-ping metrics PRD's success targets depend on, the same failure mode
+as the original bug, one level down. Raised `PING_LIMITER` to 300/60s,
+matching `GUESS_IP_LIMITER`. A new test runs a real counting stand-in
+through exactly that 40-student, 7-ping-each scenario (280 requests) and
+confirms none of them trip the new limit.
+
+1,174 tests pass.
 
 Educational, not investment advice.

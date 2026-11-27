@@ -44,12 +44,15 @@ simple = { limit = 20, period = 60 }
 # Per-IP limit on /ping, the one route with no better key. NOT shared with
 # /guess (see GUESS_IP_LIMITER below) - a class of 30-40 students on one
 # campus-wifi IP would exhaust a shared budget on pings alone, before a
-# single /guess got through. The IP itself is only ever passed to this
-# binding's own ephemeral counter - see worker/src/index.js.
+# single /guess got through. Raised to the same 300/60s as GUESS_IP_LIMITER
+# on 27 November 2026 (BUILD_LOG.md): 30/60s was itself tight enough for one
+# class session's worth of level-reached pings to undercount. The IP itself
+# is only ever passed to this binding's own ephemeral counter - see
+# worker/src/index.js.
 [[ratelimits]]
 name = "PING_LIMITER"
 namespace_id = "1002"
-simple = { limit = 30, period = 60 }
+simple = { limit = 300, period = 60 }
 
 # /guess's OWN per-IP limit - generous enough that a full class sharing one
 # IP never trips it just by playing normally, while GUESS_LIMITER above
